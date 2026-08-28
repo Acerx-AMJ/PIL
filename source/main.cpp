@@ -23,6 +23,6 @@ int main(int argc, char *argv[]) {
    parser.lex(code);
 
    for (Token &token: parser.tokens) {
-      printf("%5llu %s: '%s'.\n", token.line, getTokenName(token.type), token.lexeme.c_str());
+      printf("%5llu %s: '%s'.\n", token.line, getTokenName(token.type), getLexeme(token.lexeme).c_str());
    }
 }

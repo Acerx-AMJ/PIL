@@ -118,7 +118,7 @@ void Parser::lex(const std::string &code) {
 }
 
 void Parser::insertToken(TokenType type, const std::string &lexeme) {
-   tokens.emplace_back(type, lexeme, tokenLine);
+   tokens.emplace_back(type, pushLexeme(lexeme), tokenLine);
 }
 
 char Parser::handleEscapeCode(const std::string &code, size_t &i) {
