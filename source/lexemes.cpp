@@ -1,9 +1,7 @@
 #include "lexemes.hpp"
-#include <unordered_map>
-#include <vector>
 
-inline std::vector<std::string> lexemes;
-inline std::unordered_map<std::string, size_t> lexemeCache;
+std::vector<std::string> lexemes;
+std::unordered_map<std::string, size_t> lexemeCache;
 
 size_t pushLexeme(const std::string &lexeme) {
    size_t id = lexemes.size();
@@ -27,4 +25,8 @@ std::string &getLexeme(size_t id) {
       exit(EXIT_FAILURE);
    }
    return lexemes[id];
+}
+
+size_t getLexemeCount() {
+   return lexemes.size();
 }

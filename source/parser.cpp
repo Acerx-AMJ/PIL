@@ -1,3 +1,4 @@
+#include "builtin.hpp"
 #include "lexemes.hpp"
 #include "parser.hpp"
 #include <algorithm>
@@ -11,7 +12,7 @@ static const std::unordered_map<char, char> escapeCodeMap {
    {'r', '\r'}, {'e', '\e'}, {'\\', '\\'}, {'\'', '\''}, {'"', '"'}
 };
 
-char handleEscapeCode(const std::string &code, size_t &i, size_t tokenLine) {
+char handleEscapeCode(const std::string &code, size_t &i, size_t fileLexeme, size_t tokenLine) {
    if (code[i] != '\\') {
       return code[i];
    }
@@ -19,7 +20,7 @@ char handleEscapeCode(const std::string &code, size_t &i, size_t tokenLine) {
    if (auto it = escapeCodeMap.find(code[i]); it != escapeCodeMap.end()) {
       return it->second;
    }
-   printf("Unknown escape code '\\%c' at line %llu.\n", code[i], tokenLine);
+   printf("Unknown escape code '\\%c' at %s:%llu.\n", code[i], getLexeme(fileLexeme).c_str(), tokenLine);
    exit(EXIT_FAILURE);
 }
 
@@ -29,6 +30,7 @@ char handleEscapeCode(const std::string &code, size_t &i, size_t tokenLine) {
 // characters and strings, which could change during execution and are usually longer and don't repeat as often. Registers
 // are safe to cache since they're constants
 void Parser::lex(const std::string &code, size_t fileLexeme) {
+   lexerFileLexeme = fileLexeme;
    for (size_t i = 0; i < code.size(); ++i) {
       char ch = code[i];
 
@@ -41,15 +43,6 @@ void Parser::lex(const std::string &code, size_t fileLexeme) {
       }
       else if (ch == ')') {
          tokens.emplace_back(TOKEN_R_PAREN, cacheLexeme(")"), fileLexeme, tokenLine);
-      }
-      else if (ch == '&') {
-         tokens.emplace_back(TOKEN_REFERENCE, cacheLexeme("&"), fileLexeme, tokenLine);
-      }
-      else if (ch == '*') {
-         tokens.emplace_back(TOKEN_DEREFERENCE, cacheLexeme("*"), fileLexeme, tokenLine);
-      }
-      else if (ch == ',') {
-         tokens.emplace_back(TOKEN_COMMA, cacheLexeme(","), fileLexeme, tokenLine);
       }
       else if (ch == ';') {
          while (i < code.size() && code[i] != '\n') i += 1;
@@ -70,7 +63,7 @@ void Parser::lex(const std::string &code, size_t fileLexeme) {
             printf("Unterminated character at %s:%llu.\n", getLexeme(fileLexeme).c_str(), tokenLine);
             exit(EXIT_FAILURE);
          }
-         ch[0] = handleEscapeCode(code, i, tokenLine);
+         ch[0] = handleEscapeCode(code, i, fileLexeme, tokenLine);
          i += 1;
 
          if (i >= code.size() || code[i] != '\'') {
@@ -89,7 +82,7 @@ void Parser::lex(const std::string &code, size_t fileLexeme) {
 
          string.reserve(end - i - 1);
          for (++i; i < code.size() && code[i] != '"'; ++i) {
-            string.push_back(handleEscapeCode(code, i, tokenLine));
+            string.push_back(handleEscapeCode(code, i, fileLexeme, tokenLine));
             tokenLine += (code[i] == '\n');
          }
          tokens.emplace_back(TOKEN_STRING, pushLexeme(string), fileLexeme, tokenLine);
@@ -131,13 +124,11 @@ void Parser::lex(const std::string &code, size_t fileLexeme) {
          tokens.emplace_back(TOKEN_IDENTIFIER, pushLexeme(identifier), fileLexeme, tokenLine);
          i = end - 1;
       }
-      else if (!std::isspace(ch)) {
+      else if (!std::isspace(ch) && ch != ',') {
          printf("Unexpected character '%c' at %s:%llu.\n", ch, getLexeme(fileLexeme).c_str(), tokenLine);
          exit(EXIT_FAILURE);
       }
    }
-   // no need to cache a one-time token
-   tokens.emplace_back(TOKEN_EOF, pushLexeme("EOF"), fileLexeme, tokenLine);
 }
 
 // translator (handle includes)
@@ -176,25 +167,57 @@ void Parser::handleIncludes() {
 
       Parser parser;
       parser.lex(code, tokens[i + 1].lexeme);
-
-      if (!parser.tokens.empty()) parser.tokens.back().parsed = true; // clear rogue EOFs
       tokens.insert(tokens.begin() + i + 3, parser.tokens.begin(), parser.tokens.end());
       i += 2; // incremented by an extra one in the loop
    }
    // erase all includes
    tokens.erase(std::remove_if(tokens.begin(), tokens.end(), [](const Token &t) { return t.parsed; }), tokens.end());
+   tokens.emplace_back(TOKEN_EOF, pushLexeme("EOF"), lexerFileLexeme, tokenLine);
+}
+
+// built-in functions
+
+// we only define built-in functions that actually get used. thanks, cache.
+void Parser::pushBuiltin(const std::string &lexeme, NativeFunction func) {
+   if (auto it = lexemeCache.find(lexeme); it != lexemeCache.end()) {
+      Function function;
+      function.native = true;
+      function.nativeFunction = func;
+      functionMap[it->second] = function;
+   }
+}
+
+void Parser::defineBuiltins() {
+   functionMap.resize(getLexemeCount());
+
+   pushBuiltin("add", builtinAdd);
+   pushBuiltin("sub", builtinSub);
+   pushBuiltin("print", builtinPrint);
 }
 
 // parser
+
+// take the tokens and turn them into executable function blocks and commands. we have 3 levels here: file -> functions ->
+// commands. there can be no commands in the file level and no functions in the command level.
 void Parser::parse() {
    // function prepass
    size_t functionCount = std::count_if(tokens.begin(), tokens.end(), [](const Token &t) { return t.type == TOKEN_L_PAREN; });
-   functions.reserve(functionCount);
+   blocks.reserve(functionCount);
 
    for (size_t i = 0; i < tokens.size(); ++i) {
       if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_L_PAREN) {
-         functionDefinitions[tokens[i].lexeme] = functions.size();
-         functions.emplace_back(tokens[i].lexeme, i);
+         size_t position = tokens[i].lexeme;
+         size_t size = functionMap.size();
+         if (position >= size) {
+            // try to do the normal vector allocation (2X size) or just use position if that's erroneous
+            functionMap.resize(position >= size * 2 || size == 0 ? position : size);
+         }
+         Function function;
+         function.native = false;
+         function.function = position;
+         functionMap[i] = function;
+
+         blocks.emplace_back(tokens[i].lexeme, i);
       }
    }
 

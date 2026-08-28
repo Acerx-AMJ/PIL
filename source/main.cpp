@@ -27,5 +27,6 @@ int main(int argc, char *argv[]) {
       printf("%s:%-5llu %s: '%s'.\n", getLexeme(token.fileLexeme).c_str(), token.line, getTokenName(token.type), getLexeme(token.lexeme).c_str());
    }
 
+   parser.defineBuiltins();
    parser.parse();
 }

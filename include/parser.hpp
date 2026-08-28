@@ -2,17 +2,20 @@
 #include "tokens.hpp"
 #include "values.hpp"
 #include <string>
-#include <unordered_map>
 
 struct Parser {
    void lex(const std::string &code, size_t fileLexeme);
    void handleIncludes();
+
+   void pushBuiltin(const std::string &identifier, NativeFunction func);
+   void defineBuiltins();
    void parse();
 
    std::vector<Token> tokens;
    size_t tokenLine = 1;
+   size_t lexerFileLexeme;
 
-   std::unordered_map<size_t, size_t> functionDefinitions;
-   std::vector<Block> functions;
+   std::vector<Function> functionMap;
+   std::vector<Block> blocks;
    size_t valueLine = 1;
 };
