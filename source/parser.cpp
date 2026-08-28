@@ -1,13 +1,13 @@
+#include "lexemes.hpp"
 #include "parser.hpp"
+#include <algorithm>
 #include <unordered_map>
 
-// constants
-static const std::unordered_map<char, char> escapeCodeMap {
-   {'a', '\a'}, {'b', '\b'}, {'t', '\t'}, {'n', '\n'}, {'v', '\v'}, {'f', '\f'},
-   {'r', '\r'}, {'e', '\e'}, {'\\', '\\'}, {'\'', '\''}, {'"', '"'}
-};
-
 // lexer
+
+// translate code into tokens. we cache common lexemes that repeat often like identifiers and ops but don't cache numbers,
+// characters and strings, which could change during execution and are usually longer and don't repeat as often. Registers
+// are safe to cache since they're constants
 void Parser::lex(const std::string &code) {
    for (size_t i = 0; i < code.size(); ++i) {
       char ch = code[i];
@@ -16,19 +16,19 @@ void Parser::lex(const std::string &code) {
          tokenLine += (ch == '\n');
       }
       else if (ch == '(') {
-         insertToken(TOKEN_L_PAREN, "(");
+         tokens.emplace_back(TOKEN_L_PAREN, cacheLexeme("("), tokenLine);
       }
       else if (ch == ')') {
-         insertToken(TOKEN_R_PAREN, ")");
+         tokens.emplace_back(TOKEN_R_PAREN, cacheLexeme(")"), tokenLine);
       }
       else if (ch == '&') {
-         insertToken(TOKEN_REFERENCE, "&");
+         tokens.emplace_back(TOKEN_REFERENCE, cacheLexeme("&"), tokenLine);
       }
       else if (ch == '*') {
-         insertToken(TOKEN_DEREFERENCE, "*");
+         tokens.emplace_back(TOKEN_DEREFERENCE, cacheLexeme("*"), tokenLine);
       }
       else if (ch == ',') {
-         insertToken(TOKEN_COMMA, ",");
+         tokens.emplace_back(TOKEN_COMMA, cacheLexeme(","), tokenLine);
       }
       else if (ch == ';') {
          while (i < code.size() && code[i] != '\n') i += 1;
@@ -39,7 +39,7 @@ void Parser::lex(const std::string &code) {
          for (++i; i < code.size() && std::isdigit(code[i]); ++i) {
             reg.push_back(code[i]);
          }
-         insertToken(TOKEN_REGISTER, reg);
+         tokens.emplace_back(TOKEN_REGISTER, cacheLexeme(reg), tokenLine);
          i -= 1;
       }
       else if (ch == '\'') {
@@ -56,7 +56,7 @@ void Parser::lex(const std::string &code) {
             printf("Unterminated character at line %llu.\n", tokenLine);
             exit(EXIT_FAILURE);
          }
-         insertToken(TOKEN_CHARACTER, ch);
+         tokens.emplace_back(TOKEN_CHARACTER, pushLexeme(ch), tokenLine);
       }
       else if (ch == '"') {
          std::string string;
@@ -68,10 +68,10 @@ void Parser::lex(const std::string &code) {
 
          string.reserve(end - i - 1);
          for (++i; i < code.size() && code[i] != '"'; ++i) {
-            string.push_back(code[i]);
+            string.push_back(handleEscapeCode(code, i));
             tokenLine += (code[i] == '\n');
          }
-         insertToken(TOKEN_STRING, string);
+         tokens.emplace_back(TOKEN_STRING, pushLexeme(string), tokenLine);
       }
       else if (ch == '-' || ch == '.' || std::isdigit(ch)) {
          std::string number;
@@ -97,7 +97,7 @@ void Parser::lex(const std::string &code) {
                dot = true;
             }
          }
-         insertToken(dot ? TOKEN_FLOATING : TOKEN_INTEGER, number);
+         tokens.emplace_back(dot ? TOKEN_FLOATING : TOKEN_INTEGER, pushLexeme(number), tokenLine);
          i -= 1;
       }
       else if (ch == '_' || std::isalpha(ch)) {
@@ -106,7 +106,8 @@ void Parser::lex(const std::string &code) {
 
          for (++end; end < code.size() && (code[end] == '_' || code[end] == '-' || std::isalnum(code[end])); ++end);
          identifier = code.substr(i, end - i);
-         insertToken(TOKEN_IDENTIFIER, identifier);
+         std::transform(identifier.begin(), identifier.end(), identifier.begin(), tolower);
+         tokens.emplace_back(TOKEN_IDENTIFIER, pushLexeme(identifier), tokenLine);
          i = end - 1;
       }
       else {
@@ -114,12 +115,14 @@ void Parser::lex(const std::string &code) {
          exit(EXIT_FAILURE);
       }
    }
-   insertToken(TOKEN_EOF, "EOF");
+   // no need to cache a one-time token
+   tokens.emplace_back(TOKEN_EOF, pushLexeme("EOF"), tokenLine);
 }
 
-void Parser::insertToken(TokenType type, const std::string &lexeme) {
-   tokens.emplace_back(type, pushLexeme(lexeme), tokenLine);
-}
+static const std::unordered_map<char, char> escapeCodeMap {
+   {'a', '\a'}, {'b', '\b'}, {'t', '\t'}, {'n', '\n'}, {'v', '\v'}, {'f', '\f'},
+   {'r', '\r'}, {'e', '\e'}, {'\\', '\\'}, {'\'', '\''}, {'"', '"'}
+};
 
 char Parser::handleEscapeCode(const std::string &code, size_t &i) {
    if (code[i] != '\\') {

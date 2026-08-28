@@ -1,3 +1,4 @@
+#include "lexemes.hpp"
 #include "parser.hpp"
 #include <filesystem>
 #include <fstream>
