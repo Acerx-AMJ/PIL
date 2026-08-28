@@ -1,34 +1,55 @@
 #include "lexemes.hpp"
 #include "parser.hpp"
 #include <algorithm>
+#include <fstream>
 #include <unordered_map>
+#include <unordered_set>
+
+// helpers
+static const std::unordered_map<char, char> escapeCodeMap {
+   {'a', '\a'}, {'b', '\b'}, {'t', '\t'}, {'n', '\n'}, {'v', '\v'}, {'f', '\f'},
+   {'r', '\r'}, {'e', '\e'}, {'\\', '\\'}, {'\'', '\''}, {'"', '"'}
+};
+
+char handleEscapeCode(const std::string &code, size_t &i, size_t tokenLine) {
+   if (code[i] != '\\') {
+      return code[i];
+   }
+   i += 1;
+   if (auto it = escapeCodeMap.find(code[i]); it != escapeCodeMap.end()) {
+      return it->second;
+   }
+   printf("Unknown escape code '\\%c' at line %llu.\n", code[i], tokenLine);
+   exit(EXIT_FAILURE);
+}
 
 // lexer
 
 // translate code into tokens. we cache common lexemes that repeat often like identifiers and ops but don't cache numbers,
 // characters and strings, which could change during execution and are usually longer and don't repeat as often. Registers
 // are safe to cache since they're constants
-void Parser::lex(const std::string &code) {
+void Parser::lex(const std::string &code, size_t fileLexeme) {
    for (size_t i = 0; i < code.size(); ++i) {
       char ch = code[i];
 
-      if (std::isspace(ch)) {
-         tokenLine += (ch == '\n');
+      if (ch == '\n') {
+         tokens.emplace_back(TOKEN_NEWLINE, cacheLexeme("NL"), fileLexeme, tokenLine);
+         tokenLine += 1;
       }
       else if (ch == '(') {
-         tokens.emplace_back(TOKEN_L_PAREN, cacheLexeme("("), tokenLine);
+         tokens.emplace_back(TOKEN_L_PAREN, cacheLexeme("("), fileLexeme, tokenLine);
       }
       else if (ch == ')') {
-         tokens.emplace_back(TOKEN_R_PAREN, cacheLexeme(")"), tokenLine);
+         tokens.emplace_back(TOKEN_R_PAREN, cacheLexeme(")"), fileLexeme, tokenLine);
       }
       else if (ch == '&') {
-         tokens.emplace_back(TOKEN_REFERENCE, cacheLexeme("&"), tokenLine);
+         tokens.emplace_back(TOKEN_REFERENCE, cacheLexeme("&"), fileLexeme, tokenLine);
       }
       else if (ch == '*') {
-         tokens.emplace_back(TOKEN_DEREFERENCE, cacheLexeme("*"), tokenLine);
+         tokens.emplace_back(TOKEN_DEREFERENCE, cacheLexeme("*"), fileLexeme, tokenLine);
       }
       else if (ch == ',') {
-         tokens.emplace_back(TOKEN_COMMA, cacheLexeme(","), tokenLine);
+         tokens.emplace_back(TOKEN_COMMA, cacheLexeme(","), fileLexeme, tokenLine);
       }
       else if (ch == ';') {
          while (i < code.size() && code[i] != '\n') i += 1;
@@ -39,39 +60,39 @@ void Parser::lex(const std::string &code) {
          for (++i; i < code.size() && std::isdigit(code[i]); ++i) {
             reg.push_back(code[i]);
          }
-         tokens.emplace_back(TOKEN_REGISTER, cacheLexeme(reg), tokenLine);
+         tokens.emplace_back(TOKEN_REGISTER, cacheLexeme(reg), fileLexeme, tokenLine);
          i -= 1;
       }
       else if (ch == '\'') {
          std::string ch = "_";
          i += 1;
          if (i >= code.size()) {
-            printf("Unterminated character at line %llu.\n", tokenLine);
+            printf("Unterminated character at %s:%llu.\n", getLexeme(fileLexeme).c_str(), tokenLine);
             exit(EXIT_FAILURE);
          }
-         ch[0] = handleEscapeCode(code, i);
+         ch[0] = handleEscapeCode(code, i, tokenLine);
          i += 1;
 
          if (i >= code.size() || code[i] != '\'') {
-            printf("Unterminated character at line %llu.\n", tokenLine);
+            printf("Unterminated character at %s:%llu.\n", getLexeme(fileLexeme).c_str(), tokenLine);
             exit(EXIT_FAILURE);
          }
-         tokens.emplace_back(TOKEN_CHARACTER, pushLexeme(ch), tokenLine);
+         tokens.emplace_back(TOKEN_CHARACTER, pushLexeme(ch), fileLexeme, tokenLine);
       }
       else if (ch == '"') {
          std::string string;
          size_t end = code.find('"', i + 1);
          if (end == std::string::npos) {
-            printf("Unterminated string at line %llu.\n", tokenLine);
+            printf("Unterminated string at %s:%llu.\n", getLexeme(fileLexeme).c_str(), tokenLine);
             exit(EXIT_FAILURE);
          }
 
          string.reserve(end - i - 1);
          for (++i; i < code.size() && code[i] != '"'; ++i) {
-            string.push_back(handleEscapeCode(code, i));
+            string.push_back(handleEscapeCode(code, i, tokenLine));
             tokenLine += (code[i] == '\n');
          }
-         tokens.emplace_back(TOKEN_STRING, pushLexeme(string), tokenLine);
+         tokens.emplace_back(TOKEN_STRING, pushLexeme(string), fileLexeme, tokenLine);
       }
       else if (ch == '-' || ch == '.' || std::isdigit(ch)) {
          std::string number;
@@ -91,13 +112,13 @@ void Parser::lex(const std::string &code) {
             number.push_back(code[i]);
             if (code[i] == '.') {
                if (dot) {
-                  printf("Number '%s' contains multiple decimal points at line %llu.\n", number.c_str(), tokenLine);
+                  printf("Number '%s' contains multiple decimal points at %s:%llu.\n", number.c_str(), getLexeme(fileLexeme).c_str(), tokenLine);
                   exit(EXIT_FAILURE);
                }
                dot = true;
             }
          }
-         tokens.emplace_back(dot ? TOKEN_FLOATING : TOKEN_INTEGER, pushLexeme(number), tokenLine);
+         tokens.emplace_back(dot ? TOKEN_FLOATING : TOKEN_INTEGER, pushLexeme(number), fileLexeme, tokenLine);
          i -= 1;
       }
       else if (ch == '_' || std::isalpha(ch)) {
@@ -107,36 +128,75 @@ void Parser::lex(const std::string &code) {
          for (++end; end < code.size() && (code[end] == '_' || code[end] == '-' || std::isalnum(code[end])); ++end);
          identifier = code.substr(i, end - i);
          std::transform(identifier.begin(), identifier.end(), identifier.begin(), tolower);
-         tokens.emplace_back(TOKEN_IDENTIFIER, pushLexeme(identifier), tokenLine);
+         tokens.emplace_back(TOKEN_IDENTIFIER, pushLexeme(identifier), fileLexeme, tokenLine);
          i = end - 1;
       }
-      else {
-         printf("Unexpected character '%c' at line %llu.\n", ch, tokenLine);
+      else if (!std::isspace(ch)) {
+         printf("Unexpected character '%c' at %s:%llu.\n", ch, getLexeme(fileLexeme).c_str(), tokenLine);
          exit(EXIT_FAILURE);
       }
    }
    // no need to cache a one-time token
-   tokens.emplace_back(TOKEN_EOF, pushLexeme("EOF"), tokenLine);
+   tokens.emplace_back(TOKEN_EOF, pushLexeme("EOF"), fileLexeme, tokenLine);
 }
 
-static const std::unordered_map<char, char> escapeCodeMap {
-   {'a', '\a'}, {'b', '\b'}, {'t', '\t'}, {'n', '\n'}, {'v', '\v'}, {'f', '\f'},
-   {'r', '\r'}, {'e', '\e'}, {'\\', '\\'}, {'\'', '\''}, {'"', '"'}
-};
+// translator (handle includes)
 
-char Parser::handleEscapeCode(const std::string &code, size_t &i) {
-   if (code[i] != '\\') {
-      return code[i];
+// find all INCLUDE "FILE" statements and push their tokens if the files haven't been included yet. will erase all includes
+// after and doesn't have more than a single file open at a time.
+void Parser::handleIncludes() {
+   std::unordered_set<std::string> includedFiles;
+   for (size_t i = 0; i < tokens.size(); ++i) {
+      if (tokens[i].type != TOKEN_IDENTIFIER || tokens[i + 1].type != TOKEN_STRING || getLexeme(tokens[i].lexeme) != "include") {
+         continue;
+      }
+
+      std::string &filename = getLexeme(tokens[i + 1].lexeme);
+      if (tokens[i + 2].type != TOKEN_NEWLINE) {
+         printf("Expected a newline after include statement at %s:%llu.\n", filename.c_str(), tokens[i].line);
+         exit(EXIT_FAILURE);
+      }
+
+      // destroy all include statements after the loop
+      tokens[i].parsed = true;
+      tokens[i + 1].parsed = true;
+      tokens[i + 2].parsed = true;
+      if (includedFiles.find(filename) != includedFiles.end()) {
+         continue;
+      }
+
+      includedFiles.insert(filename);
+      std::ifstream file (filename);
+      if (!file.is_open()) {
+         printf("Could not include file '%s' at %llu.\n", filename.c_str(), tokens[i].line);
+         exit(EXIT_FAILURE);
+      }
+      std::string code (std::istreambuf_iterator<char>(file), {});
+      file.close();
+
+      Parser parser;
+      parser.lex(code, tokens[i + 1].lexeme);
+
+      if (!parser.tokens.empty()) parser.tokens.back().parsed = true; // clear rogue EOFs
+      tokens.insert(tokens.begin() + i + 3, parser.tokens.begin(), parser.tokens.end());
+      i += 2; // incremented by an extra one in the loop
    }
-   i += 1;
-   if (auto it = escapeCodeMap.find(code[i]); it != escapeCodeMap.end()) {
-      return it->second;
-   }
-   printf("Unknown escape code '\\%c' at line %llu.\n", code[i], tokenLine);
-   exit(EXIT_FAILURE);
+   // erase all includes
+   tokens.erase(std::remove_if(tokens.begin(), tokens.end(), [](const Token &t) { return t.parsed; }), tokens.end());
 }
 
 // parser
 void Parser::parse() {
+   // function prepass
+   size_t functionCount = std::count_if(tokens.begin(), tokens.end(), [](const Token &t) { return t.type == TOKEN_L_PAREN; });
+   functions.reserve(functionCount);
 
+   for (size_t i = 0; i < tokens.size(); ++i) {
+      if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_L_PAREN) {
+         functionDefinitions[tokens[i].lexeme] = functions.size();
+         functions.emplace_back(tokens[i].lexeme, i);
+      }
+   }
+
+   // real parsing
 }

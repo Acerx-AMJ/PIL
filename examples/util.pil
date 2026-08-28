@@ -1,0 +1,9 @@
+include "examples/include.pil"
+
+min(a, b, reg)
+   lesser a, b, reg
+   cond reg, a, b, reg
+
+max(a, b, reg)
+   greater a, b, reg
+   cond reg, a, b, reg

@@ -1,29 +1,31 @@
 #include "lexemes.hpp"
 #include "parser.hpp"
-#include <filesystem>
 #include <fstream>
 
 int main(int argc, char *argv[]) {
    if (argc != 2) {
-      printf("Expected single argument.\n");
+      printf("Expected single argument - input file.\n");
       exit(EXIT_FAILURE);
    }
 
-   std::string code = argv[1];
-   if (std::filesystem::exists(code) && std::filesystem::is_regular_file(code)) {
-      std::ifstream file (code);
-      if (!file.is_open()) {
-         printf("You don't have permission to run this file.\n");
-         exit(EXIT_FAILURE);
-      }
-      code = std::string(std::istreambuf_iterator<char>(file), {});
-      file.close();
+   size_t fileLexeme = pushLexeme(argv[1]);
+   std::ifstream file (getLexeme(fileLexeme));
+   if (!file.is_open()) {
+      printf("Could not read file '%s'.\n", argv[1]);
+      exit(EXIT_FAILURE);
    }
+   std::string code (std::istreambuf_iterator<char>(file), {});
+   file.close();
 
    Parser parser;
-   parser.lex(code);
+   parser.lex(code, fileLexeme);
+   code.clear(); // free up memory for the includes, which will read more files.
+   code.shrink_to_fit();
+   parser.handleIncludes();
 
    for (Token &token: parser.tokens) {
-      printf("%5llu %s: '%s'.\n", token.line, getTokenName(token.type), getLexeme(token.lexeme).c_str());
+      printf("%s:%-5llu %s: '%s'.\n", getLexeme(token.fileLexeme).c_str(), token.line, getTokenName(token.type), getLexeme(token.lexeme).c_str());
    }
+
+   parser.parse();
 }
