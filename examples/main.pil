@@ -1,12 +1,22 @@
-func()
-   add 2, 2, $1
-   sub $1, 1, $1
+fib(n)
+   leeq n, one, $1
+   jmp $1, fib-branch
 
-print-wrapper()
-   print $1 $2 $3
+   let nMinus1, nPlus1, fib1, fib2, result
+   sub n, 1, nMinus1
+   add n, 1, nPlus1
+
+   call fib1, fib, nMinus1
+   call fib2, fib, nPlus1
+   add fib1, fib2, result
+   return result
+
+fib-branch:
+   return n
 
 main()
-   func            ; $1 = 2 + 2 - 1
-   add 5, 5, $2    ; $2 = 5 + 5
-   sub 1, 10, $3   ; $3 = 1 - 10
-   print-wrapper   ; 310-9
+   global one 1 ; stupid example
+   global twenty 20 ; another stupid example
+
+   call $1, fib, twenty
+   print $1

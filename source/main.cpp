@@ -20,10 +20,10 @@ int main(int argc, char *argv[]) {
    handlePILFileIncludes(diagnostics, cache, file, tokens);
    log(cache, diagnostics, SEVERITY_ERROR);
 
-   printf("Tokens:\n");
-   for (Token &token: tokens) {
-      printf("%s:%-5zu %s: '%s'.\n", getLexeme(cache, token.fileLexeme).c_str(), token.line, getTokenName(token.type), getLexeme(cache, token.lexeme).c_str());
-   }
+   // printf("Tokens:\n");
+   // for (Token &token: tokens) {
+   //    printf("%s:%-5zu %s: '%s'.\n", getLexeme(cache, token.fileLexeme).c_str(), token.line, getTokenName(token.type), getLexeme(cache, token.lexeme).c_str());
+   // }
 
    ByteCode code;
    defineStandardBuiltins(cache, code);

@@ -17,6 +17,13 @@ struct ByteCode {
 };
 
 struct Executor {
+   Executor(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &code, size_t pointer)
+      : diagnostics(diagnostics), cache(cache), code(code), pointer(pointer) {}
+
+   Diagnostics &diagnostics;
+   LexemeCache &cache;
+   ByteCode &code;
+
    std::vector<Value> registers {16, Value{}};
    std::stack<size_t> stack;
    size_t pointer;

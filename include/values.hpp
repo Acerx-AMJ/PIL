@@ -5,6 +5,10 @@ enum ValueType: char {
    VALUE_INTEGER, VALUE_FLOATING, VALUE_CHARACTER, VALUE_STRING, VALUE_IDENTIFIER, VALUE_REGISTER, VALUE_COUNT
 };
 
+enum FunctionType: char {
+   FUNCTION, NATIVE_FUNCTION, LABEL
+};
+
 constexpr const char *getValueName(ValueType value) {
    constexpr const char *valueTypeStrings[VALUE_COUNT + 1] = {
       "Integer", "Floating", "Character", "String", "Identifier", "Register", "Invalid Value"
@@ -40,15 +44,16 @@ struct Command {
    std::vector<Value> args;
 };
 
-typedef void (*NativeFunction)(const Command&, struct Diagnostics&, struct Executor&);
+typedef void (*NativeFunction)(const Command&, struct Executor&);
 
 struct Function {
+   FunctionType type;
    bool init = false;
-   bool native;
    bool variadic = false;
    bool reserved = false;
    std::vector<size_t> params;
    union {
+      size_t label;
       size_t function;
       NativeFunction nativeFunction;
    };
