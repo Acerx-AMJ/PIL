@@ -234,10 +234,25 @@ void pushReservedBuiltin(LexemeCache &cache, ByteCode &data, const std::string &
 void defineStandardBuiltins(LexemeCache &cache, ByteCode &data) {
    data.functions.resize(getLexemeCount(cache) + 1); // reserved built-ins might overflow, so adjust for that
 
+   // misc, temp
+   pushBuiltin(cache, data, "move", builtinMove, 2, false);
    pushBuiltin(cache, data, "add", builtinAdd, 3, true);
    pushBuiltin(cache, data, "sub", builtinSub, 3, true);
    pushBuiltin(cache, data, "print", builtinPrint, 1, true);
+
+   // comparison
+   pushBuiltin(cache, data, "le", builtinLe, 3, false);
+   pushBuiltin(cache, data, "gr", builtinGr, 3, false);
+   pushBuiltin(cache, data, "leeq", builtinLeeq, 3, false);
+   pushBuiltin(cache, data, "greq", builtinGreq, 3, false);
+   pushBuiltin(cache, data, "eq", builtinEq, 3, false);
+   pushBuiltin(cache, data, "neq", builtinNeq, 3, false);
+   pushBuiltin(cache, data, "not", builtinNot, 2, false);
+
+   // control flow
    pushBuiltin(cache, data, "goto", builtinGoto, 1, false);
+   pushBuiltin(cache, data, "jmp", builtinJmp, 2, false);
+   pushBuiltin(cache, data, "jmpn", builtinJmpn, 2, false);
 }
 
 // parser
@@ -335,7 +350,7 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
       }
       // function calls
       else {
-         if (tokens[i].type != TOKEN_IDENTIFIER || tokens[i].lexeme >= data.functions.size() || !data.functions[tokens[i].lexeme].init) {
+         if (tokens[i].type != TOKEN_IDENTIFIER || tokens[i].lexeme >= data.functions.size() || !data.functions[tokens[i].lexeme].init || data.functions[tokens[i].lexeme].type == LABEL) {
             if (tokens[i].type == TOKEN_IDENTIFIER) {
                error(diagnostics, std::format("No such function '{}'", getLexeme(cache, tokens[i].lexeme)), tokens[i].fileLexeme, tokens[i].line);
             }

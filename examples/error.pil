@@ -1,4 +1,0 @@
-main()
-   print 1
-   goto 1
-   print 2

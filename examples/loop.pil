@@ -1,0 +1,9 @@
+main()
+   move 1, $1       ; starting index
+   move 100, $2     ; how many times to loop
+
+loop:
+   print $1         ; print current iteration
+   add $1, 1, $1    ; increment by one
+   leeq $1, $2, $3  ; check and store in $3
+   jmp $3, loop     ; jump until i is larger than 100
