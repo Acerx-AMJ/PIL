@@ -1,13 +1,13 @@
 #pragma once
 #include <vector>
 
-enum ValueType {
-   VALUE_NULL, VALUE_INTEGER, VALUE_FLOATING, VALUE_CHARACTER, VALUE_STRING, VALUE_REGISTER, VALUE_REFERENCE, VALUE_COUNT
+enum ValueType: char {
+   VALUE_INTEGER, VALUE_FLOATING, VALUE_CHARACTER, VALUE_STRING, VALUE_IDENTIFIER, VALUE_REGISTER, VALUE_COUNT
 };
 
 constexpr const char *getValueName(ValueType value) {
    constexpr const char *valueTypeStrings[VALUE_COUNT + 1] = {
-      "Null", "Integer", "Floating", "Character", "String", "Register", "Reference", "Invalid Value"
+      "Integer", "Floating", "Character", "String", "Identifier", "Register", "Invalid Value"
    };
 
    if (value < 0 || value >= VALUE_COUNT) {
@@ -17,18 +17,21 @@ constexpr const char *getValueName(ValueType value) {
 }
 
 struct Value {
-   ValueType type = VALUE_NULL;
+   ValueType type = VALUE_COUNT;
+   size_t line;
+   size_t fileLexeme;
    union {
       long integer;
       double floating;
       char character;
       size_t string;
+      size_t identifier;
       size_t reg;
-      size_t reference;
    };
 };
 
 struct Command {
+   Command() = default;
    Command(size_t lexeme, const std::vector<Value> &values)
       : lexeme(lexeme), values(values) {}
 
@@ -37,10 +40,9 @@ struct Command {
 };
 
 struct Block {
+   Block() = default;
    Block(size_t lexeme, size_t tokenPosition)
       : lexeme(lexeme), tokenPosition(tokenPosition) {}
-   Block(size_t lexeme, size_t tokenPosition, const std::vector<size_t>& params, const std::vector<Command>& commands)
-      : lexeme(lexeme), tokenPosition(tokenPosition), params(params), commands(commands) {}
 
    size_t lexeme;
    size_t tokenPosition;
@@ -50,6 +52,7 @@ struct Block {
 
 typedef void (*NativeFunction)(const std::vector<Value> &args);
 struct Function {
+   bool init = false;
    bool native;
    union {
       size_t function;

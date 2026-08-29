@@ -4,14 +4,14 @@
 enum TokenType: char {
    TOKEN_REGISTER, TOKEN_L_PAREN, TOKEN_R_PAREN,
    TOKEN_IDENTIFIER, TOKEN_INTEGER, TOKEN_FLOATING, TOKEN_STRING, TOKEN_CHARACTER,
-   TOKEN_NEWLINE, TOKEN_EOF, TOKEN_COUNT,
+   TOKEN_EOF, TOKEN_COUNT,
 };
 
 constexpr const char *getTokenName(TokenType token) {
    constexpr const char *tokenTypeStrings[TOKEN_COUNT + 1] = {
       "Register", "Left Parentheses", "Right Parentheses",
       "Identifier", "Integer", "Floating", "String", "Character",
-      "Newline", "EOF", "Invalid Token",
+      "EOF", "Invalid Token",
    };
 
    if (token < 0 || token >= TOKEN_COUNT) {

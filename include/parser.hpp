@@ -11,6 +11,10 @@ struct Parser {
    void defineBuiltins();
    void parse();
 
+private:
+   bool isValidFunction(size_t lexeme);
+
+public:
    std::vector<Token> tokens;
    size_t tokenLine = 1;
    size_t lexerFileLexeme;

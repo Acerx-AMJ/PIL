@@ -23,10 +23,28 @@ int main(int argc, char *argv[]) {
    code.shrink_to_fit();
    parser.handleIncludes();
 
+   printf("Tokens:\n");
    for (Token &token: parser.tokens) {
       printf("%s:%-5llu %s: '%s'.\n", getLexeme(token.fileLexeme).c_str(), token.line, getTokenName(token.type), getLexeme(token.lexeme).c_str());
    }
 
    parser.defineBuiltins();
    parser.parse();
+
+   printf("\nBlocks:\n");
+   for (Block &block: parser.blocks) {
+      printf("%s:%llu.\n", getLexeme(block.lexeme).c_str(), parser.tokens[block.tokenPosition].line);
+      printf("Params: ");
+      for (size_t param: block.params) {
+         printf("%s, ", getLexeme(param).c_str());
+      }
+      putchar('\n');
+      for (auto &[lexeme, values]: block.commands) {
+         printf("\t%s: ", getLexeme(lexeme).c_str());
+         for (Value &value: values) {
+            printf("%s, ", getValueName(value.type));
+         }
+         putchar('\n');
+      }
+   }
 }
