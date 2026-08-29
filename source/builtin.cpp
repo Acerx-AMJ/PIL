@@ -12,7 +12,3 @@ void builtinSub(const Command &command) {
 void builtinPrint(const Command &command) {
    printf("Called builtinPrint.\n");
 }
-
-void builtinReturn(const Command &command) {
-   
-}

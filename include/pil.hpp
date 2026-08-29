@@ -22,3 +22,5 @@ struct ByteCode {
 void pushBuiltin(LexemeCache &cache, ByteCode &data, const std::string &lexeme, NativeFunction function, size_t paramCount, bool variadic);
 void defineStandardBuiltins(LexemeCache &cache, ByteCode &data);
 void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std::vector<Token> &tokens);
+
+void callPILFunction(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, const std::string &name);

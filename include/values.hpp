@@ -40,7 +40,7 @@ struct Command {
    std::vector<Value> args;
 };
 
-typedef void (*NativeFunction)(const Command &command);
+typedef void (*NativeFunction)(const Command&);
 
 struct Function {
    bool init = false;
