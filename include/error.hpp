@@ -1,9 +1,8 @@
 #pragma once
 #include "cache.hpp"
 
-// SEVERITY_NONE for use in log and logDiagnostic to not call exit
 enum ErrorSeverity: char {
-   SEVERITY_WARNING, SEVERITY_ERROR, SEVERITY_NONE
+   SEVERITY_NONE, SEVERITY_WARNING, SEVERITY_ERROR, SEVERITY_IGNORE
 };
 
 struct Diagnostic {
@@ -18,12 +17,10 @@ struct Diagnostic {
 
 struct Diagnostics {
    std::vector<Diagnostic> diagnostics;
-   bool errors = false;
-   bool warnings = false;
+   ErrorSeverity severity = SEVERITY_NONE;
 };
 
-bool hasErrors(Diagnostics &diagnostics);
-bool hasWarnings(Diagnostics &diagnostics);
+bool shouldError(Diagnostics &diagnostics, ErrorSeverity errorSeverity);
 
 void warn(Diagnostics &diagnostics, const std::string &message, size_t file, size_t line);
 void error(Diagnostics &diagnostics, const std::string &message, size_t file, size_t line);

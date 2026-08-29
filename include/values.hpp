@@ -40,12 +40,13 @@ struct Command {
    std::vector<Value> args;
 };
 
-typedef void (*NativeFunction)(const Command&);
+typedef void (*NativeFunction)(const Command&, struct Diagnostics&, struct Executor&);
 
 struct Function {
    bool init = false;
    bool native;
    bool variadic = false;
+   bool reserved = false;
    std::vector<size_t> params;
    union {
       size_t function;

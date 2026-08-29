@@ -5,28 +5,23 @@
 constexpr const char *ERROR_TEXT = "\e[0;31mError\e[0m";
 constexpr const char *WARNING_TEXT = "\e[0;33mWarning\e[0m";
 
-bool hasErrors(Diagnostics &diagnostics) {
-   return diagnostics.errors;
-}
-
-bool hasWarnings(Diagnostics &diagnostics) {
-   return diagnostics.warnings;
+bool shouldError(Diagnostics &diagnostics, ErrorSeverity errorSeverity) {
+   return diagnostics.severity >= errorSeverity;
 }
 
 void warn(Diagnostics &diagnostics, const std::string &message, size_t file, size_t line) {
    diagnostics.diagnostics.emplace_back(SEVERITY_WARNING, message, file, line);
-   diagnostics.warnings = true;
+   diagnostics.severity = std::max(diagnostics.severity, SEVERITY_WARNING);
 }
 
 void error(Diagnostics &diagnostics, const std::string &message, size_t file, size_t line) {
    diagnostics.diagnostics.emplace_back(SEVERITY_ERROR, message, file, line);
-   diagnostics.errors = true;
+   diagnostics.severity = std::max(diagnostics.severity, SEVERITY_ERROR);
 }
 
 void clear(Diagnostics &diagnostics) {
    diagnostics.diagnostics.clear();
-   diagnostics.errors = false;
-   diagnostics.warnings = false;
+   diagnostics.severity = SEVERITY_NONE;
 }
 
 void printDiagnostic(LexemeCache &cache, Diagnostic &diagnostic) {
@@ -42,18 +37,16 @@ void printDiagnostic(LexemeCache &cache, Diagnostic &diagnostic) {
 }
 
 void log(LexemeCache &cache, Diagnostics &diagnostics, ErrorSeverity quitSeverity) {
-   ErrorSeverity severity = ErrorSeverity(SEVERITY_WARNING - 1);
    for (Diagnostic &diagnostic: diagnostics.diagnostics) {
       printDiagnostic(cache, diagnostic);
-      severity = std::max(severity, diagnostic.severity);
    }
 
-   clear(diagnostics);
-   if (severity >= quitSeverity) {
+   if (diagnostics.severity >= quitSeverity) {
       int exitCode = EXIT_FAILURE;
       std::cout << std::format("Program exited with error code {}.\n", exitCode);
       std::exit(exitCode);
    }
+   clear(diagnostics);
 }
 
 void logDiagnostic(LexemeCache &cache, Diagnostic &diagnostic, ErrorSeverity quitSeverity) {

@@ -41,6 +41,6 @@ int main(int argc, char *argv[]) {
       putchar('\n');
    }
 
-   callPILFunction(diagnostics, cache, code, "main");
+   callPILFunction(diagnostics, cache, code, "main", SEVERITY_ERROR);
    log(cache, diagnostics, SEVERITY_ERROR);
 }

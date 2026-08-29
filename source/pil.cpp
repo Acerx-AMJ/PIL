@@ -206,16 +206,23 @@ void pushBuiltin(LexemeCache &cache, ByteCode &data, const std::string &lexeme, 
    }
 }
 
+void pushReservedBuiltin(LexemeCache &cache, ByteCode &data, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
+   Function function;
+   function.init = true;
+   function.native = true;
+   function.reserved = true;
+   function.variadic = variadic;
+   function.params.resize(paramCount);
+   function.nativeFunction = func;
+   data.functions[cacheLexeme(cache, lexeme)] = function;
+}
+
 void defineStandardBuiltins(LexemeCache &cache, ByteCode &data) {
    data.functions.resize(getLexemeCount(cache) + 1); // reserved built-ins might overflow, so adjust for that
 
-   [[maybe_unused]] constexpr bool VARIADIC = true;
-   [[maybe_unused]] constexpr bool REGULAR = false;
-
-   // cache, data, NAME, FUNCTION, PARAMETER COUNT, TYPE
-   pushBuiltin(cache, data, "add", builtinAdd, 3, VARIADIC);
-   pushBuiltin(cache, data, "sub", builtinSub, 3, VARIADIC);
-   pushBuiltin(cache, data, "print", builtinPrint, 1, VARIADIC);
+   pushBuiltin(cache, data, "add", builtinAdd, 3, true);
+   pushBuiltin(cache, data, "sub", builtinSub, 3, true);
+   pushBuiltin(cache, data, "print", builtinPrint, 1, true);
 }
 
 // parser
@@ -223,10 +230,8 @@ void defineStandardBuiltins(LexemeCache &cache, ByteCode &data) {
 // take the tokens and turn them into executable function blocks and commands. we have 3 levels here: file -> functions ->
 // commands. there can be no commands in the file level and no functions in the command level.
 void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std::vector<Token> &tokens) {
-   // reserved built-ins. must always be there
-   Function returnf;
-   returnf.init = true;
-   data.functions[cacheLexeme(cache, "return")] = returnf;
+   // reserved built-ins. must always be there.
+   pushReservedBuiltin(cache, data, "return", builtinReturn, 0, false);
 
    // estimate code size
    size_t size = tokens.size();
@@ -240,8 +245,8 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
          if (data.functions[position].init) {
             Function &definition = data.functions[position];
             const char *type = (definition.native ? "Native function" : "Function");
-            if (!definition.native && getLexeme(cache, position) == "return") {
-               error(diagnostics, "'return' is a reserved built-in. You cannot redefine it", tokens[i].fileLexeme, tokens[i].line);
+            if (data.functions[position].reserved) {
+               error(diagnostics, std::format("'{}' is a reserved built-in. You cannot redefine it", getLexeme(cache, position)), tokens[i].fileLexeme, tokens[i].line);
                return; // you fucked up hard here
             }
             else {
@@ -364,7 +369,7 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
 // executor
 
 // execute bytecode.
-void callPILFunction(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, const std::string &name) {
+void callPILFunction(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, const std::string &name, ErrorSeverity stopSeverity) {
    size_t lexeme = cacheLexeme(cache, name);
    if (lexeme >= data.functions.size() || !data.functions[lexeme].init || data.functions[lexeme].native) {
       error(diagnostics, std::format("Function '{}' cannot be called as it is not defined", name), 0, 0);
@@ -376,38 +381,32 @@ void callPILFunction(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &dat
       return;
    }
 
-   std::stack<size_t> stack;
-   size_t pointer = data.functions[lexeme].function;
-   size_t returnk = cacheLexeme(cache, "return");
+   Executor executor;
+   executor.pointer = data.functions[lexeme].function;
 
    while (true) {
-      Command &command = data.code[pointer];
+      Command &command = data.code[executor.pointer];
+      Function &function = data.functions[command.lexeme];
+      size_t args = command.args.size();
+      size_t params = function.params.size();
+      bool variadic = function.variadic;
 
-      if (command.lexeme == returnk) {
-         if (stack.empty()) break;
-         size_t back = stack.top();
-         stack.pop();
-         pointer = back;
+      if ((!variadic && args != params) || (variadic && args < params)) {
+         error(diagnostics, std::format("Function expected {}{} parameters, but received {} arguments", (variadic ? ">" : ""), params, args), command.file, command.line);
+      }
+
+      if (function.native) {
+         function.nativeFunction(command, diagnostics, executor);
       }
       else {
-         Function &function = data.functions[command.lexeme];
-         size_t args = command.args.size();
-         size_t params = function.params.size();
-         bool variadic = function.variadic;
-
-         if ((!variadic && args != params) || (variadic && args < params)) {
-            error(diagnostics, std::format("Function expected {}{} parameters, but received {} arguments", (variadic ? ">" : ""), params, args), command.file, command.line);
-         }
-
-         if (function.native) {
-            function.nativeFunction(command);
-         }
-         else {
-            stack.push(pointer);
-            pointer = function.function;
-            continue;
-         }
+         executor.stack.push(executor.pointer);
+         executor.pointer = function.function;
+         continue;
       }
-      pointer += 1;
+
+      if (executor.exitCalled || shouldError(diagnostics, stopSeverity)) {
+         break;
+      }
+      executor.pointer += 1;
    }
 }
