@@ -2,18 +2,23 @@
 
 int main(int argc, char *argv[]) {
    if (argc != 2) {
-      printf("Expected single argument - input file.\n");
+      printf("PIL::main: Expected single argument - input file.\n");
       exit(EXIT_FAILURE);
    }
 
    LexemeCache cache;
-   PILFile file = readPIL(cache, argv[1]);
-   std::vector<Token> tokens = lexPILFile(cache, file);
+   Diagnostics diagnostics;
 
-   // free up memory for the includes, which will read more files
-   file.code.clear();
+   PILFile file = readPIL(diagnostics, cache, argv[1]);
+   log(cache, diagnostics, SEVERITY_ERROR);
+
+   std::vector<Token> tokens = lexPILFile(diagnostics, cache, file);
+   log(cache, diagnostics, SEVERITY_ERROR);
+   file.code.clear(); // free up memory for the includes, which will read more files
    file.code.shrink_to_fit();
-   handlePILFileIncludes(cache, file, tokens);
+
+   handlePILFileIncludes(diagnostics, cache, file, tokens);
+   log(cache, diagnostics, SEVERITY_ERROR);
 
    printf("Tokens:\n");
    for (Token &token: tokens) {
@@ -22,7 +27,8 @@ int main(int argc, char *argv[]) {
 
    FunctionData functions;
    defineStandardBuiltins(cache, functions);
-   parsePIL(cache, functions, tokens);
+   parsePIL(diagnostics, cache, functions, tokens);
+   log(cache, diagnostics, SEVERITY_ERROR);
 
    printf("\nBlocks:\n");
    for (Block &block: functions.blocks) {
