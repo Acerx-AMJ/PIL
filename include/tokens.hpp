@@ -2,14 +2,14 @@
 #include <cstddef>
 
 enum TokenType: char {
-   TOKEN_REGISTER, TOKEN_L_PAREN, TOKEN_R_PAREN,
+   TOKEN_REGISTER, TOKEN_L_PAREN, TOKEN_R_PAREN, TOKEN_VARIADIC,
    TOKEN_IDENTIFIER, TOKEN_INTEGER, TOKEN_FLOATING, TOKEN_STRING, TOKEN_CHARACTER,
    TOKEN_EOF, TOKEN_COUNT,
 };
 
 constexpr const char *getTokenName(TokenType token) {
    constexpr const char *tokenTypeStrings[TOKEN_COUNT + 1] = {
-      "Register", "Left Parentheses", "Right Parentheses",
+      "Register", "Left Parentheses", "Right Parentheses", "Three Dots",
       "Identifier", "Integer", "Floating", "String", "Character",
       "EOF", "Invalid Token",
    };

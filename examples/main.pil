@@ -1,0 +1,7 @@
+print-wrapper(args...)
+   print args
+
+main()
+   add 2, 2, $1      ; $1 = 2 + 2
+   sub $1, 1, $1     ; $1 = $1 - 1
+   print-wrapper $1  ; 3

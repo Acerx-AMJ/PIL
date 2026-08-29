@@ -31,29 +31,22 @@ struct Value {
 };
 
 struct Command {
-   Command() = default;
-   Command(size_t lexeme, const std::vector<Value> &values)
-      : lexeme(lexeme), values(values) {}
+   Command(size_t lexeme, size_t file, size_t line, const std::vector<Value> &args)
+      : lexeme(lexeme), file(file), line(line), args(args) {}
 
    size_t lexeme;
-   std::vector<Value> values;
+   size_t file;
+   size_t line;
+   std::vector<Value> args;
 };
 
-struct Block {
-   Block() = default;
-   Block(size_t lexeme, size_t tokenPosition)
-      : lexeme(lexeme), tokenPosition(tokenPosition) {}
+typedef void (*NativeFunction)(const Command &command);
 
-   size_t lexeme;
-   size_t tokenPosition;
-   std::vector<size_t> params;
-   std::vector<Command> commands;
-};
-
-typedef void (*NativeFunction)(const std::vector<Value> &args);
 struct Function {
    bool init = false;
    bool native;
+   bool variadic = false;
+   std::vector<size_t> params;
    union {
       size_t function;
       NativeFunction nativeFunction;

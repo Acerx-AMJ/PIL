@@ -22,28 +22,22 @@ int main(int argc, char *argv[]) {
 
    printf("Tokens:\n");
    for (Token &token: tokens) {
-      printf("%s:%-5llu %s: '%s'.\n", getLexeme(cache, token.fileLexeme).c_str(), token.line, getTokenName(token.type), getLexeme(cache, token.lexeme).c_str());
+      printf("%s:%-5zu %s: '%s'.\n", getLexeme(cache, token.fileLexeme).c_str(), token.line, getTokenName(token.type), getLexeme(cache, token.lexeme).c_str());
    }
 
-   FunctionData functions;
-   defineStandardBuiltins(cache, functions);
-   parsePIL(diagnostics, cache, functions, tokens);
+   ByteCode code;
+   defineStandardBuiltins(cache, code);
+   parsePIL(diagnostics, cache, code, tokens);
    log(cache, diagnostics, SEVERITY_ERROR);
+   tokens.clear(); // tokens are no longer in use
+   tokens.shrink_to_fit();
 
-   printf("\nBlocks:\n");
-   for (Block &block: functions.blocks) {
-      printf("%s:%zu.\n", getLexeme(cache, block.lexeme).c_str(), tokens[block.tokenPosition].line);
-      printf("Params: ");
-      for (size_t param: block.params) {
-         printf("%s, ", getLexeme(cache, param).c_str());
+   printf("\nBytecode:\n");
+   for (Command &command: code.code) {
+      printf("%s:%-5zu %s: ", getLexeme(cache, command.file).c_str(), command.line, getLexeme(cache, command.lexeme).c_str());
+      for (Value param: command.args) {
+         printf("%s ", getValueName(param.type));
       }
       putchar('\n');
-      for (auto &[lexeme, values]: block.commands) {
-         printf("\t%s: ", getLexeme(cache, lexeme).c_str());
-         for (Value &value: values) {
-            printf("%s, ", getValueName(value.type));
-         }
-         putchar('\n');
-      }
    }
 }

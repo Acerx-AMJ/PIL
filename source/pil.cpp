@@ -64,6 +64,10 @@ std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILF
       else if (ch == ')') {
          tokens.emplace_back(TOKEN_R_PAREN, cacheLexeme(cache, ")"), file.lexeme, line);
       }
+      else if (i + 2 < size && ch == '.' && file.code[i+1] == '.' && file.code[i+2] == '.') {
+         tokens.emplace_back(TOKEN_VARIADIC, cacheLexeme(cache, "..."), file.lexeme, line);
+         i += 2;
+      }
       else if (ch == ';') {
          while (i < size && file.code[i] != '\n') i += 1;
          line += 1;
@@ -188,146 +192,170 @@ void handlePILFileIncludes(Diagnostics &diagnostics, LexemeCache &cache, PILFile
 
 // built-in functions
 
-// we only define built-in functions that actually get used. thanks, cache.
-void pushBuiltin(LexemeCache &cache, FunctionData &data, const std::string &lexeme, NativeFunction func) {
+// we only define built-in functions that actually get used. thanks, cache. now, if defining builtins manually, builtinReturn
+// is crucial. or error.
+void pushBuiltin(LexemeCache &cache, ByteCode &data, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
    if (auto it = cache.lexemeCache.find(lexeme); it != cache.lexemeCache.end()) {
       Function function;
       function.init = true;
       function.native = true;
+      function.variadic = variadic;
+      function.params.resize(paramCount);
       function.nativeFunction = func;
-      data.functionMap[it->second] = function;
+      data.functions[it->second] = function;
    }
 }
 
-void defineStandardBuiltins(LexemeCache &cache, FunctionData &data) {
-   data.functionMap.resize(getLexemeCount(cache));
+void defineStandardBuiltins(LexemeCache &cache, ByteCode &data) {
+   data.functions.resize(getLexemeCount(cache));
 
-   pushBuiltin(cache, data, "add", builtinAdd);
-   pushBuiltin(cache, data, "sub", builtinSub);
-   pushBuiltin(cache, data, "print", builtinPrint);
+   constexpr bool VARIADIC = true;
+   constexpr bool REGULAR = false;
+
+   // cache, data, NAME, FUNCTION, PARAMETER COUNT, TYPE
+   pushBuiltin(cache, data, "add", builtinAdd, 3, VARIADIC);
+   pushBuiltin(cache, data, "sub", builtinSub, 3, VARIADIC);
+   pushBuiltin(cache, data, "print", builtinPrint, 1, VARIADIC);
+   pushBuiltin(cache, data, "return", builtinReturn, 0, REGULAR);
 }
 
 // parser
 
 // take the tokens and turn them into executable function blocks and commands. we have 3 levels here: file -> functions ->
 // commands. there can be no commands in the file level and no functions in the command level.
-void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, FunctionData &data, std::vector<Token> &tokens) {
-   // function prepass
-   size_t functionCount = std::count_if(tokens.begin(), tokens.end(), [](const Token &t) { return t.type == TOKEN_L_PAREN; });
-   data.blocks.reserve(functionCount);
+void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std::vector<Token> &tokens) {
+   size_t size = tokens.size();
+   data.code.reserve(size / 3);
 
-   for (size_t i = 0; i < tokens.size(); ++i) {
+   // function name prepass
+   for (size_t i = 0; i < size; ++i) {
       if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_L_PAREN) {
          size_t position = tokens[i].lexeme;
 
-         if (data.functionMap[position].init) {
-            Function &definition = data.functionMap[position];
-            if (definition.native) {
-               warn(diagnostics, std::format("Native function '{}' redefined", getLexeme(cache, position)), tokens[i].fileLexeme, tokens[i].line);
-            }
-            else {
-               size_t tokenPos = data.blocks[definition.function].tokenPosition;
-               Token &token = tokens[tokenPos];
-               warn(diagnostics, std::format("Function '{}' at {}:{} redefined", getLexeme(cache, token.lexeme), getLexeme(cache, token.fileLexeme), token.line), tokens[i].fileLexeme, tokens[i].line);
-            }
+         if (data.functions[position].init) {
+            Function &definition = data.functions[position];
+            const char *type = (definition.native ? "Native function" : "Function");
+            warn(diagnostics, std::format("{} '{}' redefined", type, getLexeme(cache, position)), tokens[i].fileLexeme, tokens[i].line);
          }
          Function function;
          function.init = true;
          function.native = false;
-         function.function = data.blocks.size();
-         data.functionMap[position] = function;
-
-         data.blocks.emplace_back(tokens[i].lexeme, i);
+         data.functions[position] = function;
       }
    }
 
    // real parsing
-   for (Block &block: data.blocks) {
-      size_t start = block.tokenPosition;
-      tokens[start].parsed = true;
-      tokens[start + 1].parsed = true;
-
-      for (start += 2; start < tokens.size() && tokens[start].type != TOKEN_EOF && tokens[start].type != TOKEN_R_PAREN; ++start) {
-         if (tokens[start].type != TOKEN_IDENTIFIER) {
-            error(diagnostics, std::format("Function parameters: expected Identifier, got {} instead", getTokenName(tokens[start].type)), tokens[start].fileLexeme, tokens[start].line);
+   bool firstFunction = true;
+   for (size_t i = 0; i < size && tokens[i].type != TOKEN_EOF; ++i) {
+      // function declarations
+      if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_L_PAREN) {
+         if (!firstFunction) {
+            data.code.emplace_back(cacheLexeme(cache, "return"), tokens[i-1].fileLexeme, tokens[i-1].line, std::vector<Value>{});
          }
-         tokens[start].parsed = true;
-         block.params.push_back(tokens[start].lexeme);
-      }
+         firstFunction = false;
 
-      if (tokens[start].type != TOKEN_R_PAREN) {
-         error(diagnostics, "Unterminated function parameters", tokens[block.tokenPosition].fileLexeme, tokens[block.tokenPosition].line);
-         continue;
-      }
+         size_t start = i;
+         Function &function = data.functions[tokens[i].lexeme];
+         bool variadic = false;
 
-      for (++start; start < tokens.size() && tokens[start].type != TOKEN_EOF;) {
-         size_t startLexeme = tokens[start].lexeme;
-         if (tokens[start].type == TOKEN_IDENTIFIER && tokens[start + 1].type == TOKEN_L_PAREN && startLexeme < data.functionMap.size() && data.functionMap[startLexeme].init) {
-            break; // got to the next function declaration, end of body
+         for (i += 2; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_R_PAREN; ++i) {
+            if (tokens[i + 1].type == TOKEN_VARIADIC) {
+               variadic = true;
+               i += 2;
+               break;
+            }
+
+            if (tokens[i].type != TOKEN_IDENTIFIER) {
+               error(diagnostics, std::format("Function parameters: expected Identifier, got {} instead", getTokenName(tokens[i].type)), tokens[i].fileLexeme, tokens[i].line);
+            }
+            function.params.push_back(tokens[i].lexeme);
          }
 
-         if (tokens[start].type != TOKEN_IDENTIFIER || startLexeme >= data.functionMap.size() || !data.functionMap[startLexeme].init) {
-            error(diagnostics, std::format("Expected a function call, got {} instead", getTokenName(tokens[start].type)), tokens[start].fileLexeme, tokens[start].line);
-            start += 1;
+         if (variadic && tokens[i].type != TOKEN_R_PAREN) {
+            error(diagnostics, std::format("Function parameters: variadic parameter should be at the end of the parameter list"), tokens[i].fileLexeme, tokens[i].line);
+         }
+         else if (!variadic && tokens[i].type != TOKEN_R_PAREN) {
+            error(diagnostics, "Unterminated function parameters", tokens[start].fileLexeme, tokens[start].line);
+         }
+         function.variadic = variadic;
+         function.function = data.code.size();
+      }
+      // function calls
+      else {
+         if (tokens[i].type != TOKEN_IDENTIFIER || tokens[i].lexeme >= data.functions.size() || !data.functions[tokens[i].lexeme].init) {
+            error(diagnostics, std::format("Expected a function call, got {} instead", getTokenName(tokens[i].type)), tokens[i].fileLexeme, tokens[i].line);
             continue;
          }
 
-         Command command;
-         command.lexeme = tokens[start].lexeme;
-         for (++start; start < tokens.size() && tokens[start].type != TOKEN_EOF && (tokens[start].type != TOKEN_IDENTIFIER || tokens[start].lexeme >= data.functionMap.size() || !data.functionMap[tokens[start].lexeme].init); ++start) {
+         data.code.emplace_back(tokens[i].lexeme, tokens[i].fileLexeme, tokens[i].line, std::vector<Value>{});
+         Command &command = data.code.back();
+
+         for (++i; i < size && tokens[i].type != TOKEN_EOF && (tokens[i].type != TOKEN_IDENTIFIER || tokens[i].lexeme >= data.functions.size() || !data.functions[tokens[i].lexeme].init); ++i) {
             Value value;
-            value.line = tokens[start].line;
-            value.fileLexeme = tokens[start].fileLexeme;
-            switch (tokens[start].type) {
+            value.line = tokens[i].line;
+            value.fileLexeme = tokens[i].fileLexeme;
+            switch (tokens[i].type) {
             case TOKEN_IDENTIFIER:
                value.type = VALUE_IDENTIFIER;
-               value.identifier = tokens[start].lexeme;
+               value.identifier = tokens[i].lexeme;
                break;
             case TOKEN_INTEGER:
                value.type = VALUE_INTEGER;
                try {
-                  value.integer = std::stol(getLexeme(cache, tokens[start].lexeme));
+                  value.integer = std::stol(getLexeme(cache, tokens[i].lexeme));
                }
                catch (...) {
                   value.integer = 0;
-                  error(diagnostics, std::format("Invalid integer: {}", getLexeme(cache, tokens[start].lexeme)), value.fileLexeme, value.line);
+                  error(diagnostics, std::format("Invalid integer: {}", getLexeme(cache, tokens[i].lexeme)), value.fileLexeme, value.line);
                }
                break;
             case TOKEN_FLOATING:
                value.type = VALUE_FLOATING;
                try {
-                  value.floating = std::stod(getLexeme(cache, tokens[start].lexeme));
+                  value.floating = std::stod(getLexeme(cache, tokens[i].lexeme));
                }
                catch (...) {
                   value.floating = 0;
-                  error(diagnostics, std::format("Invalid floating point number: {}", getLexeme(cache, tokens[start].lexeme)), value.fileLexeme, value.line);
+                  error(diagnostics, std::format("Invalid floating point number: {}", getLexeme(cache, tokens[i].lexeme)), value.fileLexeme, value.line);
                }
                break;
             case TOKEN_STRING:
                value.type = VALUE_STRING;
-               value.string = tokens[start].lexeme;
+               value.string = tokens[i].lexeme;
                break;
             case TOKEN_CHARACTER:
                value.type = VALUE_CHARACTER;
-               value.character = getLexeme(cache, tokens[start].lexeme).front();
+               value.character = getLexeme(cache, tokens[i].lexeme).front();
                break;
             case TOKEN_REGISTER:
                value.type = VALUE_REGISTER;
                try {
-                  value.reg = std::stoull(getLexeme(cache, tokens[start].lexeme));
+                  value.reg = std::stoull(getLexeme(cache, tokens[i].lexeme));
                }
                catch (...) {
                   value.reg = 0;
-                  error(diagnostics, std::format("Invalid register: ${}", getLexeme(cache, tokens[start].lexeme)), value.fileLexeme, value.line);
+                  error(diagnostics, std::format("Invalid register: ${}", getLexeme(cache, tokens[i].lexeme)), value.fileLexeme, value.line);
                }
                break;
             default:
-               error(diagnostics, std::format("Unexpected token {} in function call", getLexeme(cache, tokens[start].lexeme)), value.fileLexeme, value.line);
+               error(diagnostics, std::format("Unexpected token {} in function call", getLexeme(cache, tokens[i].lexeme)), value.fileLexeme, value.line);
             }
-            tokens[start].parsed = true;
-            command.values.push_back(value);
+            command.args.push_back(value);
          }
-         block.commands.push_back(command);
+
+         // check arg count at compile-time
+         Function &function = data.functions[command.lexeme];
+         size_t args = command.args.size();
+         size_t params = function.params.size();
+         bool variadic = function.variadic;
+
+         if ((!variadic && args != params) || (variadic && args < params)) {
+            error(diagnostics, std::format("Function expected {}{} parameters, but received {} arguments", (variadic ? ">" : ""), params, args), command.file, command.line);
+         }
+         i -= 1;
       }
+   }
+   if (!tokens.empty()) {
+      data.code.emplace_back(cacheLexeme(cache, "return"), tokens.back().fileLexeme, tokens.back().line, std::vector<Value>{});
    }
 }

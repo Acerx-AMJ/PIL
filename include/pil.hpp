@@ -14,11 +14,11 @@ PILFile readPIL(Diagnostics &diagnostics, LexemeCache &cache, const std::string 
 std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file);
 void handlePILFileIncludes(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, std::vector<Token> &tokens);
 
-struct FunctionData {
-   std::vector<Function> functionMap;
-   std::vector<Block> blocks;
+struct ByteCode {
+   std::vector<Function> functions;
+   std::vector<Command> code;
 };
 
-void pushBuiltin(LexemeCache &cache, FunctionData &data, const std::string &lexeme, NativeFunction function);
-void defineStandardBuiltins(LexemeCache &cache, FunctionData &data);
-void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, FunctionData &data, std::vector<Token> &tokens);
+void pushBuiltin(LexemeCache &cache, ByteCode &data, const std::string &lexeme, NativeFunction function, size_t paramCount, bool variadic);
+void defineStandardBuiltins(LexemeCache &cache, ByteCode &data);
+void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std::vector<Token> &tokens);

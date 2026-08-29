@@ -1,14 +1,18 @@
 #include "builtin.hpp"
 #include <cstdio>
 
-void builtinAdd(const std::vector<Value> &args) {
+void builtinAdd(const Command &command) {
    printf("Called builtinAdd.\n");
 }
 
-void builtinSub(const std::vector<Value> &args) {
+void builtinSub(const Command &command) {
    printf("Called builtinSub.\n");
 }
 
-void builtinPrint(const std::vector<Value> &args) {
+void builtinPrint(const Command &command) {
    printf("Called builtinPrint.\n");
+}
+
+void builtinReturn(const Command &command) {
+   
 }
