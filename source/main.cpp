@@ -1,6 +1,4 @@
-#include "lexemes.hpp"
-#include "parser.hpp"
-#include <fstream>
+#include "pil.hpp"
 
 int main(int argc, char *argv[]) {
    if (argc != 2) {
@@ -8,39 +6,34 @@ int main(int argc, char *argv[]) {
       exit(EXIT_FAILURE);
    }
 
-   size_t fileLexeme = pushLexeme(argv[1]);
-   std::ifstream file (getLexeme(fileLexeme));
-   if (!file.is_open()) {
-      printf("Could not read file '%s'.\n", argv[1]);
-      exit(EXIT_FAILURE);
-   }
-   std::string code (std::istreambuf_iterator<char>(file), {});
-   file.close();
+   LexemeCache cache;
+   PILFile file = readPIL(cache, argv[1]);
+   std::vector<Token> tokens = lexPILFile(cache, file);
 
-   Parser parser;
-   parser.lex(code, fileLexeme);
-   code.clear(); // free up memory for the includes, which will read more files.
-   code.shrink_to_fit();
-   parser.handleIncludes();
+   // free up memory for the includes, which will read more files
+   file.code.clear();
+   file.code.shrink_to_fit();
+   handlePILFileIncludes(cache, file, tokens);
 
    printf("Tokens:\n");
-   for (Token &token: parser.tokens) {
-      printf("%s:%-5llu %s: '%s'.\n", getLexeme(token.fileLexeme).c_str(), token.line, getTokenName(token.type), getLexeme(token.lexeme).c_str());
+   for (Token &token: tokens) {
+      printf("%s:%-5llu %s: '%s'.\n", getLexeme(cache, token.fileLexeme).c_str(), token.line, getTokenName(token.type), getLexeme(cache, token.lexeme).c_str());
    }
 
-   parser.defineBuiltins();
-   parser.parse();
+   FunctionData functions;
+   defineStandardBuiltins(cache, functions);
+   parsePIL(cache, functions, tokens);
 
    printf("\nBlocks:\n");
-   for (Block &block: parser.blocks) {
-      printf("%s:%llu.\n", getLexeme(block.lexeme).c_str(), parser.tokens[block.tokenPosition].line);
+   for (Block &block: functions.blocks) {
+      printf("%s:%zu.\n", getLexeme(cache, block.lexeme).c_str(), tokens[block.tokenPosition].line);
       printf("Params: ");
       for (size_t param: block.params) {
-         printf("%s, ", getLexeme(param).c_str());
+         printf("%s, ", getLexeme(cache, param).c_str());
       }
       putchar('\n');
       for (auto &[lexeme, values]: block.commands) {
-         printf("\t%s: ", getLexeme(lexeme).c_str());
+         printf("\t%s: ", getLexeme(cache, lexeme).c_str());
          for (Value &value: values) {
             printf("%s, ", getValueName(value.type));
          }
