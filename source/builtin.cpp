@@ -1,5 +1,6 @@
 #include "builtin.hpp"
 #include "pil.hpp"
+#include <cmath>
 #include <format>
 
 // helper functions
@@ -75,23 +76,7 @@ bool labelOrError(Executor &executor, Value value, const char *function, const c
    return false;
 }
 
-// misc, temp
-void builtinAdd(const Command &command, Executor &executor) {
-   Value result;
-   result.fileLexeme = command.file;
-   result.line = command.line;
-   result.type = VALUE_INTEGER;
-   result.integer = 0;
-
-   for (size_t i = 0; i < command.args.size() - 1; ++i) {
-      Value arg = resolveVariable(executor, command.args[i], "add");
-      result.integer += arg.integer;
-   }
-
-   if (registerOrError(executor, command.args.back(), "add", "destination")) return;
-   storeInRegister(executor, command.args.back(), result);
-}
-
+// output
 void builtinPrint(const Command &command, Executor &executor) {
    for (size_t i = 0; i < command.args.size(); ++i) {
       Value arg = resolveVariable(executor, command.args[i], "print");
@@ -103,7 +88,254 @@ void builtinPrint(const Command &command, Executor &executor) {
       default: printf("(null)");
       }
    }
+}
+
+void builtinPrintn(const Command &command, Executor &executor) {
+   for (size_t i = 0; i < command.args.size(); ++i) {
+      Value arg = resolveVariable(executor, command.args[i], "print");
+      switch (arg.type) {
+      case VALUE_INTEGER:   printf("%ld", arg.integer); break;
+      case VALUE_FLOATING:  printf("%F", arg.floating); break;
+      case VALUE_CHARACTER: printf("%c", arg.character); break;
+      case VALUE_STRING:    printf("%s", getLexeme(executor.cache, arg.string).c_str()); break;
+      default: printf("(null)");
+      }
+   }
    putchar('\n');
+}
+
+// math
+double getNum(Executor &executor, Value value, const char *function, bool *floating = nullptr) {
+   value = resolveVariable(executor, value, function);
+   if (value.type != VALUE_INTEGER && value.type != VALUE_FLOATING) {
+      error(executor.diagnostics, std::format("{}: Expected numeral, got {} instead", function, getValueName(value.type)), value.fileLexeme, value.line);
+      return 0.0;
+   }
+   if (floating && value.type == VALUE_FLOATING) *floating = true;
+   return (value.type == VALUE_INTEGER ? (double)value.integer : value.floating);
+}
+
+void storeNumber(Executor &executor, Value reg, double number, bool floating) {
+   Value value {floating ? VALUE_FLOATING : VALUE_INTEGER, reg.line, reg.fileLexeme};
+   if (floating) {
+      value.floating = number;
+   }
+   else {
+      value.integer = number;
+   }
+   storeInRegister(executor, reg, value);
+}
+
+void builtinAdd(const Command &command, Executor &executor) {
+   bool floating = false;
+   double number = 0.0;
+   for (size_t i = 0; i < command.args.size() - 1; ++i) {
+      number += getNum(executor, command.args[i], "add", &floating);
+   }
+   if (registerOrError(executor, command.args.back(), "add", "destination")) return;
+   storeNumber(executor, command.args.back(), number, floating);
+}
+
+void builtinSub(const Command &command, Executor &executor) {
+   bool floating = false;
+   double number = getNum(executor, command.args[0], "sub", &floating);
+   for (size_t i = 1; i < command.args.size() - 1; ++i) {
+      number -= getNum(executor, command.args[i], "sub", &floating);
+   }
+   if (registerOrError(executor, command.args.back(), "sub", "destination")) return;
+   storeNumber(executor, command.args.back(), number, floating);
+}
+
+void builtinMul(const Command &command, Executor &executor) {
+   bool floating = false;
+   double number = 1.0;
+   for (size_t i = 0; i < command.args.size() - 1; ++i) {
+      number *= getNum(executor, command.args[i], "mul", &floating);
+   }
+   if (registerOrError(executor, command.args.back(), "mul", "destination")) return;
+   storeNumber(executor, command.args.back(), number, floating);
+}
+
+void builtinDiv(const Command &command, Executor &executor) {
+   bool floating = false;
+   double number = getNum(executor, command.args[0], "div", &floating);
+   for (size_t i = 1; i < command.args.size() - 1; ++i) {
+      double num = getNum(executor, command.args[i], "div", &floating);
+      number = (num == 0.0 ? 0.0 : number / num); // defined behavior
+   }
+   if (registerOrError(executor, command.args.back(), "div", "destination")) return;
+   storeNumber(executor, command.args.back(), number, floating);
+}
+
+void builtinMod(const Command &command, Executor &executor) {
+   bool floating = false;
+   double a = getNum(executor, command.args[0], "mod", &floating);
+   double b = getNum(executor, command.args[1], "mod", &floating);
+   if (registerOrError(executor, command.args[2], "mod", "destination")) return;
+   storeNumber(executor, command.args[2], fmod(a, b), floating);
+}
+
+void builtinPow(const Command &command, Executor &executor) {
+   bool floating = false;
+   double a = getNum(executor, command.args[0], "pow", &floating);
+   double b = getNum(executor, command.args[1], "pow", &floating);
+   if (registerOrError(executor, command.args[2], "pow", "destination")) return;
+   storeNumber(executor, command.args[2], pow(a, b), floating);
+}
+
+void builtinNeg(const Command &command, Executor &executor) {
+   bool floating = false;
+   if (registerOrError(executor, command.args[1], "neg", "destination")) return;
+   storeNumber(executor, command.args[1], -getNum(executor, command.args[0], "neg", &floating), floating);
+}
+
+void builtinSqrt(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "sqrt", "destination")) return;
+   storeNumber(executor, command.args[1], sqrt(getNum(executor, command.args[0], "sqrt")), true);
+}
+
+void builtinCbrt(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "cbrt", "destination")) return;
+   storeNumber(executor, command.args[1], cbrt(getNum(executor, command.args[0], "cbrt")), true);
+}
+
+void builtinSin(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "sin", "destination")) return;
+   storeNumber(executor, command.args[1], sin(getNum(executor, command.args[0], "sin")), true);
+}
+
+void builtinCos(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "cos", "destination")) return;
+   storeNumber(executor, command.args[1], cos(getNum(executor, command.args[0], "cos")), true);
+}
+
+void builtinTan(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "tan", "destination")) return;
+   storeNumber(executor, command.args[1], tan(getNum(executor, command.args[0], "tan")), true);
+}
+
+void builtinAsin(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "asin", "destination")) return;
+   storeNumber(executor, command.args[1], asin(getNum(executor, command.args[0], "asin")), true);
+}
+
+void builtinAcos(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "acos", "destination")) return;
+   storeNumber(executor, command.args[1], acos(getNum(executor, command.args[0], "acos")), true);
+}
+
+void builtinAtan(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "atan", "destination")) return;
+   storeNumber(executor, command.args[1], atan(getNum(executor, command.args[0], "atan")), true);
+}
+
+void builtinAtan2(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[2], "atan2", "destination")) return;
+   storeNumber(executor, command.args[2], atan2(getNum(executor, command.args[0], "atan2"), getNum(executor, command.args[1], "atan2")), true);
+}
+
+void builtinAsinh(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "asinh", "destination")) return;
+   storeNumber(executor, command.args[1], asinh(getNum(executor, command.args[0], "asinh")), true);
+}
+
+void builtinAcosh(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "acosh", "destination")) return;
+   storeNumber(executor, command.args[1], acosh(getNum(executor, command.args[0], "acosh")), true);
+}
+
+void builtinAtanh(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "atanh", "destination")) return;
+   storeNumber(executor, command.args[1], atanh(getNum(executor, command.args[0], "atanh")), true);
+}
+
+void builtinSinh(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "sinh", "destination")) return;
+   storeNumber(executor, command.args[1], sinh(getNum(executor, command.args[0], "sinh")), true);
+}
+
+void builtinCosh(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "cosh", "destination")) return;
+   storeNumber(executor, command.args[1], cosh(getNum(executor, command.args[0], "cosh")), true);
+}
+
+void builtinTanh(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "tanh", "destination")) return;
+   storeNumber(executor, command.args[1], tanh(getNum(executor, command.args[0], "tanh")), true);
+}
+
+void builtinAbs(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "abs", "destination")) return;
+   storeNumber(executor, command.args[1], fabs(getNum(executor, command.args[0], "abs")), true);
+}
+
+void builtinMin(const Command &command, Executor &executor) {
+   bool floating = false;
+   double number = std::numeric_limits<double>::max();
+   for (size_t i = 0; i < command.args.size() - 1; ++i) {
+      number = std::min(number, getNum(executor, command.args[i], "min", &floating));
+   }
+   if (registerOrError(executor, command.args.back(), "min", "destination")) return;
+   storeNumber(executor, command.args.back(), number, floating);
+}
+
+void builtinMax(const Command &command, Executor &executor) {
+   bool floating = false;
+   double number = std::numeric_limits<double>::min();
+   for (size_t i = 0; i < command.args.size() - 1; ++i) {
+      number = std::max(number, getNum(executor, command.args[i], "max", &floating));
+   }
+   if (registerOrError(executor, command.args.back(), "max", "destination")) return;
+   storeNumber(executor, command.args.back(), number, floating);
+}
+
+void builtinClamp(const Command &command, Executor &executor) {
+   bool floating = false;
+   double x = getNum(executor, command.args[0], "clamp", &floating);
+   double lo = getNum(executor, command.args[1], "clamp", &floating);
+   double hi = getNum(executor, command.args[2], "clamp", &floating);
+   if (registerOrError(executor, command.args[3], "clamp", "destination")) return;
+   storeNumber(executor, command.args[3], std::clamp(x, lo, hi), floating);
+}
+
+void builtinCeil(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "ceil", "destination")) return;
+   storeNumber(executor, command.args[1], ceil(getNum(executor, command.args[0], "ceil")), true);
+}
+
+void builtinFloor(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "floor", "destination")) return;
+   storeNumber(executor, command.args[1], floor(getNum(executor, command.args[0], "floor")), true);
+}
+
+void builtinRound(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "round", "destination")) return;
+   storeNumber(executor, command.args[1], round(getNum(executor, command.args[0], "round")), true);
+}
+
+void builtinExp(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "exp", "destination")) return;
+   storeNumber(executor, command.args[1], exp(getNum(executor, command.args[0], "exp")), true);
+}
+
+void builtinLn(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "ln", "destination")) return;
+   storeNumber(executor, command.args[1], log(getNum(executor, command.args[0], "ln")), true);
+}
+
+void builtinLog(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[2], "log", "destination")) return;
+   storeNumber(executor, command.args[2], log(getNum(executor, command.args[0], "log")) / log(getNum(executor, command.args[1], "log")), true);
+}
+
+void builtinLog2(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "log2", "destination")) return;
+   storeNumber(executor, command.args[1], log2(getNum(executor, command.args[0], "log2")), true);
+}
+
+void builtinLog10(const Command &command, Executor &executor) {
+   if (registerOrError(executor, command.args[1], "log10", "destination")) return;
+   storeNumber(executor, command.args[1], log10(getNum(executor, command.args[0], "log10")), true);
 }
 
 // comparison

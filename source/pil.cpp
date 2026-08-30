@@ -248,6 +248,21 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
 // built-in functions
 
 // we only define built-in functions that actually get used. thanks, cache. return is a special built-in that is 
+void pushConstant(LexemeCache &cache, ByteCode &data, const std::string &lexeme, float value) {
+   if (auto it = cache.lexemeCache.find(lexeme); it != cache.lexemeCache.end()) {
+      Value v {VALUE_FLOATING};
+      v.floating = value;
+      v.line = 0;
+      v.fileLexeme = 0;
+
+      ParseValue constant;
+      constant.init = true;
+      constant.type = GLOBAL;
+      constant.global = v;
+      data.values[it->second] = constant;
+   }
+}
+
 void pushBuiltin(LexemeCache &cache, ByteCode &data, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
    if (auto it = cache.lexemeCache.find(lexeme); it != cache.lexemeCache.end()) {
       ParseValue function;
@@ -281,9 +296,45 @@ void pushReservedBuiltin(LexemeCache &cache, ByteCode &data, const std::string &
 void defineStandardBuiltins(LexemeCache &cache, ByteCode &data) {
    data.values.resize(getLexemeCount(cache) + 2); // reserved built-ins might overflow, so adjust for that
 
-   // misc, temp
-   pushBuiltin(cache, data, "add", builtinAdd, 3, true);
+   // output
    pushBuiltin(cache, data, "print", builtinPrint, 1, true);
+   pushBuiltin(cache, data, "printn", builtinPrintn, 1, true);
+
+   // math
+   pushBuiltin(cache, data, "add", builtinAdd, 3, true);
+   pushBuiltin(cache, data, "sub", builtinSub, 3, true);
+   pushBuiltin(cache, data, "mul", builtinMul, 3, true);
+   pushBuiltin(cache, data, "div", builtinDiv, 3, true);
+   pushBuiltin(cache, data, "mod", builtinMod, 3, false);
+   pushBuiltin(cache, data, "pow", builtinPow, 3, false);
+   pushBuiltin(cache, data, "neg", builtinNeg, 2, false);
+   pushBuiltin(cache, data, "sqrt", builtinSqrt, 2, false);
+   pushBuiltin(cache, data, "cbrt", builtinCbrt, 2, false);
+   pushBuiltin(cache, data, "sin", builtinSin, 2, false);
+   pushBuiltin(cache, data, "cos", builtinCos, 2, false);
+   pushBuiltin(cache, data, "tan", builtinTan, 2, false);
+   pushBuiltin(cache, data, "asin", builtinAsin, 2, false);
+   pushBuiltin(cache, data, "acos", builtinAcos, 2, false);
+   pushBuiltin(cache, data, "atan", builtinAtan, 2, false);
+   pushBuiltin(cache, data, "atan2", builtinAtan2, 2, false);
+   pushBuiltin(cache, data, "asinh", builtinAsinh, 2, false);
+   pushBuiltin(cache, data, "acosh", builtinAcosh, 2, false);
+   pushBuiltin(cache, data, "atanh", builtinAtanh, 2, false);
+   pushBuiltin(cache, data, "sinh", builtinSinh, 2, false);
+   pushBuiltin(cache, data, "cosh", builtinCosh, 2, false);
+   pushBuiltin(cache, data, "tanh", builtinTanh, 2, false);
+   pushBuiltin(cache, data, "abs", builtinAbs, 2, false);
+   pushBuiltin(cache, data, "min", builtinMin, 3, true);
+   pushBuiltin(cache, data, "max", builtinMax, 3, true);
+   pushBuiltin(cache, data, "clamp", builtinClamp, 4, false);
+   pushBuiltin(cache, data, "ceil", builtinCeil, 2, false);
+   pushBuiltin(cache, data, "floor", builtinFloor, 2, false);
+   pushBuiltin(cache, data, "round", builtinRound, 2, false);
+   pushBuiltin(cache, data, "exp", builtinExp, 2, false);
+   pushBuiltin(cache, data, "ln", builtinLn, 2, false);
+   pushBuiltin(cache, data, "log", builtinLog, 3, false);
+   pushBuiltin(cache, data, "log2", builtinLog2, 2, false);
+   pushBuiltin(cache, data, "log10", builtinLog10, 2, false);
 
    // comparison
    pushBuiltin(cache, data, "le", builtinLe, 3, false);
@@ -303,6 +354,11 @@ void defineStandardBuiltins(LexemeCache &cache, ByteCode &data) {
    pushBuiltin(cache, data, "move", builtinMove, 2, false);
    pushBuiltin(cache, data, "set", builtinSet, 2, false);
    pushBuiltin(cache, data, "global", builtinGlobal, 1, true);
+
+   // built-in constants
+   pushConstant(cache, data, "pi", 3.1415926535897932384626);
+   pushConstant(cache, data, "tau", 2.0 * 3.1415926535897932384626);
+   pushConstant(cache, data, "e", 2.7182818284590452353602);
 }
 
 // parser

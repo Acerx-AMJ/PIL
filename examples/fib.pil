@@ -1,6 +1,3 @@
-register-count 4
-return-register-count 1
-
 fib(n)
    leeq n, 1, $0
    jmp $0, fib-branch
