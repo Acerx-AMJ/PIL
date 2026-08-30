@@ -299,6 +299,10 @@ void defineStandardBuiltins(LexemeCache &cache, ByteCode &data) {
    // output
    pushBuiltin(cache, data, "print", builtinPrint, 1, true);
    pushBuiltin(cache, data, "printn", builtinPrintn, 1, true);
+   pushBuiltin(cache, data, "printf", builtinPrintf, 1, true);
+   pushBuiltin(cache, data, "printfn", builtinPrintfn, 1, true);
+   pushBuiltin(cache, data, "str", builtinStr, 1, true);
+   pushBuiltin(cache, data, "format", builtinFormat, 2, true);
 
    // math
    pushBuiltin(cache, data, "add", builtinAdd, 3, true);

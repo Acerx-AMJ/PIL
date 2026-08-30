@@ -77,12 +77,38 @@ bool labelOrError(Executor &executor, Value value, const char *function, const c
 }
 
 // output
-void builtinPrint(const Command &command, Executor &executor) {
+std::string toString(Executor &executor, Value value, const char *function) {
+   value = resolveVariable(executor, value, function);
+   switch (value.type) {
+   case VALUE_INTEGER: return std::to_string(value.integer);
+   case VALUE_FLOATING: return std::to_string(value.floating);
+   case VALUE_CHARACTER: return std::string(1, value.character);
+   case VALUE_STRING: return getLexeme(executor.cache, value.string);
+   default: return "(null)";
+   }
+}
+
+std::string format(const Command &command, Executor &executor, const char *function, size_t offset) {
+   if (command.args[0].type != VALUE_STRING) {
+      error(executor.diagnostics, std::format("{}: Expected String for the 1st argument, got {} instead", function, getValueName(command.args[0].type)), command.file, command.line);
+      return "";
+   }
+   std::string result = getLexeme(executor.cache, command.args[0].string);
+   size_t pos = 0;
+
+   for (size_t i = 1; i < command.args.size() - offset; ++i) {
+      pos = result.find("{}", pos);
+      result = (pos != std::string::npos ? result.replace(pos, 2, toString(executor, command.args[i], function)) : result);
+   }
+   return result;
+}
+
+void print(const Command &command, Executor &executor, const char *function) {
    for (size_t i = 0; i < command.args.size(); ++i) {
-      Value arg = resolveVariable(executor, command.args[i], "print");
+      Value arg = resolveVariable(executor, command.args[i], function);
       switch (arg.type) {
       case VALUE_INTEGER:   printf("%ld", arg.integer); break;
-      case VALUE_FLOATING:  printf("%F", arg.floating); break;
+      case VALUE_FLOATING:  printf("%3.F", arg.floating); break;
       case VALUE_CHARACTER: printf("%c", arg.character); break;
       case VALUE_STRING:    printf("%s", getLexeme(executor.cache, arg.string).c_str()); break;
       default: printf("(null)");
@@ -90,18 +116,39 @@ void builtinPrint(const Command &command, Executor &executor) {
    }
 }
 
+void builtinPrint(const Command &command, Executor &executor) {
+   print(command, executor, "print");
+}
+
 void builtinPrintn(const Command &command, Executor &executor) {
-   for (size_t i = 0; i < command.args.size(); ++i) {
-      Value arg = resolveVariable(executor, command.args[i], "print");
-      switch (arg.type) {
-      case VALUE_INTEGER:   printf("%ld", arg.integer); break;
-      case VALUE_FLOATING:  printf("%F", arg.floating); break;
-      case VALUE_CHARACTER: printf("%c", arg.character); break;
-      case VALUE_STRING:    printf("%s", getLexeme(executor.cache, arg.string).c_str()); break;
-      default: printf("(null)");
-      }
-   }
+   print(command, executor, "printn");
    putchar('\n');
+}
+
+void builtinPrintf(const Command &command, Executor &executor) {
+   printf("%s", format(command, executor, "printf", 0).c_str());
+}
+
+void builtinPrintfn(const Command &command, Executor &executor) {
+   printf("%s\n", format(command, executor, "printfn", 0).c_str());
+}
+
+void builtinStr(const Command &command, Executor &executor) {
+   std::string result;
+   for (size_t i = 0; i < command.args.size() - 1; ++i) {
+      result += toString(executor, command.args[i], "str");
+   }
+   Value value {VALUE_STRING, command.line, command.file};
+   value.string = pushLexeme(executor.cache, result);
+   if (registerOrError(executor, command.args.back(), "str", "destination")) return;
+   storeInRegister(executor, command.args.back(), value);
+}
+
+void builtinFormat(const Command &command, Executor &executor) {
+   Value value {VALUE_STRING, command.line, command.file};
+   value.string = pushLexeme(executor.cache, format(command, executor, "format", 1));
+   if (registerOrError(executor, command.args.back(), "format", "destination")) return;
+   storeInRegister(executor, command.args.back(), value);
 }
 
 // math

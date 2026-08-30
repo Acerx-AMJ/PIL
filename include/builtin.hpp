@@ -6,6 +6,10 @@ Value resolveVariable(Executor &executor, Value value, const char *function);
 // output
 void builtinPrint(const Command &command, Executor &executor);
 void builtinPrintn(const Command &command, Executor &executor);
+void builtinPrintf(const Command &command, Executor &executor);
+void builtinPrintfn(const Command &command, Executor &executor);
+void builtinStr(const Command &command, Executor &executor);
+void builtinFormat(const Command &command, Executor &executor);
 
 // math
 void builtinAdd(const Command &command, Executor &executor);
