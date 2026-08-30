@@ -23,6 +23,7 @@ struct Trace {
    size_t position;
    size_t lexeme;
    size_t callExpectedReturnCount;
+   std::vector<Value> locals;
 };
 
 struct Executor {
@@ -35,7 +36,7 @@ struct Executor {
 
    std::vector<Value> registers;
    std::vector<Value> returnRegisters;
-   std::stack<Trace> stackTrace;
+   std::stack<Trace, std::vector<Trace>> stackTrace;
    size_t pointer;
    size_t returnCount;
    bool exitCalled;

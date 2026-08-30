@@ -5,12 +5,12 @@ fib(n)
    leeq n, 1, $0
    jmp $0, fib-branch
 
-   let nMinus1, nPlus1, fib1, fib2, result
-   add n, -1, nMinus1
-   add n, 1, nPlus1
+   let minus1, minus2, fib1, fib2, result
+   add n, -1, minus1
+   add n, -2, minus2
 
-   call fib1, fib, nMinus1
-   call fib2, fib, nPlus1
+   call fib1, fib, minus1
+   call fib2, fib, minus2
    add fib1, fib2, result
    return result
 

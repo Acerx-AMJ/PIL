@@ -2,16 +2,16 @@
 #include <vector>
 
 enum ValueType: char {
-   VALUE_INTEGER, VALUE_FLOATING, VALUE_CHARACTER, VALUE_STRING, VALUE_IDENTIFIER, VALUE_REGISTER, VALUE_RETURN_REGISTER, VALUE_COUNT
+   VALUE_INTEGER, VALUE_FLOATING, VALUE_CHARACTER, VALUE_STRING, VALUE_IDENTIFIER, VALUE_LOCAL, VALUE_REGISTER, VALUE_RETURN_REGISTER, VALUE_COUNT
 };
 
 enum ParseValueType: char {
-   FUNCTION, NATIVE_FUNCTION, LABEL, LOCAL, GLOBAL, PARSE_VALUE_COUNT
+   FUNCTION, NATIVE_FUNCTION, LABEL, GLOBAL, PARSE_VALUE_COUNT
 };
 
 constexpr const char *getValueName(ValueType value) {
    constexpr const char *valueTypeStrings[VALUE_COUNT + 1] = {
-      "Integer", "Floating", "Character", "String", "Identifier", "Register", "Return Register", "Invalid Value"
+      "Integer", "Floating", "Character", "String", "Identifier", "Local Variable", "Register", "Return Register", "Invalid Value"
    };
 
    if (value < 0 || value >= VALUE_COUNT) {
@@ -22,7 +22,7 @@ constexpr const char *getValueName(ValueType value) {
 
 constexpr const char *getParseValueName(ParseValueType value) {
    constexpr const char *parseValueTypeStrings[PARSE_VALUE_COUNT + 1] = {
-      "Function", "Native Function", "Label", "Local Variable", "Global Variable", "Invalid Parse Value"
+      "Function", "Native Function", "Label", "Global Variable", "Invalid Parse Value"
    };
 
    if (value < 0 || value >= PARSE_VALUE_COUNT) {
@@ -41,6 +41,7 @@ struct Value {
       char character;
       size_t string;
       size_t identifier;
+      size_t local;
       size_t reg; // reused for registers and return registers
    };
 };
@@ -65,9 +66,9 @@ struct ParseValue {
    std::vector<size_t> params;
    union {
       size_t label;
-      size_t function;
       Value local;
       Value global;
+      struct { size_t function, localCount; };
       NativeFunction nativeFunction;
    };
 };

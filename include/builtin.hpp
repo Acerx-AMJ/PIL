@@ -1,7 +1,7 @@
 #pragma once
+#include "values.hpp"
 
-struct Command;
-struct Executor;
+Value resolveVariable(Executor &executor, Value value, const char *function);
 
 // misc, temp
 void builtinAdd(const Command &command, Executor &executor);

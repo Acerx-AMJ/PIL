@@ -337,13 +337,17 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
          ParseValue function;
          function.init = true;
          function.type = (tokens[i + 1].type == TOKEN_LABEL ? LABEL : FUNCTION);
+         function.label = 0;
          data.values[position] = function;
       }
    }
 
    // real parsing
-   bool firstFunction = true;
+   std::unordered_map<size_t, size_t> functionParamMap;
    size_t returnLexeme = cacheLexeme(cache, "return");
+   size_t letLexeme = cacheLexeme(cache, "let");
+   size_t currentFunction = std::string::npos;
+   bool firstFunction = true;
 
    for (size_t i = 0; i < size && tokens[i].type != TOKEN_EOF; ++i) {
       // skip extraneous newlines
@@ -370,7 +374,9 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
 
          size_t start = i;
          ParseValue &function = data.values[tokens[i].lexeme];
+         currentFunction = tokens[i].lexeme;
          bool variadic = false;
+         functionParamMap.clear();
 
          for (i += 2; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_R_PAREN; ++i) {
             if (tokens[i + 1].type == TOKEN_VARIADIC) {
@@ -383,6 +389,7 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
                error(diagnostics, std::format("Function parameters: expected Identifier, got {} instead", getTokenName(tokens[i].type)), tokens[i].fileLexeme, tokens[i].line);
             }
             function.params.push_back(tokens[i].lexeme);
+            functionParamMap[tokens[i].lexeme] = functionParamMap.size();
          }
 
          if (variadic && tokens[i].type != TOKEN_R_PAREN) {
@@ -393,11 +400,24 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
          }
          function.variadic = variadic;
          function.function = data.code.size();
+         function.localCount = functionParamMap.size();
 
          i += 1;
          if (i >= size || tokens[i].type != TOKEN_NEWLINE) {
             error(diagnostics, "Excess tokens (or EOF) after function definition", tokens[start].fileLexeme, tokens[start].line);
          }
+      }
+      // let variable declaration
+      else if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i].lexeme == letLexeme && currentFunction != std::string::npos) {
+         for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
+            if (tokens[i].type != TOKEN_IDENTIFIER || data.values[tokens[i].lexeme].init) {
+               error(diagnostics, std::format("Expected unique Identifier, got {} instead", getTokenName(tokens[i].type)), tokens[i].fileLexeme, tokens[i].line);
+               continue;
+            }
+            functionParamMap[tokens[i].lexeme] = functionParamMap.size();
+            data.values[currentFunction].localCount += 1;
+         }
+         continue;
       }
       // function calls
       else {
@@ -424,8 +444,14 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
 
             switch (tokens[i].type) {
             case TOKEN_IDENTIFIER:
-               value.type = VALUE_IDENTIFIER;
-               value.identifier = tokens[i].lexeme;
+               if (auto it = functionParamMap.find(tokens[i].lexeme); it != functionParamMap.end()) {
+                  value.type = VALUE_LOCAL;
+                  value.local = it->second;
+               }
+               else {
+                  value.type = VALUE_IDENTIFIER;
+                  value.identifier = tokens[i].lexeme;
+               }
                break;
             case TOKEN_INTEGER:
                value.type = VALUE_INTEGER;
@@ -496,7 +522,7 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
 
    if (executor.registers.empty()) executor.registers.resize(DEFAULT_REGISTER_COUNT);
    if (executor.returnRegisters.empty()) executor.returnRegisters.resize(DEFAULT_RETURN_REGISTER_COUNT);
-   executor.stackTrace = std::stack<Trace>();
+   executor.stackTrace = {};
    executor.pointer = executor.code.values[lexeme].function;
    executor.returnCount = 0;
    executor.exitCalled = false;
@@ -516,7 +542,13 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
             function.nativeFunction(command, executor);
          }
          else if (function.type == FUNCTION) {
-            executor.stackTrace.emplace(executor.pointer, command.lexeme, 0);
+            Trace trace (executor.pointer, command.lexeme, 0);
+            trace.locals.resize(function.localCount);
+
+            for (size_t i = 0; i < params; ++i) {
+               trace.locals[i] = resolveVariable(executor, command.args[i], "PIL::callPILFunction");
+            }
+            executor.stackTrace.push(trace);
             executor.pointer = function.function;
             continue;
          }

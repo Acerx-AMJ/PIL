@@ -3,19 +3,17 @@
 #include <format>
 
 // helper functions
-const char *getOrdinalSuffix(size_t n) {
-   constexpr const char *ordinalSuffixes[] {"st", "nd", "rd", "th"};
-   size_t digit = n % 10;
-   return digit > 0 && digit < 4 ? ordinalSuffixes[digit - 1] : ordinalSuffixes[3];
-}
+Value resolveVariable(Executor &executor, Value value, const char *function) {
+   if (value.type == VALUE_LOCAL) {
+      return executor.stackTrace.top().locals[value.local];
+   }
 
-Value resolveRegister(Executor &executor, Value value, const char *function) {
    if (value.type == VALUE_IDENTIFIER) {
-      if (!executor.code.values[value.identifier].init || (executor.code.values[value.identifier].type != LOCAL && executor.code.values[value.identifier].type != GLOBAL)) {
+      if (!executor.code.values[value.identifier].init || executor.code.values[value.identifier].type != GLOBAL) {
          error(executor.diagnostics, std::format("{}: Variable '{}' does not exist", function, getLexeme(executor.cache, value.identifier)), value.fileLexeme, value.line);
          return value;
       }
-      return (executor.code.values[value.identifier].type == LOCAL ? executor.code.values[value.identifier].local : executor.code.values[value.identifier].global);
+      return executor.code.values[value.identifier].global;
    }
 
    if (value.type != VALUE_REGISTER && value.type != VALUE_RETURN_REGISTER) {
@@ -31,8 +29,12 @@ Value resolveRegister(Executor &executor, Value value, const char *function) {
 }
 
 bool registerOrError(Executor &executor, Value value, const char *function, const char *argument) {
+   if (value.type == VALUE_LOCAL) {
+      return false;
+   }
+
    if (value.type == VALUE_IDENTIFIER) {
-      if (!executor.code.values[value.identifier].init || (executor.code.values[value.identifier].type != LOCAL && executor.code.values[value.identifier].type != GLOBAL)) {
+      if (!executor.code.values[value.identifier].init || executor.code.values[value.identifier].type != GLOBAL) {
          error(executor.diagnostics, std::format("{}: Expected Register/Variable for the {} argument, got {} instead", function, argument, getParseValueName(executor.code.values[value.identifier].type)), value.fileLexeme, value.line);
          return true;
       }
@@ -54,8 +56,11 @@ bool registerOrError(Executor &executor, Value value, const char *function, cons
 
 void storeInRegister(Executor &executor, Value reg, Value value) {
    // jedi mind tricks
-   if (reg.type == VALUE_IDENTIFIER) {
-      (executor.code.values[reg.identifier].type == LOCAL ? executor.code.values[reg.identifier].local : executor.code.values[reg.identifier].global) = value;
+   if (reg.type == VALUE_LOCAL) {
+      executor.stackTrace.top().locals[reg.local] = value;
+   }
+   else if (reg.type == VALUE_IDENTIFIER) {
+      executor.code.values[reg.identifier].global = value;
    }
    else {
       (reg.type == VALUE_REGISTER ? executor.registers[reg.reg] : executor.returnRegisters[reg.reg]) = value;
@@ -79,7 +84,7 @@ void builtinAdd(const Command &command, Executor &executor) {
    result.integer = 0;
 
    for (size_t i = 0; i < command.args.size() - 1; ++i) {
-      Value arg = resolveRegister(executor, command.args[i], "add");
+      Value arg = resolveVariable(executor, command.args[i], "add");
       result.integer += arg.integer;
    }
 
@@ -89,7 +94,7 @@ void builtinAdd(const Command &command, Executor &executor) {
 
 void builtinPrint(const Command &command, Executor &executor) {
    for (size_t i = 0; i < command.args.size(); ++i) {
-      Value arg = resolveRegister(executor, command.args[i], "print");
+      Value arg = resolveVariable(executor, command.args[i], "print");
       switch (arg.type) {
       case VALUE_INTEGER:   printf("%ld", arg.integer); break;
       case VALUE_FLOATING:  printf("%F", arg.floating); break;
@@ -107,8 +112,8 @@ enum Comparison: char {
 };
 
 Comparison compareValues(Executor &executor, Value lhs, Value rhs, const char *function, bool softie) {
-   Value a = resolveRegister(executor, lhs, function);
-   Value b = resolveRegister(executor, rhs, function);
+   Value a = resolveVariable(executor, lhs, function);
+   Value b = resolveVariable(executor, rhs, function);
 
    if ((a.type == VALUE_INTEGER || a.type == VALUE_FLOATING) && (b.type == VALUE_INTEGER || b.type == VALUE_FLOATING)) {
       double x = (a.type == VALUE_INTEGER) ? (double)a.integer : a.floating;
@@ -131,7 +136,7 @@ Comparison compareValues(Executor &executor, Value lhs, Value rhs, const char *f
 }
 
 bool isThruthy(Executor &executor, Value value, const char *function, const char *argument, bool &ok) {
-   Value v = resolveRegister(executor, value, function);
+   Value v = resolveVariable(executor, value, function);
    ok = true;
 
    switch (v.type) {
@@ -251,7 +256,14 @@ void builtinCall(const Command &command, Executor &executor) {
       error(executor.diagnostics, "call: Cannot call native function. Remove excess call", command.file, command.line);
       return;
    }
-   executor.stackTrace.emplace(executor.pointer, command.lexeme, returnCount);
+
+   Trace trace (executor.pointer, command.lexeme, returnCount);
+   trace.locals.resize(function.localCount);
+   for (size_t i = functionPos + 1; i < functionPos + 1 + params; ++i) {
+      trace.locals[i - functionPos - 1] = resolveVariable(executor, command.args[i], "call");
+   }
+
+   executor.stackTrace.push(trace);
    executor.pointer = function.function - 1;
 }
 
@@ -260,33 +272,37 @@ void builtinReturn(const Command &command, Executor &executor) {
       executor.exitCalled = true;
       return;
    }
-   Trace trace = executor.stackTrace.top();
-   executor.stackTrace.pop();
+   Trace &trace = executor.stackTrace.top();
+   size_t position = trace.position;
+   size_t callExpectedReturnCount = trace.callExpectedReturnCount;
+   size_t lexeme = trace.lexeme;
    executor.pointer = trace.position;
 
    executor.returnCount = command.args.size();
    if (executor.returnCount > executor.returnRegisters.size()) {
       error(executor.diagnostics, std::format("return: Can return at maximum {} values. Define 'return-register-count {}' directive to mitigate. Error", executor.returnRegisters.size(), executor.returnCount), command.file, command.line);
+      executor.stackTrace.pop();
       return;
    }
 
    for (size_t i = 0; i < executor.returnCount; ++i) {
-      executor.returnRegisters[i] = resolveRegister(executor, command.args[i], "return");
+      executor.returnRegisters[i] = resolveVariable(executor, command.args[i], "return");
    }
+   executor.stackTrace.pop();
 
    // call shenanigans
    static size_t callLexeme = cacheLexeme(executor.cache, "call");
-   if (trace.lexeme == callLexeme) {
-      const Command &call = executor.code.code[trace.position];
-      if (executor.returnCount != trace.callExpectedReturnCount) {
-         warn(executor.diagnostics, std::format("call: Expected {} return values, but got {} instead", trace.callExpectedReturnCount, executor.returnCount), call.file, call.line);
+   if (lexeme == callLexeme) {
+      const Command &call = executor.code.code[position];
+      if (executor.returnCount != callExpectedReturnCount) {
+         warn(executor.diagnostics, std::format("call: Expected {} return values, but got {} instead", callExpectedReturnCount, executor.returnCount), call.file, call.line);
       }
 
-      size_t count = std::min(executor.returnCount, trace.callExpectedReturnCount);
+      size_t count = std::min(executor.returnCount, callExpectedReturnCount);
       for (size_t i = 0; i < count; ++i) {
          Value reg = call.args[i];
-         if (registerOrError(executor, reg, "call", std::format("{}{}", i + 1, getOrdinalSuffix(i + 1)).c_str())) return;
-         (reg.type == VALUE_REGISTER ? executor.registers[reg.reg] : executor.returnRegisters[reg.reg]) = executor.returnRegisters[i];
+         if (registerOrError(executor, reg, "call", "return")) return;
+         storeInRegister(executor, reg, executor.returnRegisters[i]);
       }
    }
 }
@@ -295,21 +311,21 @@ void builtinReturn(const Command &command, Executor &executor) {
 void builtinSet(const Command &command, Executor &executor) {
    Value reg = command.args[0];
    if (registerOrError(executor, reg, "set", "1st")) return;
-   storeInRegister(executor, reg, resolveRegister(executor, command.args[1], "set"));
+   storeInRegister(executor, reg, resolveVariable(executor, command.args[1], "set"));
 }
 
 void builtinMove(const Command &command, Executor &executor) {
    Value reg = command.args[1];
    if (registerOrError(executor, reg, "move", "2nd")) return;
-   storeInRegister(executor, reg, resolveRegister(executor, command.args[0], "move"));
+   storeInRegister(executor, reg, resolveVariable(executor, command.args[0], "move"));
 }
 
 void builtinGlobal(const Command &command, Executor &executor) {
    Value value {VALUE_COUNT};
    size_t definitionCount = command.args.size();
 
-   if (command.args.size() > 1 && (command.args.back().type != VALUE_IDENTIFIER || (executor.code.values[command.args.back().identifier].init && (executor.code.values[command.args.back().identifier].type == LOCAL || executor.code.values[command.args.back().identifier].type == GLOBAL)))) {
-      value = resolveRegister(executor, command.args.back(), "global");
+   if (command.args.size() > 1 && (command.args.back().type != VALUE_IDENTIFIER || (executor.code.values[command.args.back().identifier].init && executor.code.values[command.args.back().identifier].type == GLOBAL))) {
+      value = resolveVariable(executor, command.args.back(), "global");
       definitionCount -= 1;
    }
    for (size_t i = 0; i < definitionCount; ++i) {

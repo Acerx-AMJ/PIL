@@ -1,9 +1,17 @@
-some-function()
+other-function(a, reg)
+   print a, reg
+   add a, a, reg
+
+some-function(a, b, c)
    add a, b, c, c
    print "a: " a " b: " b " c: " c
 
 main()
-   global a, b, c, 5
-   some-function
-   set a 10
-   some-function
+   global d, e, f, 5
+   some-function d, e, f
+   set d 10
+   some-function d, e, f
+
+   print $0
+   other-function 20, $0
+   print $0
