@@ -7,6 +7,9 @@
 #include <unordered_map>
 #include <unordered_set>
 
+constexpr size_t DEFAULT_REGISTER_COUNT = 16;
+constexpr size_t DEFAULT_RETURN_REGISTER_COUNT = 4;
+
 // file reader
 PILFile readPILInternal(Diagnostics &diagnostics, LexemeCache &cache, const std::string &path, size_t parentFile, size_t line) {
    size_t fileLexeme = pushLexeme(cache, path);
@@ -171,46 +174,75 @@ std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILF
    return tokens;
 }
 
-// translator (handle includes)
+// translator (handle includes and misc. directives)
 
 // find all INCLUDE "FILE" statements and push their tokens if the files haven't been included yet. will erase all includes
-// after and doesn't have more than a single file open at a time.
-void handlePILFileIncludes(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, std::vector<Token> &tokens) {
+// after and doesn't have more than a single file open at a time. also handles some other misc. directives.
+void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens) {
    std::unordered_set<std::string> includedFiles;
    size_t size = tokens.size();
 
-   for (size_t i = 0; i < size; i += 3) {
-      if (tokens[i].type != TOKEN_IDENTIFIER || i + 1 >= size || tokens[i + 1].type != TOKEN_STRING || getLexeme(cache, tokens[i].lexeme) != "include") {
-         i -= 2;
-         continue;
+   size_t includeLexeme = cacheLexeme(executor.cache, "include");
+   size_t registerLexeme = cacheLexeme(executor.cache, "register-count");
+   size_t returnRegisterLexeme = cacheLexeme(executor.cache, "return-register-count");
+
+   for (size_t i = 0; i < size; ++i) {
+      // handle includes
+      if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i].lexeme == includeLexeme && i + 1 < size && tokens[i + 1].type == TOKEN_STRING) {
+         if (i + 2 >= size || tokens[i + 2].type != TOKEN_NEWLINE) {
+            error(executor.diagnostics, "Excess tokens (or EOF) after include statement", tokens[i].fileLexeme, tokens[i].line);
+            continue;
+         }
+
+         // destroy all after the loop
+         tokens[i].parsed = true;
+         tokens[i + 1].parsed = true;
+         tokens[i + 2].parsed = true;
+
+         std::string &filename = getLexeme(executor.cache, tokens[i + 1].lexeme);
+         if (includedFiles.find(filename) != includedFiles.end()) {
+            continue;
+         }
+
+         includedFiles.insert(filename);
+         PILFile newFile = readPILInternal(executor.diagnostics, executor.cache, filename, tokens[i + 1].fileLexeme, tokens[i + 1].line);
+         std::vector<Token> newTokens = lexPILFile(executor.diagnostics, executor.cache, newFile);
+         tokens.insert(tokens.begin() + i + 3, newTokens.begin(), newTokens.end());
+         i += 2;
       }
+      // handle register config
+      else if (tokens[i].type == TOKEN_IDENTIFIER && (tokens[i].lexeme == registerLexeme || tokens[i].lexeme == returnRegisterLexeme) && i + 1 < size && tokens[i + 1].type == TOKEN_INTEGER) {
+         if (i + 2 >= size || tokens[i + 2].type != TOKEN_NEWLINE) {
+            error(executor.diagnostics, "Excess tokens (or EOF) after register configuration statement", tokens[i].fileLexeme, tokens[i].line);
+            continue;
+         }
+         tokens[i].parsed = true;
+         tokens[i + 1].parsed = true;
+         tokens[i + 2].parsed = true;
 
-      if (i + 2 >= size || tokens[i + 2].type != TOKEN_NEWLINE) {
-         error(diagnostics, "Excess tokens (or EOF) after include statement", tokens[i].fileLexeme, tokens[i + 1].line);
-         i -= 2;
-         continue;
+         size_t count = 0;
+         try {
+            count = std::stol(getLexeme(executor.cache, tokens[i + 1].lexeme));
+         }
+         catch (...) {
+            error(executor.diagnostics, std::format("Invalid integer: {}", getLexeme(executor.cache, tokens[i + 1].lexeme)), tokens[i].fileLexeme, tokens[i].line);
+            continue;
+         }
+
+         if (tokens[i].lexeme == registerLexeme) {
+            executor.registers.resize(count);
+         }
+         else {
+            executor.returnRegisters.resize(count);
+         }
+         i += 2;
       }
-
-      // destroy all include statements after the loop
-      tokens[i].parsed = true;
-      tokens[i + 1].parsed = true;
-      tokens[i + 2].parsed = true;
-
-      std::string &filename = getLexeme(cache, tokens[i + 1].lexeme);
-      if (includedFiles.find(filename) != includedFiles.end()) {
-         continue;
-      }
-
-      includedFiles.insert(filename);
-      PILFile newFile = readPILInternal(diagnostics, cache, filename, tokens[i + 1].fileLexeme, tokens[i + 1].line);
-      std::vector<Token> newTokens = lexPILFile(diagnostics, cache, newFile);
-      tokens.insert(tokens.begin() + i + 3, newTokens.begin(), newTokens.end());
    }
    // erase all includes and EOFs
    tokens.erase(std::remove_if(tokens.begin(), tokens.end(), [](const Token &t) { return t.parsed || t.type == TOKEN_EOF; }), tokens.end());
 
    size_t EOFline = (tokens.empty() ? 1 : tokens.back().line);
-   tokens.emplace_back(TOKEN_EOF, cacheLexeme(cache, "EOF"), file.lexeme, EOFline);
+   tokens.emplace_back(TOKEN_EOF, cacheLexeme(executor.cache, "EOF"), file.lexeme, EOFline);
 }
 
 // built-in functions
@@ -450,6 +482,8 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
       return;
    }
 
+   if (executor.registers.empty()) executor.registers.resize(DEFAULT_REGISTER_COUNT);
+   if (executor.returnRegisters.empty()) executor.returnRegisters.resize(DEFAULT_RETURN_REGISTER_COUNT);
    executor.stackTrace = std::stack<Trace>();
    executor.pointer = executor.code.functions[lexeme].function;
    executor.returnCount = 0;

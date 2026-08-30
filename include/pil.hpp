@@ -33,8 +33,8 @@ struct Executor {
    LexemeCache &cache;
    ByteCode &code;
 
-   std::vector<Value> registers {16, Value{}};
-   std::vector<Value> returnRegisters {4, Value{}};
+   std::vector<Value> registers;
+   std::vector<Value> returnRegisters;
    std::stack<Trace> stackTrace;
    size_t pointer;
    size_t returnCount;
@@ -43,7 +43,7 @@ struct Executor {
 
 PILFile readPIL(Diagnostics &diagnostics, LexemeCache &cache, const std::string &path);
 std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file);
-void handlePILFileIncludes(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, std::vector<Token> &tokens);
+void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens);
 
 void pushBuiltin(LexemeCache &cache, ByteCode &data, const std::string &lexeme, NativeFunction function, size_t paramCount, bool variadic);
 void pushReservedBuiltin(LexemeCache &cache, ByteCode &data, const std::string &lexeme, NativeFunction function, size_t paramCount, bool variadic);

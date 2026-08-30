@@ -8,6 +8,8 @@ int main(int argc, char *argv[]) {
 
    LexemeCache cache;
    Diagnostics diagnostics;
+   ByteCode code;
+   Executor executor (diagnostics, cache, code);
 
    PILFile file = readPIL(diagnostics, cache, argv[1]);
    log(cache, diagnostics, SEVERITY_ERROR);
@@ -17,7 +19,7 @@ int main(int argc, char *argv[]) {
    file.code.clear(); // free up memory for the includes, which will read more files
    file.code.shrink_to_fit();
 
-   handlePILFileIncludes(diagnostics, cache, file, tokens);
+   translatePIL(executor, file, tokens);
    log(cache, diagnostics, SEVERITY_ERROR);
 
    // printf("Tokens:\n");
@@ -25,7 +27,6 @@ int main(int argc, char *argv[]) {
    //    printf("%s:%-5zu %s: '%s'.\n", getLexeme(cache, token.fileLexeme).c_str(), token.line, getTokenName(token.type), getLexeme(cache, token.lexeme).c_str());
    // }
 
-   ByteCode code;
    defineStandardBuiltins(cache, code);
    parsePIL(diagnostics, cache, code, tokens);
    log(cache, diagnostics, SEVERITY_ERROR);
@@ -41,7 +42,6 @@ int main(int argc, char *argv[]) {
       putchar('\n');
    }
 
-   Executor executor (diagnostics, cache, code);
    callPILFunction(executor, "main", SEVERITY_ERROR);
    logStackTrace(executor, SEVERITY_ERROR);
 }

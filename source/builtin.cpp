@@ -13,11 +13,13 @@ Value resolveRegister(Executor &executor, Value value, const char *function) {
    if (value.type != VALUE_REGISTER && value.type != VALUE_RETURN_REGISTER) {
       return value;
    }
-   if (value.reg < 0 || value.reg >= executor.registers.size()) {
+   std::vector<Value> &registers = (value.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
+
+   if (value.reg < 0 || value.reg >= registers.size()) {
       error(executor.diagnostics, std::format("{}: Register {}${} is out of bounds", function, value.type == VALUE_RETURN_REGISTER ? "R" : "", value.reg), value.fileLexeme, value.line);
       return value;
    }
-   return value.type == VALUE_RETURN_REGISTER ? executor.returnRegisters[value.reg] : executor.registers[value.reg];
+   return registers[value.reg];
 }
 
 bool registerOrError(Executor &executor, Value value, const char *function, const char *argument) {
@@ -25,7 +27,9 @@ bool registerOrError(Executor &executor, Value value, const char *function, cons
       error(executor.diagnostics, std::format("{}: Expected Register for the {} argument, got {} instead", function, argument, getValueName(value.type)), value.fileLexeme, value.line);
       return true;
    }
-   if (value.reg < 0 || value.reg >= executor.registers.size()) {
+   std::vector<Value> &registers = (value.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
+
+   if (value.reg < 0 || value.reg >= registers.size()) {
       error(executor.diagnostics, std::format("{}: Register {}${} is out of bounds", function, value.type == VALUE_RETURN_REGISTER ? "R" : "", value.reg), value.fileLexeme, value.line);
       return true;
    }
@@ -245,7 +249,7 @@ void builtinReturn(const Command &command, Executor &executor) {
 
    executor.returnCount = command.args.size();
    if (executor.returnCount > executor.returnRegisters.size()) {
-      error(executor.diagnostics, std::format("return: Register R${} is out of bounds; too many return values", executor.returnCount), command.file, command.line);
+      error(executor.diagnostics, std::format("return: Can return at maximum {} values. Define 'return-register-count {}' directive to mitigate. Error", executor.returnRegisters.size(), executor.returnCount), command.file, command.line);
       return;
    }
 
