@@ -20,12 +20,15 @@ struct Diagnostics {
    ErrorSeverity severity = SEVERITY_NONE;
 };
 
+struct LexemeCache;
+struct Executor;
+
 bool shouldError(Diagnostics &diagnostics, ErrorSeverity errorSeverity);
 
 void warn(Diagnostics &diagnostics, const std::string &message, size_t file, size_t line);
 void error(Diagnostics &diagnostics, const std::string &message, size_t file, size_t line);
 void clear(Diagnostics &diagnostics);
 
-struct LexemeCache;
 void log(LexemeCache &cache, Diagnostics &diagnostics, ErrorSeverity quitSeverity);
+void logStackTrace(Executor &executor, ErrorSeverity quitSeverity);
 void logDiagnostic(LexemeCache &cache, Diagnostic &diagnostic, ErrorSeverity quitSeverity);

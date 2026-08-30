@@ -131,7 +131,7 @@ void storeBoolean(Executor &executor, Value reg, bool result, const char *functi
    Value out = reg;
    out.type = VALUE_INTEGER;
    out.integer = (result ? 1 : 0);
-   executor.registers[reg.reg] = out;
+   storeInRegister(executor, reg, out);
 }
 
 void builtinLe(const Command &command, Executor &executor) {

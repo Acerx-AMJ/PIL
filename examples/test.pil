@@ -1,10 +1,24 @@
-add-wrapper(a, b)
-   add $0, $1, $2
-   print $0 " + " $1 " = " $2
-   return $2
+fib()
+   add $0 1 $0
+   greq $0 100 $1
+   jmp $1 fib-label
+   fib
+fib-label:
+   return
 
 main()
-   move 10, $0
-   move 9, $1
-   call $3, add-wrapper, $0, $1
-   print $3 " " R$0
+   move 1 $0
+   fib
+   print $0
+
+; add-wrapper(a, b)
+;    add $0, $1, $2
+;    print $0 " + " $1 " = " $2
+;    return $2
+; 
+; main()
+;    move 10, $0
+;    move 9, $1
+;    call $3, add-wrapper, $0, $1
+;    print $3 " " R$0
+; 

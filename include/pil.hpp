@@ -26,8 +26,8 @@ struct Trace {
 };
 
 struct Executor {
-   Executor(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &code, size_t pointer)
-      : diagnostics(diagnostics), cache(cache), code(code), pointer(pointer) {}
+   Executor(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &code)
+      : diagnostics(diagnostics), cache(cache), code(code) {}
 
    Diagnostics &diagnostics;
    LexemeCache &cache;
@@ -37,8 +37,8 @@ struct Executor {
    std::vector<Value> returnRegisters {4, Value{}};
    std::stack<Trace> stackTrace;
    size_t pointer;
-   size_t returnCount = 0;
-   bool exitCalled = false;
+   size_t returnCount;
+   bool exitCalled;
 };
 
 PILFile readPIL(Diagnostics &diagnostics, LexemeCache &cache, const std::string &path);
@@ -50,4 +50,4 @@ void pushReservedBuiltin(LexemeCache &cache, ByteCode &data, const std::string &
 void defineStandardBuiltins(LexemeCache &cache, ByteCode &data);
 
 void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std::vector<Token> &tokens);
-void callPILFunction(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, const std::string &name, ErrorSeverity stopSeverity);
+void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity stopSeverity);

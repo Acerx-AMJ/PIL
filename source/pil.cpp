@@ -266,10 +266,6 @@ void defineStandardBuiltins(LexemeCache &cache, ByteCode &data) {
 
 // take the tokens and turn them into executable function blocks and commands. we have 3 levels here: file -> functions ->
 // commands. there can be no commands in the file level and no functions in the command level.
-void parseNewlines(Diagnostics &diagnostics, ByteCode &data, std::vector<Token> &tokens, size_t &i) {
-   while (i < tokens.size() && tokens[i].type == TOKEN_NEWLINE) ++i;
-}
-
 void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std::vector<Token> &tokens) {
    // reserved built-ins. must always be there.
    pushReservedBuiltin(cache, data, "return", builtinReturn, 0, true);
@@ -307,7 +303,9 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
    size_t returnLexeme = cacheLexeme(cache, "return");
 
    for (size_t i = 0; i < size && tokens[i].type != TOKEN_EOF; ++i) {
-      parseNewlines(diagnostics, data, tokens, i);
+      // skip extraneous newlines
+      while (i < tokens.size() && tokens[i].type == TOKEN_NEWLINE) ++i;
+      if (tokens[i].type == TOKEN_EOF) break;
 
       // labels
       if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_LABEL) {
@@ -438,29 +436,34 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
 
 // executor
 
-// execute bytecode.
-void callPILFunction(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, const std::string &name, ErrorSeverity stopSeverity) {
-   size_t lexeme = cacheLexeme(cache, name);
-   if (lexeme >= data.functions.size() || !data.functions[lexeme].init || data.functions[lexeme].type == NATIVE_FUNCTION) {
-      error(diagnostics, std::format("Function '{}' cannot be called as it is not defined", name), 0, 0);
+// execute bytecode. it's really simple - execute the function that the pointer is on. return and call logic can be found
+// in the builtin header since they're also callable functions.
+void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity stopSeverity) {
+   size_t lexeme = cacheLexeme(executor.cache, name);
+   if (lexeme >= executor.code.functions.size() || !executor.code.functions[lexeme].init || executor.code.functions[lexeme].type == NATIVE_FUNCTION) {
+      error(executor.diagnostics, std::format("Function '{}' cannot be called as it is not defined", name), 0, 0);
       return;
    }
 
-   if (!data.functions[lexeme].params.empty() || data.functions[lexeme].variadic) {
-      error(diagnostics, std::format("Attempted to call function '{}' with 0 arguments", name), 0, 0);
+   if (!executor.code.functions[lexeme].params.empty() || executor.code.functions[lexeme].variadic) {
+      error(executor.diagnostics, std::format("Attempted to call function '{}' with 0 arguments", name), 0, 0);
       return;
    }
 
-   Executor executor (diagnostics, cache, data, data.functions[lexeme].function);
+   executor.stackTrace = std::stack<Trace>();
+   executor.pointer = executor.code.functions[lexeme].function;
+   executor.returnCount = 0;
+   executor.exitCalled = false;
+
    while (true) {
-      Command &command = data.code[executor.pointer];
-      Function &function = data.functions[command.lexeme];
+      Command &command = executor.code.code[executor.pointer];
+      Function &function = executor.code.functions[command.lexeme];
       size_t args = command.args.size();
       size_t params = function.params.size();
       bool variadic = function.variadic;
 
       if ((!variadic && args != params) || (variadic && args < params)) {
-         error(diagnostics, std::format("Function expected {}{} parameters, but received {} arguments", (variadic ? ">" : ""), params, args), command.file, command.line);
+         error(executor.diagnostics, std::format("Function expected {}{} parameters, but received {} arguments", (variadic ? ">" : ""), params, args), command.file, command.line);
       }
       else {
          if (function.type == NATIVE_FUNCTION) {
@@ -472,11 +475,11 @@ void callPILFunction(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &dat
             continue;
          }
          else {
-            error(diagnostics, std::format("Stray label '{}'", getLexeme(cache, command.lexeme)), command.file, command.line);
+            error(executor.diagnostics, std::format("Stray label '{}'", getLexeme(executor.cache, command.lexeme)), command.file, command.line);
          }
       }
 
-      if (executor.exitCalled || shouldError(diagnostics, stopSeverity)) {
+      if (executor.exitCalled || shouldError(executor.diagnostics, stopSeverity)) {
          break;
       }
       executor.pointer += 1;
