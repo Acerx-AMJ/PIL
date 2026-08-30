@@ -401,8 +401,7 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
    // real parsing
    std::unordered_map<size_t, size_t> functionParamMap;
    size_t returnLexeme = cacheLexeme(cache, "return");
-   size_t letLexeme = cacheLexeme(cache, "let");
-   size_t currentFunction = std::string::npos;
+   size_t defineLexeme = cacheLexeme(cache, "define");
    bool firstFunction = true;
 
    for (size_t i = 0; i < size && tokens[i].type != TOKEN_EOF; ++i) {
@@ -430,7 +429,6 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
 
          size_t start = i;
          ParseValue &function = data.values[tokens[i].lexeme];
-         currentFunction = tokens[i].lexeme;
          bool variadic = false;
          functionParamMap.clear();
 
@@ -454,26 +452,25 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
          else if (!variadic && tokens[i].type != TOKEN_R_PAREN) {
             error(diagnostics, "Unterminated function parameters", tokens[start].fileLexeme, tokens[start].line);
          }
+
+         // variable declarations
+         i += 1;
+         if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i].lexeme == defineLexeme) {
+            for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
+               if (tokens[i].type != TOKEN_IDENTIFIER || data.values[tokens[i].lexeme].init) {
+                  error(diagnostics, std::format("Expected unique Identifier, got {} instead", getTokenName(tokens[i].type)), tokens[i].fileLexeme, tokens[i].line);
+                  continue;
+               }
+               functionParamMap[tokens[i].lexeme] = functionParamMap.size();
+            }
+         }
          function.variadic = variadic;
          function.function = data.code.size();
          function.localCount = functionParamMap.size();
 
-         i += 1;
          if (i >= size || tokens[i].type != TOKEN_NEWLINE) {
             error(diagnostics, "Excess tokens (or EOF) after function definition", tokens[start].fileLexeme, tokens[start].line);
          }
-      }
-      // let variable declaration
-      else if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i].lexeme == letLexeme && currentFunction != std::string::npos) {
-         for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
-            if (tokens[i].type != TOKEN_IDENTIFIER || data.values[tokens[i].lexeme].init) {
-               error(diagnostics, std::format("Expected unique Identifier, got {} instead", getTokenName(tokens[i].type)), tokens[i].fileLexeme, tokens[i].line);
-               continue;
-            }
-            functionParamMap[tokens[i].lexeme] = functionParamMap.size();
-            data.values[currentFunction].localCount += 1;
-         }
-         continue;
       }
       // function calls
       else {

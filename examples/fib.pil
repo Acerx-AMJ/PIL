@@ -1,8 +1,7 @@
-fib(n)
+fib(n) define minus1, minus2, fib1, fib2, result
    leeq n, 1, $0
    jmp $0, fib-branch
 
-   let minus1, minus2, fib1, fib2, result
    add n, -1, minus1
    add n, -2, minus2
 

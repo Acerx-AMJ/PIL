@@ -1,5 +1,4 @@
-move-to-zero(n)
-   let cond, tmp
+move-to-zero(n) define cond, tmp
    gr n, 0, cond
    jmp cond, move-to-zero-positive
    le n, 0, cond
@@ -12,8 +11,7 @@ move-to-zero-negative:
    add n, 1, tmp
    return tmp
 
-imul(a, b)
-   let r, c, sa, cond
+imul(a, b) define r, c, sa, cond
    set r, 0
    set c, b
    set sa a
