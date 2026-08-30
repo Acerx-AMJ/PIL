@@ -5,8 +5,8 @@ enum ValueType: char {
    VALUE_INTEGER, VALUE_FLOATING, VALUE_CHARACTER, VALUE_STRING, VALUE_IDENTIFIER, VALUE_REGISTER, VALUE_RETURN_REGISTER, VALUE_COUNT
 };
 
-enum FunctionType: char {
-   FUNCTION, NATIVE_FUNCTION, LABEL
+enum ParseValueType: char {
+   FUNCTION, NATIVE_FUNCTION, LABEL, LOCAL, GLOBAL, PARSE_VALUE_COUNT
 };
 
 constexpr const char *getValueName(ValueType value) {
@@ -20,8 +20,19 @@ constexpr const char *getValueName(ValueType value) {
    return valueTypeStrings[value];
 }
 
+constexpr const char *getParseValueName(ParseValueType value) {
+   constexpr const char *parseValueTypeStrings[PARSE_VALUE_COUNT + 1] = {
+      "Function", "Native Function", "Label", "Local Variable", "Global Variable", "Invalid Parse Value"
+   };
+
+   if (value < 0 || value >= PARSE_VALUE_COUNT) {
+      return parseValueTypeStrings[PARSE_VALUE_COUNT];
+   }
+   return parseValueTypeStrings[value];
+}
+
 struct Value {
-   ValueType type = VALUE_COUNT;
+   ValueType type;
    size_t line;
    size_t fileLexeme;
    union {
@@ -46,8 +57,8 @@ struct Command {
 
 typedef void (*NativeFunction)(const Command&, struct Executor&);
 
-struct Function {
-   FunctionType type;
+struct ParseValue {
+   ParseValueType type;
    bool init = false;
    bool variadic = false;
    bool reserved = false;
@@ -55,6 +66,8 @@ struct Function {
    union {
       size_t label;
       size_t function;
+      Value local;
+      Value global;
       NativeFunction nativeFunction;
    };
 };

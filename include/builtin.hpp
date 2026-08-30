@@ -4,7 +4,6 @@ struct Command;
 struct Executor;
 
 // misc, temp
-void builtinMove(const Command &command, Executor &executor);
 void builtinAdd(const Command &command, Executor &executor);
 void builtinPrint(const Command &command, Executor &executor);
 
@@ -23,3 +22,8 @@ void builtinJmp(const Command &command, Executor &executor);
 void builtinJmpn(const Command &command, Executor &executor);
 void builtinCall(const Command &command, Executor &executor);
 void builtinReturn(const Command &command, Executor &executor);
+
+// variables
+void builtinSet(const Command &command, Executor &executor);
+void builtinMove(const Command &command, Executor &executor);
+void builtinGlobal(const Command &command, Executor &executor);

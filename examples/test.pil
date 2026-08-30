@@ -1,21 +1,9 @@
-register-count 4
-return-register-count 7
-
-return7()
-   return 1, 2, 3, 4, 5, 6, 7
+some-function()
+   add a, b, c, c
+   print "a: " a " b: " b " c: " c
 
 main()
-   return7
-   print R$0, R$1, R$2, R$3, R$4, R$5, R$6
-
-; add-wrapper(a, b)
-;    add $0, $1, $2
-;    print $0 " + " $1 " = " $2
-;    return $2
-; 
-; main()
-;    move 10, $0
-;    move 9, $1
-;    call $3, add-wrapper, $0, $1
-;    print $3 " " R$0
-; 
+   global a, b, c, 5
+   some-function
+   set a 10
+   some-function

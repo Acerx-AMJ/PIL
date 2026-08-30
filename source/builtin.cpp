@@ -10,6 +10,14 @@ const char *getOrdinalSuffix(size_t n) {
 }
 
 Value resolveRegister(Executor &executor, Value value, const char *function) {
+   if (value.type == VALUE_IDENTIFIER) {
+      if (!executor.code.values[value.identifier].init || (executor.code.values[value.identifier].type != LOCAL && executor.code.values[value.identifier].type != GLOBAL)) {
+         error(executor.diagnostics, std::format("{}: Variable '{}' does not exist", function, getLexeme(executor.cache, value.identifier)), value.fileLexeme, value.line);
+         return value;
+      }
+      return (executor.code.values[value.identifier].type == LOCAL ? executor.code.values[value.identifier].local : executor.code.values[value.identifier].global);
+   }
+
    if (value.type != VALUE_REGISTER && value.type != VALUE_RETURN_REGISTER) {
       return value;
    }
@@ -23,8 +31,16 @@ Value resolveRegister(Executor &executor, Value value, const char *function) {
 }
 
 bool registerOrError(Executor &executor, Value value, const char *function, const char *argument) {
+   if (value.type == VALUE_IDENTIFIER) {
+      if (!executor.code.values[value.identifier].init || (executor.code.values[value.identifier].type != LOCAL && executor.code.values[value.identifier].type != GLOBAL)) {
+         error(executor.diagnostics, std::format("{}: Expected Register/Variable for the {} argument, got {} instead", function, argument, getParseValueName(executor.code.values[value.identifier].type)), value.fileLexeme, value.line);
+         return true;
+      }
+      return false;
+   }
+
    if (value.type != VALUE_REGISTER && value.type != VALUE_RETURN_REGISTER) {
-      error(executor.diagnostics, std::format("{}: Expected Register for the {} argument, got {} instead", function, argument, getValueName(value.type)), value.fileLexeme, value.line);
+      error(executor.diagnostics, std::format("{}: Expected Register/Variable for the {} argument, got {} instead", function, argument, getValueName(value.type)), value.fileLexeme, value.line);
       return true;
    }
    std::vector<Value> &registers = (value.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
@@ -37,11 +53,17 @@ bool registerOrError(Executor &executor, Value value, const char *function, cons
 }
 
 void storeInRegister(Executor &executor, Value reg, Value value) {
-   (reg.type == VALUE_REGISTER ? executor.registers[reg.reg] : executor.returnRegisters[reg.reg]) = value;
+   // jedi mind tricks
+   if (reg.type == VALUE_IDENTIFIER) {
+      (executor.code.values[reg.identifier].type == LOCAL ? executor.code.values[reg.identifier].local : executor.code.values[reg.identifier].global) = value;
+   }
+   else {
+      (reg.type == VALUE_REGISTER ? executor.registers[reg.reg] : executor.returnRegisters[reg.reg]) = value;
+   }
 }
 
 bool labelOrError(Executor &executor, Value value, const char *function, const char *argument) {
-   if (value.type != VALUE_IDENTIFIER || value.identifier >= executor.code.functions.size() || !executor.code.functions[value.identifier].init || executor.code.functions[value.identifier].type != LABEL) {
+   if (value.type != VALUE_IDENTIFIER || value.identifier >= executor.code.values.size() || !executor.code.values[value.identifier].init || executor.code.values[value.identifier].type != LABEL) {
       error(executor.diagnostics, std::format("{}: Expected Label for the {} argument, got {} instead", function, argument, getValueName(value.type)), value.fileLexeme, value.line);
       return true;
    }
@@ -49,12 +71,6 @@ bool labelOrError(Executor &executor, Value value, const char *function, const c
 }
 
 // misc, temp
-void builtinMove(const Command &command, Executor &executor) {
-   Value reg = command.args[1];
-   if (registerOrError(executor, reg, "move", "2nd")) return;
-   storeInRegister(executor, reg, resolveRegister(executor, command.args[0], "move"));
-}
-
 void builtinAdd(const Command &command, Executor &executor) {
    Value result;
    result.fileLexeme = command.file;
@@ -177,7 +193,7 @@ void builtinNot(const Command &command, Executor &executor) {
 // control flow
 void builtinGoto(const Command &command, Executor &executor) {
    if (labelOrError(executor, command.args[0], "goto", "1st")) return;
-   executor.pointer = executor.code.functions[command.args[0].identifier].label - 1;
+   executor.pointer = executor.code.values[command.args[0].identifier].label - 1;
 }
 
 void builtinJmp(const Command &command, Executor &executor) {
@@ -185,7 +201,7 @@ void builtinJmp(const Command &command, Executor &executor) {
    bool ok;
    bool thruthy = isThruthy(executor, command.args[0], "jmp", "1st", ok);
    if (ok && thruthy) {
-      executor.pointer = executor.code.functions[command.args[1].identifier].label - 1;
+      executor.pointer = executor.code.values[command.args[1].identifier].label - 1;
    }
 }
 
@@ -194,7 +210,7 @@ void builtinJmpn(const Command &command, Executor &executor) {
    bool ok;
    bool thruthy = isThruthy(executor, command.args[0], "jmpn", "1st", ok);
    if (ok && !thruthy) {
-      executor.pointer = executor.code.functions[command.args[1].identifier].label - 1;
+      executor.pointer = executor.code.values[command.args[1].identifier].label - 1;
    }
 }
 
@@ -204,7 +220,8 @@ void builtinCall(const Command &command, Executor &executor) {
    size_t functionPos = std::string::npos;
 
    for (size_t i = 0; i < command.args.size(); ++i) {
-      if (command.args[i].type == VALUE_IDENTIFIER && command.args[i].identifier < executor.code.functions.size() && executor.code.functions[command.args[i].identifier].init && executor.code.functions[command.args[i].identifier].type != LABEL) {
+      size_t identifier = command.args[i].identifier; // access before check
+      if (command.args[i].type == VALUE_IDENTIFIER && identifier < executor.code.values.size() && executor.code.values[identifier].init && (executor.code.values[identifier].type == FUNCTION || executor.code.values[identifier].type == NATIVE_FUNCTION)) {
          if (functionPos != std::string::npos) {
             error(executor.diagnostics, "call: Cannot call multiple functions in a single call", command.file, command.line);
             return;
@@ -221,7 +238,7 @@ void builtinCall(const Command &command, Executor &executor) {
       error(executor.diagnostics, "call: Expected function name to call", command.file, command.line);
       return;
    }
-   Function &function = executor.code.functions[command.args[functionPos].identifier];
+   ParseValue &function = executor.code.values[command.args[functionPos].identifier];
    size_t params = function.params.size();
    bool variadic = function.variadic;
 
@@ -271,5 +288,44 @@ void builtinReturn(const Command &command, Executor &executor) {
          if (registerOrError(executor, reg, "call", std::format("{}{}", i + 1, getOrdinalSuffix(i + 1)).c_str())) return;
          (reg.type == VALUE_REGISTER ? executor.registers[reg.reg] : executor.returnRegisters[reg.reg]) = executor.returnRegisters[i];
       }
+   }
+}
+
+// variables. set and move being the same with different order is intentional
+void builtinSet(const Command &command, Executor &executor) {
+   Value reg = command.args[0];
+   if (registerOrError(executor, reg, "set", "1st")) return;
+   storeInRegister(executor, reg, resolveRegister(executor, command.args[1], "set"));
+}
+
+void builtinMove(const Command &command, Executor &executor) {
+   Value reg = command.args[1];
+   if (registerOrError(executor, reg, "move", "2nd")) return;
+   storeInRegister(executor, reg, resolveRegister(executor, command.args[0], "move"));
+}
+
+void builtinGlobal(const Command &command, Executor &executor) {
+   Value value {VALUE_COUNT};
+   size_t definitionCount = command.args.size();
+
+   if (command.args.size() > 1 && (command.args.back().type != VALUE_IDENTIFIER || (executor.code.values[command.args.back().identifier].init && (executor.code.values[command.args.back().identifier].type == LOCAL || executor.code.values[command.args.back().identifier].type == GLOBAL)))) {
+      value = resolveRegister(executor, command.args.back(), "global");
+      definitionCount -= 1;
+   }
+   for (size_t i = 0; i < definitionCount; ++i) {
+      if (command.args[i].type != VALUE_IDENTIFIER) {
+         error(executor.diagnostics, std::format("global: Expected Identifier, but got {} instead", getValueName(command.args[i].type)), command.file, command.line);
+         continue;
+      }
+      size_t lexeme = command.args[i].identifier;
+      if (executor.code.values[lexeme].init && executor.code.values[lexeme].type != GLOBAL) {
+         error(executor.diagnostics, std::format("global: Cannot define global '{}' as a {} with the same name already exists", getLexeme(executor.cache, lexeme), getParseValueName(executor.code.values[lexeme].type)), command.file, command.line);
+         continue;
+      }
+      ParseValue global;
+      global.type = GLOBAL;
+      global.global = value;
+      global.init = true;
+      executor.code.values[lexeme] = global;
    }
 }

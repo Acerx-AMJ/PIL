@@ -250,32 +250,38 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
 // we only define built-in functions that actually get used. thanks, cache. return is a special built-in that is 
 void pushBuiltin(LexemeCache &cache, ByteCode &data, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
    if (auto it = cache.lexemeCache.find(lexeme); it != cache.lexemeCache.end()) {
-      Function function;
+      ParseValue function;
       function.init = true;
       function.type = NATIVE_FUNCTION;
       function.variadic = variadic;
       function.params.resize(paramCount);
       function.nativeFunction = func;
-      data.functions[it->second] = function;
+      data.values[it->second] = function;
    }
 }
 
 void pushReservedBuiltin(LexemeCache &cache, ByteCode &data, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
-   Function function;
+   ParseValue function;
    function.init = true;
    function.type = NATIVE_FUNCTION;
    function.reserved = true;
    function.variadic = variadic;
    function.params.resize(paramCount);
    function.nativeFunction = func;
-   data.functions[cacheLexeme(cache, lexeme)] = function;
+
+   size_t index = cacheLexeme(cache, lexeme);
+   if (index >= data.values.size()) {
+      data.values.push_back(function);
+   }
+   else {
+      data.values[index] = function;
+   }
 }
 
 void defineStandardBuiltins(LexemeCache &cache, ByteCode &data) {
-   data.functions.resize(getLexemeCount(cache) + 2); // reserved built-ins might overflow, so adjust for that
+   data.values.resize(getLexemeCount(cache) + 2); // reserved built-ins might overflow, so adjust for that
 
    // misc, temp
-   pushBuiltin(cache, data, "move", builtinMove, 2, false);
    pushBuiltin(cache, data, "add", builtinAdd, 3, true);
    pushBuiltin(cache, data, "print", builtinPrint, 1, true);
 
@@ -292,6 +298,11 @@ void defineStandardBuiltins(LexemeCache &cache, ByteCode &data) {
    pushBuiltin(cache, data, "goto", builtinGoto, 1, false);
    pushBuiltin(cache, data, "jmp", builtinJmp, 2, false);
    pushBuiltin(cache, data, "jmpn", builtinJmpn, 2, false);
+
+   // variables
+   pushBuiltin(cache, data, "move", builtinMove, 2, false);
+   pushBuiltin(cache, data, "set", builtinSet, 2, false);
+   pushBuiltin(cache, data, "global", builtinGlobal, 1, true);
 }
 
 // parser
@@ -312,10 +323,10 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
       if (tokens[i].type == TOKEN_IDENTIFIER && (tokens[i + 1].type == TOKEN_L_PAREN || tokens[i + 1].type == TOKEN_LABEL)) {
          size_t position = tokens[i].lexeme;
 
-         if (data.functions[position].init) {
-            Function &definition = data.functions[position];
+         if (data.values[position].init) {
+            ParseValue &definition = data.values[position];
             const char *type = (definition.type == NATIVE_FUNCTION ? "Native function" : (definition.type == LABEL ? "Label" : "Function"));
-            if (data.functions[position].reserved) {
+            if (data.values[position].reserved) {
                error(diagnostics, std::format("'{}' is a reserved built-in. You cannot redefine it", getLexeme(cache, position)), tokens[i].fileLexeme, tokens[i].line);
                return; // you fucked up hard here
             }
@@ -323,10 +334,10 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
                warn(diagnostics, std::format("{} '{}' redefined", type, getLexeme(cache, position)), tokens[i].fileLexeme, tokens[i].line);
             }
          }
-         Function function;
+         ParseValue function;
          function.init = true;
          function.type = (tokens[i + 1].type == TOKEN_LABEL ? LABEL : FUNCTION);
-         data.functions[position] = function;
+         data.values[position] = function;
       }
    }
 
@@ -342,7 +353,7 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
       // labels
       if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_LABEL) {
          size_t start = i;
-         Function &label = data.functions[tokens[i].lexeme];
+         ParseValue &label = data.values[tokens[i].lexeme];
          label.label = data.code.size();
 
          i += 2;
@@ -358,7 +369,7 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
          firstFunction = false;
 
          size_t start = i;
-         Function &function = data.functions[tokens[i].lexeme];
+         ParseValue &function = data.values[tokens[i].lexeme];
          bool variadic = false;
 
          for (i += 2; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_R_PAREN; ++i) {
@@ -390,7 +401,7 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
       }
       // function calls
       else {
-         if (tokens[i].type != TOKEN_IDENTIFIER || tokens[i].lexeme >= data.functions.size() || !data.functions[tokens[i].lexeme].init || data.functions[tokens[i].lexeme].type == LABEL) {
+         if (tokens[i].type != TOKEN_IDENTIFIER || tokens[i].lexeme >= data.values.size() || !data.values[tokens[i].lexeme].init || (data.values[tokens[i].lexeme].type != FUNCTION && data.values[tokens[i].lexeme].type != NATIVE_FUNCTION)) {
             if (tokens[i].type == TOKEN_IDENTIFIER) {
                error(diagnostics, std::format("No such function '{}'", getLexeme(cache, tokens[i].lexeme)), tokens[i].fileLexeme, tokens[i].line);
             }
@@ -407,9 +418,10 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
          Command &command = data.code.back();
 
          for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
-            Value value;
+            Value value {VALUE_COUNT};
             value.line = tokens[i].line;
             value.fileLexeme = tokens[i].fileLexeme;
+
             switch (tokens[i].type) {
             case TOKEN_IDENTIFIER:
                value.type = VALUE_IDENTIFIER;
@@ -472,12 +484,12 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
 // in the builtin header since they're also callable functions.
 void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity stopSeverity) {
    size_t lexeme = cacheLexeme(executor.cache, name);
-   if (lexeme >= executor.code.functions.size() || !executor.code.functions[lexeme].init || executor.code.functions[lexeme].type == NATIVE_FUNCTION) {
+   if (lexeme >= executor.code.values.size() || !executor.code.values[lexeme].init || executor.code.values[lexeme].type != FUNCTION) {
       error(executor.diagnostics, std::format("Function '{}' cannot be called as it is not defined", name), 0, 0);
       return;
    }
 
-   if (!executor.code.functions[lexeme].params.empty() || executor.code.functions[lexeme].variadic) {
+   if (!executor.code.values[lexeme].params.empty() || executor.code.values[lexeme].variadic) {
       error(executor.diagnostics, std::format("Attempted to call function '{}' with 0 arguments", name), 0, 0);
       return;
    }
@@ -485,13 +497,13 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
    if (executor.registers.empty()) executor.registers.resize(DEFAULT_REGISTER_COUNT);
    if (executor.returnRegisters.empty()) executor.returnRegisters.resize(DEFAULT_RETURN_REGISTER_COUNT);
    executor.stackTrace = std::stack<Trace>();
-   executor.pointer = executor.code.functions[lexeme].function;
+   executor.pointer = executor.code.values[lexeme].function;
    executor.returnCount = 0;
    executor.exitCalled = false;
 
    while (true) {
       Command &command = executor.code.code[executor.pointer];
-      Function &function = executor.code.functions[command.lexeme];
+      ParseValue &function = executor.code.values[command.lexeme];
       size_t args = command.args.size();
       size_t params = function.params.size();
       bool variadic = function.variadic;
@@ -509,7 +521,7 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
             continue;
          }
          else {
-            error(executor.diagnostics, std::format("Stray label '{}'", getLexeme(executor.cache, command.lexeme)), command.file, command.line);
+            error(executor.diagnostics, std::format("Stray {} '{}'", getParseValueName(function.type), getLexeme(executor.cache, command.lexeme)), command.file, command.line);
          }
       }
 

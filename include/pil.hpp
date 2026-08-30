@@ -12,7 +12,7 @@ struct PILFile {
 };
 
 struct ByteCode {
-   std::vector<Function> functions;
+   std::vector<ParseValue> values;
    std::vector<Command> code;
 };
 
