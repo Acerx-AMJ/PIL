@@ -1,12 +1,10 @@
-include "examples/util.pil"
-include "examples/include.pil"
-
-lala(a, b)
-   add a, b, $2
+add-wrapper(a, b)
+   add $0, $1, $2
+   print $0 " + " $1 " = " $2
+   return $2
 
 main()
-   add 1, 2, $3
-   sub 3, 2, $1
-   lala 1, 2
-   add $1, $2, $3, $4
-   print $4
+   move 10, $0
+   move 9, $1
+   call $3, add-wrapper, $0, $1
+   print $3 " " R$0

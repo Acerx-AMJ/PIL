@@ -6,7 +6,6 @@ struct Executor;
 // misc, temp
 void builtinMove(const Command &command, Executor &executor);
 void builtinAdd(const Command &command, Executor &executor);
-void builtinSub(const Command &command, Executor &executor);
 void builtinPrint(const Command &command, Executor &executor);
 
 // comparison
@@ -22,4 +21,5 @@ void builtinNot(const Command &command, Executor &executor);
 void builtinGoto(const Command &command, Executor &executor);
 void builtinJmp(const Command &command, Executor &executor);
 void builtinJmpn(const Command &command, Executor &executor);
+void builtinCall(const Command &command, Executor &executor);
 void builtinReturn(const Command &command, Executor &executor);

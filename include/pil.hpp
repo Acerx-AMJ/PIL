@@ -16,6 +16,15 @@ struct ByteCode {
    std::vector<Command> code;
 };
 
+struct Trace {
+   Trace(size_t position, size_t lexeme, size_t callExpectedReturnCount)
+      : position(position), lexeme(lexeme), callExpectedReturnCount(callExpectedReturnCount) {}
+
+   size_t position;
+   size_t lexeme;
+   size_t callExpectedReturnCount;
+};
+
 struct Executor {
    Executor(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &code, size_t pointer)
       : diagnostics(diagnostics), cache(cache), code(code), pointer(pointer) {}
@@ -25,8 +34,10 @@ struct Executor {
    ByteCode &code;
 
    std::vector<Value> registers {16, Value{}};
-   std::stack<size_t> stack;
+   std::vector<Value> returnRegisters {4, Value{}};
+   std::stack<Trace> stackTrace;
    size_t pointer;
+   size_t returnCount = 0;
    bool exitCalled = false;
 };
 

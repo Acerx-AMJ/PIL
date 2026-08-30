@@ -2,7 +2,7 @@
 #include <vector>
 
 enum ValueType: char {
-   VALUE_INTEGER, VALUE_FLOATING, VALUE_CHARACTER, VALUE_STRING, VALUE_IDENTIFIER, VALUE_REGISTER, VALUE_COUNT
+   VALUE_INTEGER, VALUE_FLOATING, VALUE_CHARACTER, VALUE_STRING, VALUE_IDENTIFIER, VALUE_REGISTER, VALUE_RETURN_REGISTER, VALUE_COUNT
 };
 
 enum FunctionType: char {
@@ -11,7 +11,7 @@ enum FunctionType: char {
 
 constexpr const char *getValueName(ValueType value) {
    constexpr const char *valueTypeStrings[VALUE_COUNT + 1] = {
-      "Integer", "Floating", "Character", "String", "Identifier", "Register", "Invalid Value"
+      "Integer", "Floating", "Character", "String", "Identifier", "Register", "Return Register", "Invalid Value"
    };
 
    if (value < 0 || value >= VALUE_COUNT) {
@@ -30,7 +30,7 @@ struct Value {
       char character;
       size_t string;
       size_t identifier;
-      size_t reg;
+      size_t reg; // reused for registers and return registers
    };
 };
 

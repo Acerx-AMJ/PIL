@@ -1,6 +1,6 @@
 fib(n)
-   leeq n, one, $1
-   jmp $1, fib-branch
+   leeq n, 1, $0
+   jmp $0, fib-branch
 
    let nMinus1, nPlus1, fib1, fib2, result
    sub n, 1, nMinus1
@@ -15,8 +15,6 @@ fib-branch:
    return n
 
 main()
-   global one 1 ; stupid example
-   global twenty 20 ; another stupid example
-
-   call $1, fib, twenty
-   print $1
+   global N 20
+   call $0, fib, N
+   print $0

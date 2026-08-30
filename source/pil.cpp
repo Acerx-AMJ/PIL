@@ -78,6 +78,14 @@ std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILF
          tokens.emplace_back(TOKEN_NEWLINE, cacheLexeme(cache, "\n"), file.lexeme, line);
          line += 1;
       }
+      else if ((ch == 'r' || ch == 'R') && i + 1 < size && file.code[i + 1] == '$') {
+         std::string reg;
+         for (i += 2; i < size && std::isdigit(file.code[i]); ++i) {
+            reg.push_back(file.code[i]);
+         }
+         tokens.emplace_back(TOKEN_RETURN_REGISTER, cacheLexeme(cache, reg), file.lexeme, line);
+         i -= 1;
+      }
       else if (ch == '$') {
          std::string reg;
          for (++i; i < size && std::isdigit(file.code[i]); ++i) {
@@ -232,12 +240,11 @@ void pushReservedBuiltin(LexemeCache &cache, ByteCode &data, const std::string &
 }
 
 void defineStandardBuiltins(LexemeCache &cache, ByteCode &data) {
-   data.functions.resize(getLexemeCount(cache) + 1); // reserved built-ins might overflow, so adjust for that
+   data.functions.resize(getLexemeCount(cache) + 2); // reserved built-ins might overflow, so adjust for that
 
    // misc, temp
    pushBuiltin(cache, data, "move", builtinMove, 2, false);
    pushBuiltin(cache, data, "add", builtinAdd, 3, true);
-   pushBuiltin(cache, data, "sub", builtinSub, 3, true);
    pushBuiltin(cache, data, "print", builtinPrint, 1, true);
 
    // comparison
@@ -265,7 +272,8 @@ void parseNewlines(Diagnostics &diagnostics, ByteCode &data, std::vector<Token> 
 
 void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std::vector<Token> &tokens) {
    // reserved built-ins. must always be there.
-   pushReservedBuiltin(cache, data, "return", builtinReturn, 0, false);
+   pushReservedBuiltin(cache, data, "return", builtinReturn, 0, true);
+   pushReservedBuiltin(cache, data, "call", builtinCall, 1, true);
 
    // estimate code size
    size_t size = tokens.size();
@@ -296,6 +304,8 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
 
    // real parsing
    bool firstFunction = true;
+   size_t returnLexeme = cacheLexeme(cache, "return");
+
    for (size_t i = 0; i < size && tokens[i].type != TOKEN_EOF; ++i) {
       parseNewlines(diagnostics, data, tokens, i);
 
@@ -312,8 +322,8 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
       }
       // function declarations
       else if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_L_PAREN) {
-         if (!firstFunction) {
-            data.code.emplace_back(cacheLexeme(cache, "return"), tokens[i-1].fileLexeme, tokens[i-1].line, std::vector<Value>{});
+         if (!firstFunction && (data.code.empty() || data.code.back().lexeme != returnLexeme)) {
+            data.code.emplace_back(returnLexeme, tokens[i-1].fileLexeme, tokens[i-1].line, std::vector<Value>{});
          }
          firstFunction = false;
 
@@ -403,14 +413,15 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
                value.type = VALUE_CHARACTER;
                value.character = getLexeme(cache, tokens[i].lexeme).front();
                break;
+            case TOKEN_RETURN_REGISTER:
             case TOKEN_REGISTER:
-               value.type = VALUE_REGISTER;
+               value.type = (tokens[i].type == TOKEN_RETURN_REGISTER ? VALUE_RETURN_REGISTER : VALUE_REGISTER);
                try {
                   value.reg = std::stoull(getLexeme(cache, tokens[i].lexeme));
                }
                catch (...) {
                   value.reg = 0;
-                  error(diagnostics, std::format("Invalid register: ${}", getLexeme(cache, tokens[i].lexeme)), value.fileLexeme, value.line);
+                  error(diagnostics, std::format("Invalid register: {}${}", tokens[i].type == TOKEN_RETURN_REGISTER ? "R" : "", getLexeme(cache, tokens[i].lexeme)), value.fileLexeme, value.line);
                }
                break;
             default:
@@ -421,7 +432,7 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
       }
    }
    if (!tokens.empty()) {
-      data.code.emplace_back(cacheLexeme(cache, "return"), tokens.back().fileLexeme, tokens.back().line, std::vector<Value>{});
+      data.code.emplace_back(returnLexeme, tokens.back().fileLexeme, tokens.back().line, std::vector<Value>{});
    }
 }
 
@@ -451,17 +462,18 @@ void callPILFunction(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &dat
       if ((!variadic && args != params) || (variadic && args < params)) {
          error(diagnostics, std::format("Function expected {}{} parameters, but received {} arguments", (variadic ? ">" : ""), params, args), command.file, command.line);
       }
-
-      if (function.type == NATIVE_FUNCTION) {
-         function.nativeFunction(command, executor);
-      }
-      else if (function.type == FUNCTION) {
-         executor.stack.push(executor.pointer);
-         executor.pointer = function.function;
-         continue;
-      }
       else {
-         error(diagnostics, std::format("Stray label '{}'", getLexeme(cache, command.lexeme)), command.file, command.line);
+         if (function.type == NATIVE_FUNCTION) {
+            function.nativeFunction(command, executor);
+         }
+         else if (function.type == FUNCTION) {
+            executor.stackTrace.emplace(executor.pointer, command.lexeme, 0);
+            executor.pointer = function.function;
+            continue;
+         }
+         else {
+            error(diagnostics, std::format("Stray label '{}'", getLexeme(cache, command.lexeme)), command.file, command.line);
+         }
       }
 
       if (executor.exitCalled || shouldError(diagnostics, stopSeverity)) {
