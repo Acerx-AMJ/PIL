@@ -1,5 +1,6 @@
 #include "builtin.hpp"
 #include "pil.hpp"
+#include <algorithm>
 #include <cmath>
 #include <format>
 
@@ -108,7 +109,7 @@ void print(const Command &command, Executor &executor, const char *function) {
       Value arg = resolveVariable(executor, command.args[i], function);
       switch (arg.type) {
       case VALUE_INTEGER:   printf("%ld", arg.integer); break;
-      case VALUE_FLOATING:  printf("%3.F", arg.floating); break;
+      case VALUE_FLOATING:  printf("%.3F", arg.floating); break;
       case VALUE_CHARACTER: printf("%c", arg.character); break;
       case VALUE_STRING:    printf("%s", getLexeme(executor.cache, arg.string).c_str()); break;
       default: printf("(null)");

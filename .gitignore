@@ -3,3 +3,11 @@
 /.vscode/
 /.clangd/
 /build/
+/examples/*.swp
+/examples/*.save
+/include/*.swp
+/include/*.save
+/source/*.swp
+/source/*.save
+/*.swp
+/*.save

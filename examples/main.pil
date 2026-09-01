@@ -1,5 +1,3 @@
 main()
-   format "{}: {} {} {} {} haah {}", 20, 30.53, 'c', '\t', 23, "John Doe", $0
-   printn $0
-   str "John ", 20.0, " Lol", $0
-   printn $0
+   global n, 100
+   global i, 0

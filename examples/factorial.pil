@@ -1,0 +1,14 @@
+factorial(n) define minus1, result
+   leeq n, 1, $0
+   jmp $0, factorial-end
+
+   sub n, 1, minus1
+   call result, factorial, minus1
+   mul result, n, result
+   return result
+factorial-end:
+   return 1
+
+main()
+   factorial 20.0
+   print R$0
