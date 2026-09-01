@@ -1,3 +1,4 @@
 main()
-   global n, 100
-   global i, 0
+   cbrt 0, $0
+   cbrt -27, $1
+   printn $0 " " $1
