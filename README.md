@@ -21,7 +21,10 @@ More examples can be found in the examples folder.
 
 ## ToC
 - [Documentation](#documentation)
+- - [Comments](#comments)
+- - [Values](#values)
 - - [Function Definitions](#function-definitions)
+- - [Globals](#globals)
 - - [Directives](#directives)
 - - [Built-in Functions](#built-ins)
 - [Usage](#usage)
@@ -94,6 +97,8 @@ my-func(condition)
 my-label
    return "Hello!"
 ```
+The values are stored in return registers (R$N). But to store the results elsewhere [call](#call) function can be used.
+
 To define locals just like parameters, you must use the **define** keyword right after the function declaration. Note that you cannot do it on the next line or the interpreter will interpret it as a function call, which is totally valid.
 ```txt
 my-add() define a, b
