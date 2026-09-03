@@ -1,4 +1,12 @@
+increment-global()
+   add g, 1, g
+
+increment-and-print()
+   increment-global
+   printn g
+
 main()
-   cbrt 0, $0
-   cbrt -27, $1
-   printn $0 " " $1
+   global g 20
+   increment-and-print
+   increment-and-print
+   increment-and-print

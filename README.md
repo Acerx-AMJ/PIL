@@ -21,11 +21,105 @@ More examples can be found in the examples folder.
 
 ## ToC
 - [Documentation](#documentation)
+- - [Function Definitions](#function-definitions)
+- - [Directives](#directives)
+- - [Built-in Functions](#built-ins)
+- [Usage](#usage)
 - [Building](#building)
 - [Credits](#credits)
 
 ## Documentation
 PIL is an interpreted, loosely-typed language. It has 3 statement levels - file > functions > commands. There can be no commands in the file level and no functions in the command level. All statements must end with a newline.
+
+### Comments
+PIL only has line comments that start with a semicolon (;). Code after it is ignored.
+
+### Values
+PIL is loosely-typed, meaning a single container can contain different types of values. In PIL there are 4 value types:
+- integer
+- floating-point number
+- character
+- string
+
+Values can be stored in 4 different places:
+- local variables (function parameters, defines)
+- global variables
+- registers (accessed via $N syntax)
+- return registers (accessed via R$N syntax)
+
+To store a value into a container we use **move** or **set**:
+```txt
+move 20, $0                ; register $0 is now 20
+move 'a', $1               ; register $1 is now 'a'
+global my-var              ; declare 'my-var'
+set my-var "Hello, World!" ; my-var is now "Hello, World!"
+```
+There are also functions that store the result in a container, like the [arithmetic](#arithmetic) functions.
+
+### Function Definitions
+Functions are user-made instructions just like the built-in **add**, **sub** and **jmp** and can be called with the same syntax. To define a function you need to provide a name with parentheses after it.
+```txt
+my-function()
+   printn "Hello, World!"
+```
+And calling is the same as for built-in functions:
+```txt
+my-function
+```
+But this won't compile since function calls need to be in function level - inside a function body -, that's why to execute our code we have to use the reserved **main** function. It gets called once during the start of the program. Here's the full example:
+```txt
+my-function()
+   printn "Hello, World!"
+
+main() ; should not have any parameters. more on that later.
+   my-function
+```
+And this should print "Hello, World!" to the console.
+
+And we can pass arguments to user-made functions just the same as to native functions. But first we need to define our parameters list:
+```txt
+my-add(a, b)
+   add a, b, $0 ; $0 = a + b
+
+main()
+   my-add 10, 5 ; $0 = 10 + 5
+   my-add $0, 5 ; $0 = $0 + 5
+   printn $0    ; 20
+```
+Functions can return multiple values and they don't require to be noted in the declaration. A function can even return different number of values based on certain conditions. By default a null value is returned.
+```txt
+my-func(condition)
+   jmp condition, my-label
+   return 1, 2, 3
+my-label
+   return "Hello!"
+```
+To define locals just like parameters, you must use the **define** keyword right after the function declaration. Note that you cannot do it on the next line or the interpreter will interpret it as a function call, which is totally valid.
+```txt
+my-add() define a, b
+   set a 10
+   set b 30
+   add a, b, $0
+   return $0
+```
+
+### Globals
+Globals can be defined using the [global](#global) function and then edited and accessed from anywhere in the file.
+```txt
+increment-global()
+   add g, 1, g
+
+increment-and-print()
+   increment-global
+   printn g
+
+main()
+   global g 20
+   increment-and-print
+   increment-and-print
+   increment-and-print
+```
+
 ### Directives
 PIL supports a few directives that configure the code pre parse time. They can be used anywhere in the file but it is recommended to use them at the top of the file.
 #### include
@@ -168,6 +262,12 @@ Define all identifiers all initialized by optional VALUE or null value as global
 - **pi** - constant PI - 3.141592653589793238462 or 180 degrees in radians.
 - **tau** - constant TAU - 2 * PI or 360 degrees in radians.
 - **e** - constant E - 2.7182818284590452353602.
+
+## Usage
+Run a single file:
+```bash
+./pil FILE
+```
 
 ## Building
 This project uses C++20 and can be built with CMake:
