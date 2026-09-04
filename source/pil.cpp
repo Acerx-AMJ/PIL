@@ -239,8 +239,7 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
       }
    }
    // erase all includes and EOFs
-   tokens.erase(std::remove_if(tokens.begin(), tokens.end(), [](const Token &t) { return t.parsed || t.type == TOKEN_EOF; }), tokens.end());
-
+   std::erase_if(tokens, [](const Token &t) { return t.parsed || t.type == TOKEN_EOF; });
    size_t EOFline = (tokens.empty() ? 1 : tokens.back().line);
    tokens.emplace_back(TOKEN_EOF, cacheLexeme(executor.cache, "EOF"), file.lexeme, EOFline);
 }
@@ -446,6 +445,10 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
             if (tokens[i].type != TOKEN_IDENTIFIER) {
                error(diagnostics, std::format("Function parameters: expected Identifier, got {} instead", getTokenName(tokens[i].type)), tokens[i].fileLexeme, tokens[i].line);
             }
+
+            if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || data.values[tokens[i].lexeme].init) {
+               error(diagnostics, std::format("Function parameters: redefined parameter '{}'", getLexeme(cache, tokens[i].lexeme)), tokens[i].fileLexeme, tokens[i].line);
+            }
             function.params.push_back(tokens[i].lexeme);
             functionParamMap[tokens[i].lexeme] = functionParamMap.size();
          }
@@ -461,8 +464,13 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
          i += 1;
          if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i].lexeme == defineLexeme) {
             for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
-               if (tokens[i].type != TOKEN_IDENTIFIER || data.values[tokens[i].lexeme].init) {
+               if (tokens[i].type != TOKEN_IDENTIFIER) {
                   error(diagnostics, std::format("Expected unique Identifier, got {} instead", getTokenName(tokens[i].type)), tokens[i].fileLexeme, tokens[i].line);
+                  continue;
+               }
+
+               if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || data.values[tokens[i].lexeme].init) {
+                  error(diagnostics, std::format("Redefined define '{}'", getLexeme(cache, tokens[i].lexeme)), tokens[i].fileLexeme, tokens[i].line);
                   continue;
                }
                functionParamMap[tokens[i].lexeme] = functionParamMap.size();
@@ -600,7 +608,7 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
          }
          else if (function.type == FUNCTION) {
             Trace trace (executor.pointer, command.lexeme, 0);
-            trace.locals.resize(function.localCount);
+            trace.locals = std::vector<Value>(function.localCount, Value{VALUE_COUNT});
 
             for (size_t i = 0; i < params; ++i) {
                trace.locals[i] = resolveVariable(executor, command.args[i], "PIL::callPILFunction");

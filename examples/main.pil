@@ -1,12 +1,6 @@
-increment-global()
-   add g, 1, g
-
-increment-and-print()
-   increment-global
-   printn g
+my-func(a, b, c)
+   printn a, b, c
 
 main()
-   global g 20
-   increment-and-print
-   increment-and-print
-   increment-and-print
+   global a 4
+   my-func 1, 2, 3
