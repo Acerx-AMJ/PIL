@@ -2,7 +2,6 @@
 #include "pil.hpp"
 #include <algorithm>
 #include <cmath>
-#include <format>
 
 // helper functions
 Value resolveVariable(Executor &executor, Value value, const char *function) {
@@ -12,7 +11,7 @@ Value resolveVariable(Executor &executor, Value value, const char *function) {
 
    if (value.type == VALUE_IDENTIFIER) {
       if (!executor.code.values[value.identifier].init || executor.code.values[value.identifier].type != GLOBAL) {
-         error(executor.diagnostics, std::format("{}: Variable '{}' does not exist", function, getLexeme(executor.cache, value.identifier)), value.fileLexeme, value.line);
+         error(executor.diagnostics, value.file, value.line, "%s: Variable '%s' does not exist", function, getLexeme(executor.cache, value.identifier).c_str());
          return value;
       }
       return executor.code.values[value.identifier].global;
@@ -24,7 +23,7 @@ Value resolveVariable(Executor &executor, Value value, const char *function) {
    std::vector<Value> &registers = (value.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
 
    if (value.reg < 0 || value.reg >= registers.size()) {
-      error(executor.diagnostics, std::format("{}: Register {}${} is out of bounds", function, value.type == VALUE_RETURN_REGISTER ? "R" : "", value.reg), value.fileLexeme, value.line);
+      error(executor.diagnostics, value.file, value.line, "%s: Register %s$%zu is out of bounds", function, value.type == VALUE_RETURN_REGISTER ? "R" : "", value.reg);
       return value;
    }
    return registers[value.reg];
@@ -37,41 +36,40 @@ bool registerOrError(Executor &executor, Value value, const char *function, cons
 
    if (value.type == VALUE_IDENTIFIER) {
       if (!executor.code.values[value.identifier].init || executor.code.values[value.identifier].type != GLOBAL) {
-         error(executor.diagnostics, std::format("{}: Expected Register/Variable for the {} argument, got {} instead", function, argument, getParseValueName(executor.code.values[value.identifier].type)), value.fileLexeme, value.line);
+         error(executor.diagnostics, value.file, value.line, "%s: Expected Register/Variable for the %s argument, got %s instead", function, argument, getParseValueName(executor.code.values[value.identifier].type));
          return true;
       }
       return false;
    }
 
    if (value.type != VALUE_REGISTER && value.type != VALUE_RETURN_REGISTER) {
-      error(executor.diagnostics, std::format("{}: Expected Register/Variable for the {} argument, got {} instead", function, argument, getValueName(value.type)), value.fileLexeme, value.line);
+      error(executor.diagnostics, value.file, value.line, "%s: Expected Register/Variable for the %s argument, got %s instead", function, argument, getValueName(value.type));
       return true;
    }
    std::vector<Value> &registers = (value.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
 
    if (value.reg < 0 || value.reg >= registers.size()) {
-      error(executor.diagnostics, std::format("{}: Register {}${} is out of bounds", function, value.type == VALUE_RETURN_REGISTER ? "R" : "", value.reg), value.fileLexeme, value.line);
+      error(executor.diagnostics, value.file, value.line, "%s: Register %s$%zu is out of bounds", function, value.type == VALUE_RETURN_REGISTER ? "R" : "", value.reg);
       return true;
    }
    return false;
 }
 
 void storeInRegister(Executor &executor, Value reg, Value value) {
-   // jedi mind tricks
-   if (reg.type == VALUE_LOCAL) {
-      executor.stackTrace.top().locals[reg.local] = value;
-   }
-   else if (reg.type == VALUE_IDENTIFIER) {
-      executor.code.values[reg.identifier].global = value;
-   }
-   else {
-      (reg.type == VALUE_REGISTER ? executor.registers[reg.reg] : executor.returnRegisters[reg.reg]) = value;
+   switch (reg.type) {
+   case VALUE_LOCAL: executor.stackTrace.top().locals[reg.local] = value; break;
+   case VALUE_IDENTIFIER: executor.code.values[reg.identifier].global = value; break;
+   case VALUE_REGISTER: executor.registers[reg.reg] = value; break;
+   case VALUE_RETURN_REGISTER: executor.returnRegisters[reg.reg] = value; break;
+   default:
+      printf("PIL::storeInRegister: Cannot store into %s.\n", getValueName(value.type));
+      exit(EXIT_FAILURE);
    }
 }
 
 bool labelOrError(Executor &executor, Value value, const char *function, const char *argument) {
    if (value.type != VALUE_IDENTIFIER || value.identifier >= executor.code.values.size() || !executor.code.values[value.identifier].init || executor.code.values[value.identifier].type != LABEL) {
-      error(executor.diagnostics, std::format("{}: Expected Label for the {} argument, got {} instead", function, argument, getValueName(value.type)), value.fileLexeme, value.line);
+      error(executor.diagnostics, value.file, value.line, "%s: Expected Label for the %s argument, got %s instead", function, argument, getValueName(value.type));
       return true;
    }
    return false;
@@ -91,7 +89,7 @@ std::string toString(Executor &executor, Value value, const char *function) {
 
 std::string format(const Command &command, Executor &executor, const char *function, size_t offset) {
    if (command.args[0].type != VALUE_STRING) {
-      error(executor.diagnostics, std::format("{}: Expected String for the 1st argument, got {} instead", function, getValueName(command.args[0].type)), command.file, command.line);
+      error(executor.diagnostics, command.file, command.line, "%s: Expected String for the 1st argument, got %s instead", function, getValueName(command.args[0].type));
       return "";
    }
    std::string result = getLexeme(executor.cache, command.args[0].string);
@@ -156,7 +154,7 @@ void builtinFormat(const Command &command, Executor &executor) {
 double getNum(Executor &executor, Value value, const char *function, bool *floating = nullptr) {
    value = resolveVariable(executor, value, function);
    if (value.type != VALUE_INTEGER && value.type != VALUE_FLOATING) {
-      error(executor.diagnostics, std::format("{}: Expected numeral, got {} instead", function, getValueName(value.type)), value.fileLexeme, value.line);
+      error(executor.diagnostics, value.file, value.line, "%s: Expected numeral, got %s instead", function, getValueName(value.type));
       return 0.0;
    }
    if (floating && value.type == VALUE_FLOATING) *floating = true;
@@ -164,7 +162,7 @@ double getNum(Executor &executor, Value value, const char *function, bool *float
 }
 
 void storeNumber(Executor &executor, Value reg, double number, bool floating) {
-   Value value {floating ? VALUE_FLOATING : VALUE_INTEGER, reg.line, reg.fileLexeme};
+   Value value {floating ? VALUE_FLOATING : VALUE_INTEGER, reg.line, reg.file};
    if (floating) {
       value.floating = number;
    }
@@ -409,7 +407,7 @@ Comparison compareValues(Executor &executor, Value lhs, Value rhs, const char *f
    }
 
    if (!softie) {
-      error(executor.diagnostics, std::format("{}: Cannot compare {} and {}", function, getValueName(a.type), getValueName(b.type)), lhs.fileLexeme, lhs.line);
+      error(executor.diagnostics, lhs.file, lhs.line, "%s: Cannot compare %s and %s", function, getValueName(a.type), getValueName(b.type));
       return COMPARISON_ERROR;
    }
    return COMPARISON_LESS; // not equal I guess
@@ -425,7 +423,7 @@ bool isThruthy(Executor &executor, Value value, const char *function, const char
    case VALUE_CHARACTER: return v.character != 0;
    case VALUE_STRING:    return !getLexeme(executor.cache, v.string).empty();
    default:
-      error(executor.diagnostics, std::format("{}: Expected value for the {} argument, got {}", function, argument, getValueName(v.type)), value.fileLexeme, value.line);
+      error(executor.diagnostics, value.file, value.line, "%s: Expected value for the %s argument, got %s", function, argument, getValueName(v.type));
       ok = false;
       return false;
    }
@@ -508,7 +506,7 @@ void builtinCall(const Command &command, Executor &executor) {
       size_t identifier = command.args[i].identifier; // access before check
       if (command.args[i].type == VALUE_IDENTIFIER && identifier < executor.code.values.size() && executor.code.values[identifier].init && (executor.code.values[identifier].type == FUNCTION || executor.code.values[identifier].type == NATIVE_FUNCTION)) {
          if (functionPos != std::string::npos) {
-            error(executor.diagnostics, "call: Cannot call multiple functions in a single call", command.file, command.line);
+            error(executor.diagnostics, command.file, command.line, "call: Cannot call multiple functions in a single call");
             return;
          }
          functionPos = i;
@@ -520,7 +518,7 @@ void builtinCall(const Command &command, Executor &executor) {
    }
 
    if (functionPos == std::string::npos) {
-      error(executor.diagnostics, "call: Expected function name to call", command.file, command.line);
+      error(executor.diagnostics, command.file, command.line, "call: Expected function name to call");
       return;
    }
    ParseValue &function = executor.code.values[command.args[functionPos].identifier];
@@ -528,12 +526,12 @@ void builtinCall(const Command &command, Executor &executor) {
    bool variadic = function.variadic;
 
    if ((!variadic && argCount != params) || (variadic && argCount < params)) {
-      error(executor.diagnostics, std::format("call: Called function expected {}{} parameters, but received {} arguments", (variadic ? ">" : ""), params, argCount), command.file, command.line);
+      error(executor.diagnostics, command.file, command.line, "call: Called function expected %s%zu parameters, but received %zu arguments", (variadic ? ">" : ""), params, argCount);
       return;
    }
 
    if (function.type == NATIVE_FUNCTION) {
-      error(executor.diagnostics, "call: Cannot call native function. Remove excess call", command.file, command.line);
+      error(executor.diagnostics, command.file, command.line, "call: Cannot call native function. Remove excess call");
       return;
    }
 
@@ -560,7 +558,7 @@ void builtinReturn(const Command &command, Executor &executor) {
 
    executor.returnCount = command.args.size();
    if (executor.returnCount > executor.returnRegisters.size()) {
-      error(executor.diagnostics, std::format("return: Can return at maximum {} values. Define 'return-register-count {}' directive to mitigate. Error", executor.returnRegisters.size(), executor.returnCount), command.file, command.line);
+      error(executor.diagnostics, command.file, command.line, "return: Can return at maximum %zu values. Define 'return-register-count %zu' directive to mitigate. Error", executor.returnRegisters.size(), executor.returnCount);
       executor.stackTrace.pop();
       return;
    }
@@ -575,7 +573,7 @@ void builtinReturn(const Command &command, Executor &executor) {
    if (lexeme == callLexeme) {
       const Command &call = executor.code.code[position];
       if (executor.returnCount != callExpectedReturnCount) {
-         warn(executor.diagnostics, std::format("call: Expected {} return values, but got {} instead", callExpectedReturnCount, executor.returnCount), call.file, call.line);
+         warn(executor.diagnostics, call.file, call.line, "call: Expected %zu return values, but got %zu instead", callExpectedReturnCount, executor.returnCount);
       }
 
       size_t count = std::min(executor.returnCount, callExpectedReturnCount);
@@ -610,12 +608,12 @@ void builtinGlobal(const Command &command, Executor &executor) {
    }
    for (size_t i = 0; i < definitionCount; ++i) {
       if (command.args[i].type != VALUE_IDENTIFIER) {
-         error(executor.diagnostics, std::format("global: Expected Identifier, but got {} instead", getValueName(command.args[i].type)), command.file, command.line);
+         error(executor.diagnostics, command.file, command.line, "global: Expected Identifier, but got %s instead", getValueName(command.args[i].type));
          continue;
       }
       size_t lexeme = command.args[i].identifier;
       if (executor.code.values[lexeme].init && executor.code.values[lexeme].type != GLOBAL) {
-         error(executor.diagnostics, std::format("global: Cannot define global '{}' as a {} with the same name already exists", getLexeme(executor.cache, lexeme), getParseValueName(executor.code.values[lexeme].type)), command.file, command.line);
+         error(executor.diagnostics, command.file, command.line, "global: Cannot define global '5s' as a 5s with the same name already exists", getLexeme(executor.cache, lexeme).c_str(), getParseValueName(executor.code.values[lexeme].type));
          continue;
       }
       ParseValue global;

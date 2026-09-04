@@ -21,12 +21,12 @@ constexpr const char *getTokenName(TokenType token) {
 }
 
 struct Token {
-   Token(TokenType type, size_t lexeme, size_t fileLexeme, size_t line)
-      : type(type), lexeme(lexeme), fileLexeme(fileLexeme), line(line) {}
+   Token(TokenType type, size_t lexeme, size_t file, size_t line)
+      : type(type), lexeme(lexeme), file(file), line(line) {}
 
    bool parsed = false;
    TokenType type;
    size_t lexeme;
-   size_t fileLexeme;
+   size_t file;
    size_t line = 0;
 };

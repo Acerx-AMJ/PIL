@@ -6,11 +6,11 @@ enum ErrorSeverity: char {
 };
 
 struct Diagnostic {
-   Diagnostic(ErrorSeverity severity, const std::string &message, size_t file, size_t line)
+   Diagnostic(ErrorSeverity severity, char *message, size_t file, size_t line)
       : severity(severity), message(message), file(file), line(line) {}
 
    ErrorSeverity severity;
-   std::string message;
+   char *message;
    size_t file;
    size_t line;
 };
@@ -25,8 +25,8 @@ struct Executor;
 
 bool shouldError(Diagnostics &diagnostics, ErrorSeverity errorSeverity);
 
-void warn(Diagnostics &diagnostics, const std::string &message, size_t file, size_t line);
-void error(Diagnostics &diagnostics, const std::string &message, size_t file, size_t line);
+void warn(Diagnostics &diagnostics, size_t file, size_t line, const char *msg, ...);
+void error(Diagnostics &diagnostics, size_t file, size_t line, const char *msg, ...);
 void clear(Diagnostics &diagnostics);
 
 void log(LexemeCache &cache, Diagnostics &diagnostics, ErrorSeverity quitSeverity);

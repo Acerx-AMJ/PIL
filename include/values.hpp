@@ -34,7 +34,7 @@ constexpr const char *getParseValueName(ParseValueType value) {
 struct Value {
    ValueType type;
    size_t line;
-   size_t fileLexeme;
+   size_t file;
    union {
       long integer;
       double floating;

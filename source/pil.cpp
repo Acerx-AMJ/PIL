@@ -1,7 +1,6 @@
 #include "builtin.hpp"
 #include "pil.hpp"
 #include <algorithm>
-#include <format>
 #include <fstream>
 #include <stack>
 #include <unordered_map>
@@ -15,7 +14,7 @@ PILFile readPILInternal(Diagnostics &diagnostics, LexemeCache &cache, const std:
    size_t fileLexeme = pushLexeme(cache, path);
    std::ifstream file (path);
    if (!file.is_open()) {
-      error(diagnostics, std::format("Could not read file '{}'", path), parentFile, line);
+      error(diagnostics, parentFile, line, "Could not read file '%s'", path.c_str());
       return PILFile{};
    }
    std::string code (std::istreambuf_iterator<char>(file), {});
@@ -47,7 +46,7 @@ char handleEscapeCode(Diagnostics &diagnostics, LexemeCache &cache, PILFile &fil
    if (auto it = escapeCodeMap.find(ch); it != escapeCodeMap.end()) {
       return it->second;
    }
-   warn(diagnostics, std::format("Unknown escape code '\\{}'", ch), file.lexeme, tokenLine);
+   warn(diagnostics, file.lexeme, tokenLine, "Unknown escape code '\\%c'", ch);
    return ch;
 }
 
@@ -99,7 +98,7 @@ std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILF
       }
       else if (ch == '\'') {
          if (i + 1 >= size || file.code[i + 1] == '\n') {
-            error(diagnostics, "Unterminated character", file.lexeme, line);
+            error(diagnostics, file.lexeme, line, "Unterminated character");
             continue;
          }
 
@@ -107,7 +106,7 @@ std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILF
          std::string ch (1, handleEscapeCode(diagnostics, cache, file, i, line));
 
          if (i + 1 >= size || file.code[i + 1] != '\'') {
-            error(diagnostics, "Unterminated character", file.lexeme, line);
+            error(diagnostics, file.lexeme, line, "Unterminated character");
             continue;
          }
          i += 1;
@@ -118,13 +117,13 @@ std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILF
          size_t originalLine = line;
          string.reserve(16);
 
-         for (++i; i < size && file.code[i] != '"'; ++i) {
+         for (++i; i < size && file.code[i] != '"' && file.code[i] != '\n'; ++i) {
             string.push_back(handleEscapeCode(diagnostics, cache, file, i, line));
-            line += (file.code[i] == '\n');
          }
 
          if (i >= size || file.code[i] != '"') {
-            error(diagnostics, "Unterminated string", file.lexeme, originalLine);
+            i -= 1;
+            error(diagnostics, file.lexeme, originalLine, "Unterminated string");
             continue;
          }
          tokens.emplace_back(TOKEN_STRING, pushLexeme(cache, string), file.lexeme, originalLine);
@@ -147,7 +146,7 @@ std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILF
             number.push_back(file.code[i]);
             if (file.code[i] == '.') {
                if (dot) {
-                  error(diagnostics, std::format("Number '{}' contains multiple decimal points", number), file.lexeme, line);
+                  error(diagnostics, file.lexeme, line, "Number '%s' contains multiple decimal points", number.c_str());
                   break;
                }
                dot = true;
@@ -167,7 +166,7 @@ std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILF
          i = end - 1;
       }
       else if (!std::isspace(ch) && ch != ',') {
-         error(diagnostics, std::format("Unexpected character '{}'", ch), file.lexeme, line);
+         error(diagnostics, file.lexeme, line, "Unexpected character '%c'", ch);
       }
    }
    tokens.emplace_back(TOKEN_EOF, cacheLexeme(cache, "EOF"), file.lexeme, line);
@@ -190,7 +189,7 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
       // handle includes
       if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i].lexeme == includeLexeme && i + 1 < size && tokens[i + 1].type == TOKEN_STRING) {
          if (i + 2 >= size || tokens[i + 2].type != TOKEN_NEWLINE) {
-            error(executor.diagnostics, "Excess tokens (or EOF) after include statement", tokens[i].fileLexeme, tokens[i].line);
+            error(executor.diagnostics, tokens[i].file, tokens[i].line, "Excess tokens (or EOF) after include statement");
             continue;
          }
 
@@ -205,7 +204,7 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
          }
 
          includedFiles.insert(filename);
-         PILFile newFile = readPILInternal(executor.diagnostics, executor.cache, filename, tokens[i + 1].fileLexeme, tokens[i + 1].line);
+         PILFile newFile = readPILInternal(executor.diagnostics, executor.cache, filename, tokens[i + 1].file, tokens[i + 1].line);
          std::vector<Token> newTokens = lexPILFile(executor.diagnostics, executor.cache, newFile);
          tokens.insert(tokens.begin() + i + 3, newTokens.begin(), newTokens.end());
          i += 2;
@@ -213,7 +212,7 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
       // handle register config
       else if (tokens[i].type == TOKEN_IDENTIFIER && (tokens[i].lexeme == registerLexeme || tokens[i].lexeme == returnRegisterLexeme) && i + 1 < size && tokens[i + 1].type == TOKEN_INTEGER) {
          if (i + 2 >= size || tokens[i + 2].type != TOKEN_NEWLINE) {
-            error(executor.diagnostics, "Excess tokens (or EOF) after register configuration statement", tokens[i].fileLexeme, tokens[i].line);
+            error(executor.diagnostics, tokens[i].file, tokens[i].line, "Excess tokens (or EOF) after register configuration statement");
             continue;
          }
          tokens[i].parsed = true;
@@ -225,7 +224,7 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
             count = std::stol(getLexeme(executor.cache, tokens[i + 1].lexeme));
          }
          catch (...) {
-            error(executor.diagnostics, std::format("Invalid integer: {}", getLexeme(executor.cache, tokens[i + 1].lexeme)), tokens[i].fileLexeme, tokens[i].line);
+            error(executor.diagnostics, tokens[i].file, tokens[i].line, "Invalid integer: %s", getLexeme(executor.cache, tokens[i + 1].lexeme).c_str());
             continue;
          }
 
@@ -239,7 +238,7 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
       }
    }
    // erase all includes and EOFs
-   std::erase_if(tokens, [](const Token &t) { return t.parsed || t.type == TOKEN_EOF; });
+   tokens.erase(std::remove_if(tokens.begin(), tokens.end(), [](const Token &t) { return t.parsed || t.type == TOKEN_EOF; }), tokens.end());
    size_t EOFline = (tokens.empty() ? 1 : tokens.back().line);
    tokens.emplace_back(TOKEN_EOF, cacheLexeme(executor.cache, "EOF"), file.lexeme, EOFline);
 }
@@ -252,7 +251,7 @@ void pushConstant(LexemeCache &cache, ByteCode &data, const std::string &lexeme,
       Value v {VALUE_FLOATING};
       v.floating = value;
       v.line = 0;
-      v.fileLexeme = 0;
+      v.file = 0;
 
       ParseValue constant;
       constant.init = true;
@@ -386,11 +385,11 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
             ParseValue &definition = data.values[position];
             const char *type = (definition.type == NATIVE_FUNCTION ? "Native function" : (definition.type == LABEL ? "Label" : "Function"));
             if (data.values[position].reserved) {
-               error(diagnostics, std::format("'{}' is a reserved built-in. You cannot redefine it", getLexeme(cache, position)), tokens[i].fileLexeme, tokens[i].line);
+               error(diagnostics, tokens[i].file, tokens[i].line, "'%s' is a reserved built-in. You cannot redefine it", getLexeme(cache, position).c_str());
                return; // you fucked up hard here
             }
             else {
-               warn(diagnostics, std::format("{} '{}' redefined", type, getLexeme(cache, position)), tokens[i].fileLexeme, tokens[i].line);
+               warn(diagnostics, tokens[i].file, tokens[i].line, "%s '%s' redefined", type, getLexeme(cache, position).c_str());
             }
          }
          ParseValue function;
@@ -420,13 +419,13 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
 
          i += 2;
          if (i >= size || tokens[i].type != TOKEN_NEWLINE) {
-            error(diagnostics, "Excess tokens (or EOF) after label", tokens[start].fileLexeme, tokens[start].line);
+            error(diagnostics, tokens[start].file, tokens[start].line, "Excess tokens (or EOF) after label");
          }
       }
       // function declarations
       else if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_L_PAREN) {
          if (!firstFunction && (data.code.empty() || data.code.back().lexeme != returnLexeme)) {
-            data.code.emplace_back(returnLexeme, tokens[i-1].fileLexeme, tokens[i-1].line, std::vector<Value>{});
+            data.code.emplace_back(returnLexeme, tokens[i-1].file, tokens[i-1].line, std::vector<Value>{});
          }
          firstFunction = false;
 
@@ -443,21 +442,21 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
             }
 
             if (tokens[i].type != TOKEN_IDENTIFIER) {
-               error(diagnostics, std::format("Function parameters: expected Identifier, got {} instead", getTokenName(tokens[i].type)), tokens[i].fileLexeme, tokens[i].line);
+               error(diagnostics, tokens[i].file, tokens[i].line, "Function parameters: expected Identifier, got %s instead", getTokenName(tokens[i].type));
             }
 
             if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || data.values[tokens[i].lexeme].init) {
-               error(diagnostics, std::format("Function parameters: redefined parameter '{}'", getLexeme(cache, tokens[i].lexeme)), tokens[i].fileLexeme, tokens[i].line);
+               error(diagnostics, tokens[i].file, tokens[i].line, "Function parameters: redefined parameter '%s'", getLexeme(cache, tokens[i].lexeme).c_str());
             }
             function.params.push_back(tokens[i].lexeme);
             functionParamMap[tokens[i].lexeme] = functionParamMap.size();
          }
 
          if (variadic && tokens[i].type != TOKEN_R_PAREN) {
-            error(diagnostics, std::format("Function parameters: variadic parameter should be at the end of the parameter list"), tokens[i].fileLexeme, tokens[i].line);
+            error(diagnostics, tokens[i].file, tokens[i].line, "Function parameters: variadic parameter should be at the end of the parameter list");
          }
          else if (!variadic && tokens[i].type != TOKEN_R_PAREN) {
-            error(diagnostics, "Unterminated function parameters", tokens[start].fileLexeme, tokens[start].line);
+            error(diagnostics, tokens[start].file, tokens[start].line, "Unterminated function parameters");
          }
 
          // variable declarations
@@ -465,12 +464,12 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
          if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i].lexeme == defineLexeme) {
             for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
                if (tokens[i].type != TOKEN_IDENTIFIER) {
-                  error(diagnostics, std::format("Expected unique Identifier, got {} instead", getTokenName(tokens[i].type)), tokens[i].fileLexeme, tokens[i].line);
+                  error(diagnostics, tokens[i].file, tokens[i].line, "Expected unique Identifier, got %s instead", getTokenName(tokens[i].type));
                   continue;
                }
 
                if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || data.values[tokens[i].lexeme].init) {
-                  error(diagnostics, std::format("Redefined define '{}'", getLexeme(cache, tokens[i].lexeme)), tokens[i].fileLexeme, tokens[i].line);
+                  error(diagnostics, tokens[i].file, tokens[i].line, "Redefined define '%s'", getLexeme(cache, tokens[i].lexeme).c_str());
                   continue;
                }
                functionParamMap[tokens[i].lexeme] = functionParamMap.size();
@@ -481,17 +480,17 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
          function.localCount = functionParamMap.size();
 
          if (i >= size || tokens[i].type != TOKEN_NEWLINE) {
-            error(diagnostics, "Excess tokens (or EOF) after function definition", tokens[start].fileLexeme, tokens[start].line);
+            error(diagnostics, tokens[start].file, tokens[start].line, "Excess tokens (or EOF) after function definition");
          }
       }
       // function calls
       else {
          if (tokens[i].type != TOKEN_IDENTIFIER || tokens[i].lexeme >= data.values.size() || !data.values[tokens[i].lexeme].init || (data.values[tokens[i].lexeme].type != FUNCTION && data.values[tokens[i].lexeme].type != NATIVE_FUNCTION)) {
             if (tokens[i].type == TOKEN_IDENTIFIER) {
-               error(diagnostics, std::format("No such function '{}'", getLexeme(cache, tokens[i].lexeme)), tokens[i].fileLexeme, tokens[i].line);
+               error(diagnostics, tokens[i].file, tokens[i].line, "No such function '%s'", getLexeme(cache, tokens[i].lexeme).c_str());
             }
             else {
-               error(diagnostics, std::format("Expected a function call, got {} instead", getTokenName(tokens[i].type)), tokens[i].fileLexeme, tokens[i].line);
+               error(diagnostics, tokens[i].file, tokens[i].line, "Expected a function call, got %s instead", getTokenName(tokens[i].type));
             }
             // to not spiral errors out of control
             while (i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE) i += 1;
@@ -499,13 +498,13 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
             continue;
          }
 
-         data.code.emplace_back(tokens[i].lexeme, tokens[i].fileLexeme, tokens[i].line, std::vector<Value>{});
+         data.code.emplace_back(tokens[i].lexeme, tokens[i].file, tokens[i].line, std::vector<Value>{});
          Command &command = data.code.back();
 
          for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
             Value value {VALUE_COUNT};
             value.line = tokens[i].line;
-            value.fileLexeme = tokens[i].fileLexeme;
+            value.file = tokens[i].file;
 
             switch (tokens[i].type) {
             case TOKEN_IDENTIFIER:
@@ -525,7 +524,7 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
                }
                catch (...) {
                   value.integer = 0;
-                  error(diagnostics, std::format("Invalid integer: {}", getLexeme(cache, tokens[i].lexeme)), value.fileLexeme, value.line);
+                  error(diagnostics, value.file, value.line, "Invalid integer: %s", getLexeme(cache, tokens[i].lexeme).c_str());
                }
                break;
             case TOKEN_FLOATING:
@@ -535,7 +534,7 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
                }
                catch (...) {
                   value.floating = 0;
-                  error(diagnostics, std::format("Invalid floating point number: {}", getLexeme(cache, tokens[i].lexeme)), value.fileLexeme, value.line);
+                  error(diagnostics, value.file, value.line, "Invalid floating point number: %s", getLexeme(cache, tokens[i].lexeme).c_str());
                }
                break;
             case TOKEN_STRING:
@@ -554,18 +553,18 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
                }
                catch (...) {
                   value.reg = 0;
-                  error(diagnostics, std::format("Invalid register: {}${}", tokens[i].type == TOKEN_RETURN_REGISTER ? "R" : "", getLexeme(cache, tokens[i].lexeme)), value.fileLexeme, value.line);
+                  error(diagnostics, value.file, value.line, "Invalid register: %s$%s", tokens[i].type == TOKEN_RETURN_REGISTER ? "R" : "", getLexeme(cache, tokens[i].lexeme).c_str());
                }
                break;
             default:
-               error(diagnostics, std::format("Unexpected token {} in function call", getLexeme(cache, tokens[i].lexeme)), value.fileLexeme, value.line);
+               error(diagnostics, value.file, value.line, "Unexpected token %s in function call", getLexeme(cache, tokens[i].lexeme).c_str());
             }
             command.args.push_back(value);
          }
       }
    }
    if (!tokens.empty()) {
-      data.code.emplace_back(returnLexeme, tokens.back().fileLexeme, tokens.back().line, std::vector<Value>{});
+      data.code.emplace_back(returnLexeme, tokens.back().file, tokens.back().line, std::vector<Value>{});
    }
 }
 
@@ -576,12 +575,12 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
 void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity stopSeverity) {
    size_t lexeme = cacheLexeme(executor.cache, name);
    if (lexeme >= executor.code.values.size() || !executor.code.values[lexeme].init || executor.code.values[lexeme].type != FUNCTION) {
-      error(executor.diagnostics, std::format("Function '{}' cannot be called as it is not defined", name), 0, 0);
+      error(executor.diagnostics, 0, 0, "Function '%s' cannot be called as it is not defined", name.c_str());
       return;
    }
 
    if (!executor.code.values[lexeme].params.empty() || executor.code.values[lexeme].variadic) {
-      error(executor.diagnostics, std::format("Attempted to call function '{}' with 0 arguments", name), 0, 0);
+      error(executor.diagnostics, 0, 0, "Attempted to call function '%s' with 0 arguments", name.c_str());
       return;
    }
 
@@ -600,7 +599,7 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
       bool variadic = function.variadic;
 
       if ((!variadic && args != params) || (variadic && args < params)) {
-         error(executor.diagnostics, std::format("Function expected {}{} parameters, but received {} arguments", (variadic ? ">" : ""), params, args), command.file, command.line);
+         error(executor.diagnostics, command.file, command.line, "Function expected %s%zu parameters, but received %zu arguments", (variadic ? ">" : ""), params, args);
       }
       else {
          if (function.type == NATIVE_FUNCTION) {
@@ -618,7 +617,7 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
             continue;
          }
          else {
-            error(executor.diagnostics, std::format("Stray {} '{}'", getParseValueName(function.type), getLexeme(executor.cache, command.lexeme)), command.file, command.line);
+            error(executor.diagnostics, command.file, command.line, "Stray %s '%s'", getParseValueName(function.type), getLexeme(executor.cache, command.lexeme).c_str());
          }
       }
 
