@@ -1,4 +1,4 @@
-fib(n) define minus1, minus2, fib1, fib2, result
+fib(n) let minus1, minus2, fib1, fib2, result
    leeq n, 1, $0
    jmp $0, fib-branch
 
@@ -15,4 +15,4 @@ fib-branch:
 
 main()
    call $0, fib, 30
-   print $0
+   printn $0

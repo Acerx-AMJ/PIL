@@ -9,8 +9,7 @@ int main(int argc, char *argv[]) {
 
    LexemeCache cache;
    Diagnostics diagnostics;
-   ByteCode code;
-   Executor executor (diagnostics, cache, code);
+   Executor executor (diagnostics, cache);
 
    auto fbegin = std::chrono::steady_clock::now();
    PILFile file = readPIL(diagnostics, cache, argv[1]);
@@ -35,18 +34,18 @@ int main(int argc, char *argv[]) {
    // }
 
    auto dbegin = std::chrono::steady_clock::now();
-   defineStandardBuiltins(cache, code);
+   defineStandardBuiltins(executor);
    auto dend = std::chrono::steady_clock::now();
 
    auto pbegin = std::chrono::steady_clock::now();
-   parsePIL(diagnostics, cache, code, tokens);
+   parsePIL(executor, tokens);
    log(cache, diagnostics, SEVERITY_ERROR);
    tokens.clear(); // tokens are no longer in use
    tokens.shrink_to_fit();
    auto pend = std::chrono::steady_clock::now();
 
    printf("\nBytecode:\n");
-   for (Command &command: code.code) {
+   for (Command &command: executor.code) {
       printf("%s:%-5zu %s: ", getLexeme(cache, command.file).c_str(), command.line, getLexeme(cache, command.lexeme).c_str());
       for (Value param: command.args) {
          printf("%s ", getValueName(param.type));

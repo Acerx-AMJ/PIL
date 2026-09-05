@@ -1,4 +1,4 @@
-factorial(n) define minus1, result
+factorial(n) let minus1, result
    leeq n, 1, $0
    jmp $0, factorial-end
 

@@ -246,8 +246,8 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
 // built-in functions
 
 // we only define built-in functions that actually get used. thanks, cache. return is a special built-in that is 
-void pushConstant(LexemeCache &cache, ByteCode &data, const std::string &lexeme, float value) {
-   if (auto it = cache.lexemeCache.find(lexeme); it != cache.lexemeCache.end()) {
+void pushConstant(Executor &executor, const std::string &lexeme, float value) {
+   if (auto it = executor.cache.lexemeCache.find(lexeme); it != executor.cache.lexemeCache.end()) {
       Value v {VALUE_FLOATING};
       v.floating = value;
       v.line = 0;
@@ -257,23 +257,23 @@ void pushConstant(LexemeCache &cache, ByteCode &data, const std::string &lexeme,
       constant.init = true;
       constant.type = GLOBAL;
       constant.global = v;
-      data.values[it->second] = constant;
+      executor.values[it->second] = constant;
    }
 }
 
-void pushBuiltin(LexemeCache &cache, ByteCode &data, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
-   if (auto it = cache.lexemeCache.find(lexeme); it != cache.lexemeCache.end()) {
+void pushBuiltin(Executor &executor, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
+   if (auto it = executor.cache.lexemeCache.find(lexeme); it != executor.cache.lexemeCache.end()) {
       ParseValue function;
       function.init = true;
       function.type = NATIVE_FUNCTION;
       function.variadic = variadic;
       function.params.resize(paramCount);
       function.nativeFunction = func;
-      data.values[it->second] = function;
+      executor.values[it->second] = function;
    }
 }
 
-void pushReservedBuiltin(LexemeCache &cache, ByteCode &data, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
+void pushReservedBuiltin(Executor &executor, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
    ParseValue function;
    function.init = true;
    function.type = NATIVE_FUNCTION;
@@ -282,128 +282,128 @@ void pushReservedBuiltin(LexemeCache &cache, ByteCode &data, const std::string &
    function.params.resize(paramCount);
    function.nativeFunction = func;
 
-   size_t index = cacheLexeme(cache, lexeme);
-   if (index >= data.values.size()) {
-      data.values.push_back(function);
+   size_t index = cacheLexeme(executor.cache, lexeme);
+   if (index >= executor.values.size()) {
+      executor.values.push_back(function);
    }
    else {
-      data.values[index] = function;
+      executor.values[index] = function;
    }
 }
 
-void defineStandardBuiltins(LexemeCache &cache, ByteCode &data) {
-   data.values.resize(getLexemeCount(cache) + 2); // reserved built-ins might overflow, so adjust for that
+void defineStandardBuiltins(Executor &executor) {
+   executor.values.resize(getLexemeCount(executor.cache) + 2); // reserved built-ins might overflow, so adjust for that
 
    // output
-   pushBuiltin(cache, data, "print", builtinPrint, 1, true);
-   pushBuiltin(cache, data, "printn", builtinPrintn, 1, true);
-   pushBuiltin(cache, data, "printf", builtinPrintf, 1, true);
-   pushBuiltin(cache, data, "printfn", builtinPrintfn, 1, true);
-   pushBuiltin(cache, data, "str", builtinStr, 1, true);
-   pushBuiltin(cache, data, "format", builtinFormat, 2, true);
+   pushBuiltin(executor, "print", builtinPrint, 1, true);
+   pushBuiltin(executor, "printn", builtinPrintn, 1, true);
+   pushBuiltin(executor, "printf", builtinPrintf, 1, true);
+   pushBuiltin(executor, "printfn", builtinPrintfn, 1, true);
+   pushBuiltin(executor, "string-new", builtinStringNew, 1, true);
+   pushBuiltin(executor, "format", builtinFormat, 2, true);
 
    // math
-   pushBuiltin(cache, data, "add", builtinAdd, 3, true);
-   pushBuiltin(cache, data, "sub", builtinSub, 3, true);
-   pushBuiltin(cache, data, "mul", builtinMul, 3, true);
-   pushBuiltin(cache, data, "div", builtinDiv, 3, true);
-   pushBuiltin(cache, data, "mod", builtinMod, 3, false);
-   pushBuiltin(cache, data, "pow", builtinPow, 3, false);
-   pushBuiltin(cache, data, "neg", builtinNeg, 2, false);
-   pushBuiltin(cache, data, "sqrt", builtinSqrt, 2, false);
-   pushBuiltin(cache, data, "cbrt", builtinCbrt, 2, false);
-   pushBuiltin(cache, data, "sin", builtinSin, 2, false);
-   pushBuiltin(cache, data, "cos", builtinCos, 2, false);
-   pushBuiltin(cache, data, "tan", builtinTan, 2, false);
-   pushBuiltin(cache, data, "asin", builtinAsin, 2, false);
-   pushBuiltin(cache, data, "acos", builtinAcos, 2, false);
-   pushBuiltin(cache, data, "atan", builtinAtan, 2, false);
-   pushBuiltin(cache, data, "atan2", builtinAtan2, 2, false);
-   pushBuiltin(cache, data, "asinh", builtinAsinh, 2, false);
-   pushBuiltin(cache, data, "acosh", builtinAcosh, 2, false);
-   pushBuiltin(cache, data, "atanh", builtinAtanh, 2, false);
-   pushBuiltin(cache, data, "sinh", builtinSinh, 2, false);
-   pushBuiltin(cache, data, "cosh", builtinCosh, 2, false);
-   pushBuiltin(cache, data, "tanh", builtinTanh, 2, false);
-   pushBuiltin(cache, data, "abs", builtinAbs, 2, false);
-   pushBuiltin(cache, data, "min", builtinMin, 3, true);
-   pushBuiltin(cache, data, "max", builtinMax, 3, true);
-   pushBuiltin(cache, data, "clamp", builtinClamp, 4, false);
-   pushBuiltin(cache, data, "ceil", builtinCeil, 2, false);
-   pushBuiltin(cache, data, "floor", builtinFloor, 2, false);
-   pushBuiltin(cache, data, "round", builtinRound, 2, false);
-   pushBuiltin(cache, data, "exp", builtinExp, 2, false);
-   pushBuiltin(cache, data, "ln", builtinLn, 2, false);
-   pushBuiltin(cache, data, "log", builtinLog, 3, false);
-   pushBuiltin(cache, data, "log2", builtinLog2, 2, false);
-   pushBuiltin(cache, data, "log10", builtinLog10, 2, false);
+   pushBuiltin(executor, "add", builtinAdd, 3, true);
+   pushBuiltin(executor, "sub", builtinSub, 3, true);
+   pushBuiltin(executor, "mul", builtinMul, 3, true);
+   pushBuiltin(executor, "div", builtinDiv, 3, true);
+   pushBuiltin(executor, "mod", builtinMod, 3, false);
+   pushBuiltin(executor, "pow", builtinPow, 3, false);
+   pushBuiltin(executor, "neg", builtinNeg, 2, false);
+   pushBuiltin(executor, "sqrt", builtinSqrt, 2, false);
+   pushBuiltin(executor, "cbrt", builtinCbrt, 2, false);
+   pushBuiltin(executor, "sin", builtinSin, 2, false);
+   pushBuiltin(executor, "cos", builtinCos, 2, false);
+   pushBuiltin(executor, "tan", builtinTan, 2, false);
+   pushBuiltin(executor, "asin", builtinAsin, 2, false);
+   pushBuiltin(executor, "acos", builtinAcos, 2, false);
+   pushBuiltin(executor, "atan", builtinAtan, 2, false);
+   pushBuiltin(executor, "atan2", builtinAtan2, 2, false);
+   pushBuiltin(executor, "asinh", builtinAsinh, 2, false);
+   pushBuiltin(executor, "acosh", builtinAcosh, 2, false);
+   pushBuiltin(executor, "atanh", builtinAtanh, 2, false);
+   pushBuiltin(executor, "sinh", builtinSinh, 2, false);
+   pushBuiltin(executor, "cosh", builtinCosh, 2, false);
+   pushBuiltin(executor, "tanh", builtinTanh, 2, false);
+   pushBuiltin(executor, "abs", builtinAbs, 2, false);
+   pushBuiltin(executor, "min", builtinMin, 3, true);
+   pushBuiltin(executor, "max", builtinMax, 3, true);
+   pushBuiltin(executor, "clamp", builtinClamp, 4, false);
+   pushBuiltin(executor, "ceil", builtinCeil, 2, false);
+   pushBuiltin(executor, "floor", builtinFloor, 2, false);
+   pushBuiltin(executor, "round", builtinRound, 2, false);
+   pushBuiltin(executor, "exp", builtinExp, 2, false);
+   pushBuiltin(executor, "ln", builtinLn, 2, false);
+   pushBuiltin(executor, "log", builtinLog, 3, false);
+   pushBuiltin(executor, "log2", builtinLog2, 2, false);
+   pushBuiltin(executor, "log10", builtinLog10, 2, false);
 
    // comparison
-   pushBuiltin(cache, data, "le", builtinLe, 3, false);
-   pushBuiltin(cache, data, "gr", builtinGr, 3, false);
-   pushBuiltin(cache, data, "leeq", builtinLeeq, 3, false);
-   pushBuiltin(cache, data, "greq", builtinGreq, 3, false);
-   pushBuiltin(cache, data, "eq", builtinEq, 3, false);
-   pushBuiltin(cache, data, "neq", builtinNeq, 3, false);
-   pushBuiltin(cache, data, "not", builtinNot, 2, false);
+   pushBuiltin(executor, "le", builtinLe, 3, false);
+   pushBuiltin(executor, "gr", builtinGr, 3, false);
+   pushBuiltin(executor, "leeq", builtinLeeq, 3, false);
+   pushBuiltin(executor, "greq", builtinGreq, 3, false);
+   pushBuiltin(executor, "eq", builtinEq, 3, false);
+   pushBuiltin(executor, "neq", builtinNeq, 3, false);
+   pushBuiltin(executor, "not", builtinNot, 2, false);
 
    // control flow
-   pushBuiltin(cache, data, "goto", builtinGoto, 1, false);
-   pushBuiltin(cache, data, "jmp", builtinJmp, 2, false);
-   pushBuiltin(cache, data, "jmpn", builtinJmpn, 2, false);
+   pushBuiltin(executor, "goto", builtinGoto, 1, false);
+   pushBuiltin(executor, "jmp", builtinJmp, 2, false);
+   pushBuiltin(executor, "jmpn", builtinJmpn, 2, false);
 
    // variables
-   pushBuiltin(cache, data, "move", builtinMove, 2, false);
-   pushBuiltin(cache, data, "set", builtinSet, 2, false);
-   pushBuiltin(cache, data, "global", builtinGlobal, 1, true);
+   pushBuiltin(executor, "move", builtinMove, 2, false);
+   pushBuiltin(executor, "set", builtinSet, 2, false);
+   pushBuiltin(executor, "global", builtinGlobal, 1, true);
 
    // built-in constants
-   pushConstant(cache, data, "pi", 3.1415926535897932384626);
-   pushConstant(cache, data, "tau", 2.0 * 3.1415926535897932384626);
-   pushConstant(cache, data, "e", 2.7182818284590452353602);
+   pushConstant(executor, "pi", 3.1415926535897932384626);
+   pushConstant(executor, "tau", 2.0 * 3.1415926535897932384626);
+   pushConstant(executor, "e", 2.7182818284590452353602);
 }
 
 // parser
 
 // take the tokens and turn them into executable function blocks and commands. we have 3 levels here: file -> functions ->
 // commands. there can be no commands in the file level and no functions in the command level.
-void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std::vector<Token> &tokens) {
+void parsePIL(Executor &executor, std::vector<Token> &tokens) {
    // reserved built-ins. must always be there.
-   pushReservedBuiltin(cache, data, "return", builtinReturn, 0, true);
-   pushReservedBuiltin(cache, data, "call", builtinCall, 1, true);
+   pushReservedBuiltin(executor, "return", builtinReturn, 0, true);
+   pushReservedBuiltin(executor, "call", builtinCall, 1, true);
 
    // estimate code size
    size_t size = tokens.size();
-   data.code.reserve(size / 3);
+   executor.code.reserve(size / 3);
 
    // function name and label prepass
    for (size_t i = 0; i < size; ++i) {
       if (tokens[i].type == TOKEN_IDENTIFIER && (tokens[i + 1].type == TOKEN_L_PAREN || tokens[i + 1].type == TOKEN_LABEL)) {
          size_t position = tokens[i].lexeme;
 
-         if (data.values[position].init) {
-            ParseValue &definition = data.values[position];
+         if (executor.values[position].init) {
+            ParseValue &definition = executor.values[position];
             const char *type = (definition.type == NATIVE_FUNCTION ? "Native function" : (definition.type == LABEL ? "Label" : "Function"));
-            if (data.values[position].reserved) {
-               error(diagnostics, tokens[i].file, tokens[i].line, "'%s' is a reserved built-in. You cannot redefine it", getLexeme(cache, position).c_str());
+            if (executor.values[position].reserved) {
+               error(executor.diagnostics, tokens[i].file, tokens[i].line, "'%s' is a reserved built-in. You cannot redefine it", getLexeme(executor.cache, position).c_str());
                return; // you fucked up hard here
             }
             else {
-               warn(diagnostics, tokens[i].file, tokens[i].line, "%s '%s' redefined", type, getLexeme(cache, position).c_str());
+               warn(executor.diagnostics, tokens[i].file, tokens[i].line, "%s '%s' redefined", type, getLexeme(executor.cache, position).c_str());
             }
          }
          ParseValue function;
          function.init = true;
          function.type = (tokens[i + 1].type == TOKEN_LABEL ? LABEL : FUNCTION);
          function.label = 0;
-         data.values[position] = function;
+         executor.values[position] = function;
       }
    }
 
    // real parsing
    std::unordered_map<size_t, size_t> functionParamMap;
-   size_t returnLexeme = cacheLexeme(cache, "return");
-   size_t defineLexeme = cacheLexeme(cache, "define");
+   size_t returnLexeme = cacheLexeme(executor.cache, "return");
+   size_t defineLexeme = cacheLexeme(executor.cache, "let");
    bool firstFunction = true;
 
    for (size_t i = 0; i < size && tokens[i].type != TOKEN_EOF; ++i) {
@@ -414,23 +414,23 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
       // labels
       if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_LABEL) {
          size_t start = i;
-         ParseValue &label = data.values[tokens[i].lexeme];
-         label.label = data.code.size();
+         ParseValue &label = executor.values[tokens[i].lexeme];
+         label.label = executor.code.size();
 
          i += 2;
          if (i >= size || tokens[i].type != TOKEN_NEWLINE) {
-            error(diagnostics, tokens[start].file, tokens[start].line, "Excess tokens (or EOF) after label");
+            error(executor.diagnostics, tokens[start].file, tokens[start].line, "Excess tokens (or EOF) after label");
          }
       }
       // function declarations
       else if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_L_PAREN) {
-         if (!firstFunction && (data.code.empty() || data.code.back().lexeme != returnLexeme)) {
-            data.code.emplace_back(returnLexeme, tokens[i-1].file, tokens[i-1].line, std::vector<Value>{});
+         if (!firstFunction && (executor.code.empty() || executor.code.back().lexeme != returnLexeme)) {
+            executor.code.emplace_back(returnLexeme, tokens[i-1].file, tokens[i-1].line, std::vector<Value>{});
          }
          firstFunction = false;
 
          size_t start = i;
-         ParseValue &function = data.values[tokens[i].lexeme];
+         ParseValue &function = executor.values[tokens[i].lexeme];
          bool variadic = false;
          functionParamMap.clear();
 
@@ -442,21 +442,21 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
             }
 
             if (tokens[i].type != TOKEN_IDENTIFIER) {
-               error(diagnostics, tokens[i].file, tokens[i].line, "Function parameters: expected Identifier, got %s instead", getTokenName(tokens[i].type));
+               error(executor.diagnostics, tokens[i].file, tokens[i].line, "Function parameters: expected Identifier, got %s instead", getTokenName(tokens[i].type));
             }
 
-            if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || data.values[tokens[i].lexeme].init) {
-               error(diagnostics, tokens[i].file, tokens[i].line, "Function parameters: redefined parameter '%s'", getLexeme(cache, tokens[i].lexeme).c_str());
+            if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || executor.values[tokens[i].lexeme].init) {
+               error(executor.diagnostics, tokens[i].file, tokens[i].line, "Function parameters: redefined parameter '%s'", getLexeme(executor.cache, tokens[i].lexeme).c_str());
             }
             function.params.push_back(tokens[i].lexeme);
             functionParamMap[tokens[i].lexeme] = functionParamMap.size();
          }
 
          if (variadic && tokens[i].type != TOKEN_R_PAREN) {
-            error(diagnostics, tokens[i].file, tokens[i].line, "Function parameters: variadic parameter should be at the end of the parameter list");
+            error(executor.diagnostics, tokens[i].file, tokens[i].line, "Function parameters: variadic parameter should be at the end of the parameter list");
          }
          else if (!variadic && tokens[i].type != TOKEN_R_PAREN) {
-            error(diagnostics, tokens[start].file, tokens[start].line, "Unterminated function parameters");
+            error(executor.diagnostics, tokens[start].file, tokens[start].line, "Unterminated function parameters");
          }
 
          // variable declarations
@@ -464,33 +464,33 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
          if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i].lexeme == defineLexeme) {
             for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
                if (tokens[i].type != TOKEN_IDENTIFIER) {
-                  error(diagnostics, tokens[i].file, tokens[i].line, "Expected unique Identifier, got %s instead", getTokenName(tokens[i].type));
+                  error(executor.diagnostics, tokens[i].file, tokens[i].line, "Expected unique Identifier, got %s instead", getTokenName(tokens[i].type));
                   continue;
                }
 
-               if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || data.values[tokens[i].lexeme].init) {
-                  error(diagnostics, tokens[i].file, tokens[i].line, "Redefined define '%s'", getLexeme(cache, tokens[i].lexeme).c_str());
+               if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || executor.values[tokens[i].lexeme].init) {
+                  error(executor.diagnostics, tokens[i].file, tokens[i].line, "Redefined define '%s'", getLexeme(executor.cache, tokens[i].lexeme).c_str());
                   continue;
                }
                functionParamMap[tokens[i].lexeme] = functionParamMap.size();
             }
          }
          function.variadic = variadic;
-         function.function = data.code.size();
+         function.function = executor.code.size();
          function.localCount = functionParamMap.size();
 
          if (i >= size || tokens[i].type != TOKEN_NEWLINE) {
-            error(diagnostics, tokens[start].file, tokens[start].line, "Excess tokens (or EOF) after function definition");
+            error(executor.diagnostics, tokens[start].file, tokens[start].line, "Excess tokens (or EOF) after function definition");
          }
       }
       // function calls
       else {
-         if (tokens[i].type != TOKEN_IDENTIFIER || tokens[i].lexeme >= data.values.size() || !data.values[tokens[i].lexeme].init || (data.values[tokens[i].lexeme].type != FUNCTION && data.values[tokens[i].lexeme].type != NATIVE_FUNCTION)) {
+         if (tokens[i].type != TOKEN_IDENTIFIER || tokens[i].lexeme >= executor.values.size() || !executor.values[tokens[i].lexeme].init || (executor.values[tokens[i].lexeme].type != FUNCTION && executor.values[tokens[i].lexeme].type != NATIVE_FUNCTION)) {
             if (tokens[i].type == TOKEN_IDENTIFIER) {
-               error(diagnostics, tokens[i].file, tokens[i].line, "No such function '%s'", getLexeme(cache, tokens[i].lexeme).c_str());
+               error(executor.diagnostics, tokens[i].file, tokens[i].line, "No such function '%s'", getLexeme(executor.cache, tokens[i].lexeme).c_str());
             }
             else {
-               error(diagnostics, tokens[i].file, tokens[i].line, "Expected a function call, got %s instead", getTokenName(tokens[i].type));
+               error(executor.diagnostics, tokens[i].file, tokens[i].line, "Expected a function call, got %s instead", getTokenName(tokens[i].type));
             }
             // to not spiral errors out of control
             while (i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE) i += 1;
@@ -498,8 +498,8 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
             continue;
          }
 
-         data.code.emplace_back(tokens[i].lexeme, tokens[i].file, tokens[i].line, std::vector<Value>{});
-         Command &command = data.code.back();
+         executor.code.emplace_back(tokens[i].lexeme, tokens[i].file, tokens[i].line, std::vector<Value>{});
+         Command &command = executor.code.back();
 
          for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
             Value value {VALUE_COUNT};
@@ -520,51 +520,51 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
             case TOKEN_INTEGER:
                value.type = VALUE_INTEGER;
                try {
-                  value.integer = std::stol(getLexeme(cache, tokens[i].lexeme));
+                  value.integer = std::stol(getLexeme(executor.cache, tokens[i].lexeme));
                }
                catch (...) {
                   value.integer = 0;
-                  error(diagnostics, value.file, value.line, "Invalid integer: %s", getLexeme(cache, tokens[i].lexeme).c_str());
+                  error(executor.diagnostics, value.file, value.line, "Invalid integer: %s", getLexeme(executor.cache, tokens[i].lexeme).c_str());
                }
                break;
             case TOKEN_FLOATING:
                value.type = VALUE_FLOATING;
                try {
-                  value.floating = std::stod(getLexeme(cache, tokens[i].lexeme));
+                  value.floating = std::stod(getLexeme(executor.cache, tokens[i].lexeme));
                }
                catch (...) {
                   value.floating = 0;
-                  error(diagnostics, value.file, value.line, "Invalid floating point number: %s", getLexeme(cache, tokens[i].lexeme).c_str());
+                  error(executor.diagnostics, value.file, value.line, "Invalid floating point number: %s", getLexeme(executor.cache, tokens[i].lexeme).c_str());
                }
                break;
             case TOKEN_STRING:
-               value.type = VALUE_STRING;
+               value.type = VALUE_CSTRING;
                value.string = tokens[i].lexeme;
                break;
             case TOKEN_CHARACTER:
                value.type = VALUE_CHARACTER;
-               value.character = getLexeme(cache, tokens[i].lexeme).front();
+               value.character = getLexeme(executor.cache, tokens[i].lexeme).front();
                break;
             case TOKEN_RETURN_REGISTER:
             case TOKEN_REGISTER:
                value.type = (tokens[i].type == TOKEN_RETURN_REGISTER ? VALUE_RETURN_REGISTER : VALUE_REGISTER);
                try {
-                  value.reg = std::stoull(getLexeme(cache, tokens[i].lexeme));
+                  value.reg = std::stoull(getLexeme(executor.cache, tokens[i].lexeme));
                }
                catch (...) {
                   value.reg = 0;
-                  error(diagnostics, value.file, value.line, "Invalid register: %s$%s", tokens[i].type == TOKEN_RETURN_REGISTER ? "R" : "", getLexeme(cache, tokens[i].lexeme).c_str());
+                  error(executor.diagnostics, value.file, value.line, "Invalid register: %s$%s", tokens[i].type == TOKEN_RETURN_REGISTER ? "R" : "", getLexeme(executor.cache, tokens[i].lexeme).c_str());
                }
                break;
             default:
-               error(diagnostics, value.file, value.line, "Unexpected token %s in function call", getLexeme(cache, tokens[i].lexeme).c_str());
+               error(executor.diagnostics, value.file, value.line, "Unexpected token %s in function call", getLexeme(executor.cache, tokens[i].lexeme).c_str());
             }
             command.args.push_back(value);
          }
       }
    }
    if (!tokens.empty()) {
-      data.code.emplace_back(returnLexeme, tokens.back().file, tokens.back().line, std::vector<Value>{});
+      executor.code.emplace_back(returnLexeme, tokens.back().file, tokens.back().line, std::vector<Value>{});
    }
 }
 
@@ -574,12 +574,12 @@ void parsePIL(Diagnostics &diagnostics, LexemeCache &cache, ByteCode &data, std:
 // in the builtin header since they're also callable functions.
 void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity stopSeverity) {
    size_t lexeme = cacheLexeme(executor.cache, name);
-   if (lexeme >= executor.code.values.size() || !executor.code.values[lexeme].init || executor.code.values[lexeme].type != FUNCTION) {
+   if (lexeme >= executor.values.size() || !executor.values[lexeme].init || executor.values[lexeme].type != FUNCTION) {
       error(executor.diagnostics, 0, 0, "Function '%s' cannot be called as it is not defined", name.c_str());
       return;
    }
 
-   if (!executor.code.values[lexeme].params.empty() || executor.code.values[lexeme].variadic) {
+   if (!executor.values[lexeme].params.empty() || executor.values[lexeme].variadic) {
       error(executor.diagnostics, 0, 0, "Attempted to call function '%s' with 0 arguments", name.c_str());
       return;
    }
@@ -587,13 +587,13 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
    if (executor.registers.empty()) executor.registers.resize(DEFAULT_REGISTER_COUNT);
    if (executor.returnRegisters.empty()) executor.returnRegisters.resize(DEFAULT_RETURN_REGISTER_COUNT);
    executor.stackTrace = {};
-   executor.pointer = executor.code.values[lexeme].function;
+   executor.pointer = executor.values[lexeme].function;
    executor.returnCount = 0;
    executor.exitCalled = false;
 
    while (true) {
-      Command &command = executor.code.code[executor.pointer];
-      ParseValue &function = executor.code.values[command.lexeme];
+      Command &command = executor.code[executor.pointer];
+      ParseValue &function = executor.values[command.lexeme];
       size_t args = command.args.size();
       size_t params = function.params.size();
       bool variadic = function.variadic;
@@ -626,4 +626,20 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
       }
       executor.pointer += 1;
    }
+}
+
+std::string &getString(Executor &executor, size_t ID, size_t file, size_t line) {
+   if (auto it = executor.strings.find(ID); it != executor.strings.end()) {
+      return it->second;
+   }
+   error(executor.diagnostics, file, line, "Invalid string ID %zu. Use after free", ID);
+   static std::string temp;
+   return temp;
+}
+
+size_t allocateString(Executor &executor, const std::string &string) {
+   static size_t stringID = 0;
+   stringID += 1;
+   executor.strings[stringID] = string;
+   return stringID;
 }

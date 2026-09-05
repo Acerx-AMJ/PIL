@@ -2,7 +2,7 @@
 ## About
 PIL is a primitive interpreted esoteric programming language based off COBOL and assembly. It contains built-in instructions that the user can use to create their own, more complex instructions. Here's a factorial example:
 ```txt
-factorial(n) define minus1, result  ; new function with parameter N. define two locals - minus1 and result
+factorial(n) let minus1, result     ; new function with parameter N. define two locals - minus1 and result
    leeq n, 1, $0                    ; check if N is smaller or equal to 1 and store the result in register 0
    jmp $0, factorial-end            ; if it is, jump to end, where we return 1
 
@@ -99,9 +99,9 @@ my-label
 ```
 The values are stored in return registers (R$N). But to store the results elsewhere [call](#call) function can be used.
 
-To define locals just like parameters, you must use the **define** keyword right after the function declaration. Note that you cannot do it on the next line or the interpreter will interpret it as a function call, which is totally valid.
+To define locals just like parameters, you must use the **let** keyword right after the function declaration. Note that you cannot do it on the next line or the interpreter will interpret it as a function call, which is totally valid.
 ```txt
-my-add() define a, b
+my-add() let a, b
    set a 10
    set b 30
    add a, b, $0
@@ -275,14 +275,14 @@ Run a single file:
 ```
 
 ## Building
-This project uses C++20 and can be built with CMake:
+This project uses C++17 and can be built with CMake:
 ```bash
 cmake -B build
 cmake --build build
 ```
 After, the executable can be located in `build/pil`. Or simply build with your compiler:
 ```bash
-g++ -std=c++20 -Iinclude source/*.cpp -o pil
+g++ -std=c++17 -Iinclude source/*.cpp -o pil
 ```
 
 ## Credits
