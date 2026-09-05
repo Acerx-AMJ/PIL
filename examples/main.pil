@@ -14,7 +14,17 @@
 ;   my-add 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
 ;   list R$0, "Hello, World!", 2, 342432, 43.434, 'c', "\twow!"
 
+;main()
+;   string-new "Hello, World!", $0
+;   printn $0
+;   string-delete
+;   printn $0
+
 main()
    string-new "Hello, World!", $0
-   printn $0
-   printn "Hello, World!"
+   set $1, $0
+   printn $0, $1
+   set $1, 0
+   printn $0, $1
+   set $0, 0
+   printn $0, $1

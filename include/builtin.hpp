@@ -1,6 +1,8 @@
 #pragma once
 #include "values.hpp"
 
+void deallocate(Executor &executor, Value &value);
+void copyValue(Executor &executor, Value &target, Value &copy);
 Value resolveVariable(Executor &executor, Value value, const char *function);
 
 // output
@@ -67,5 +69,4 @@ void builtinReturn(const Command &command, Executor &executor);
 
 // variables
 void builtinSet(const Command &command, Executor &executor);
-void builtinMove(const Command &command, Executor &executor);
 void builtinGlobal(const Command &command, Executor &executor);

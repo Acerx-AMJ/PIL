@@ -33,6 +33,7 @@ constexpr const char *getParseValueName(ParseValueType value) {
 
 struct Value {
    ValueType type;
+   size_t allocations;
    size_t line;
    size_t file;
    union {

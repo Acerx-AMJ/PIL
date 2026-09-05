@@ -353,7 +353,6 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "jmpn", builtinJmpn, 2, false);
 
    // variables
-   pushBuiltin(executor, "move", builtinMove, 2, false);
    pushBuiltin(executor, "set", builtinSet, 2, false);
    pushBuiltin(executor, "global", builtinGlobal, 1, true);
 
@@ -610,7 +609,8 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
             trace.locals = std::vector<Value>(function.localCount, Value{VALUE_COUNT});
 
             for (size_t i = 0; i < params; ++i) {
-               trace.locals[i] = resolveVariable(executor, command.args[i], "PIL::callPILFunction");
+               Value value = resolveVariable(executor, command.args[i], "PIL::callPILFunction");
+               copyValue(executor, trace.locals[i], value);
             }
             executor.stackTrace.push(trace);
             executor.pointer = function.function;

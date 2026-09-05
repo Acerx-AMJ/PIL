@@ -4,6 +4,27 @@
 #include <cmath>
 
 // helper functions
+void deallocate(Executor &executor, Value &value) {
+   if (value.type == VALUE_STRING) {
+      value.allocations -= 1;
+      if (value.allocations <= 0) {
+         executor.strings.erase(value.string);
+         value = Value{VALUE_COUNT};
+      }
+   }
+}
+
+void copyValue(Executor &executor, Value &target, Value &copy) {
+   deallocate(executor, target);
+   target = copy;
+   target.allocations += 1;
+}
+
+void moveValue(Executor &executor, Value &target, Value &move) {
+   deallocate(executor, target);
+   target = move;
+}
+
 Value resolveVariable(Executor &executor, Value value, const char *function) {
    if (value.type == VALUE_LOCAL) {
       return executor.stackTrace.top().locals[value.local];
@@ -57,10 +78,10 @@ bool registerOrError(Executor &executor, Value value, const char *function, cons
 
 void storeInRegister(Executor &executor, Value reg, Value value) {
    switch (reg.type) {
-   case VALUE_LOCAL: executor.stackTrace.top().locals[reg.local] = value; break;
-   case VALUE_IDENTIFIER: executor.values[reg.identifier].global = value; break;
-   case VALUE_REGISTER: executor.registers[reg.reg] = value; break;
-   case VALUE_RETURN_REGISTER: executor.returnRegisters[reg.reg] = value; break;
+   case VALUE_LOCAL: copyValue(executor, executor.stackTrace.top().locals[reg.local], value); break;
+   case VALUE_IDENTIFIER: copyValue(executor, executor.values[reg.identifier].global, value); break;
+   case VALUE_REGISTER: copyValue(executor, executor.registers[reg.reg], value); break;
+   case VALUE_RETURN_REGISTER: copyValue(executor, executor.returnRegisters[reg.reg], value); break;
    default:
       printf("PIL::storeInRegister: Cannot store into %s.\n", getValueName(value.type));
       exit(EXIT_FAILURE);
@@ -142,6 +163,7 @@ void builtinStringNew(const Command &command, Executor &executor) {
    }
    Value value {VALUE_STRING, command.line, command.file};
    value.string = allocateString(executor, result);
+   value.allocations = 0;
    if (registerOrError(executor, command.args.back(), "string-new", "destination")) return;
    storeInRegister(executor, command.args.back(), value);
 }
@@ -149,6 +171,7 @@ void builtinStringNew(const Command &command, Executor &executor) {
 void builtinFormat(const Command &command, Executor &executor) {
    Value value {VALUE_STRING, command.line, command.file};
    value.string = allocateString(executor, format(command, executor, "format", 1));
+   value.allocations = 0;
    if (registerOrError(executor, command.args.back(), "format", "destination")) return;
    storeInRegister(executor, command.args.back(), value);
 }
@@ -544,7 +567,8 @@ void builtinCall(const Command &command, Executor &executor) {
    Trace trace (executor.pointer, command.lexeme, returnCount);
    trace.locals.resize(function.localCount);
    for (size_t i = functionPos + 1; i < functionPos + 1 + params; ++i) {
-      trace.locals[i - functionPos - 1] = resolveVariable(executor, command.args[i], "call");
+      Value value = resolveVariable(executor, command.args[i], "call");
+      moveValue(executor, trace.locals[i - functionPos - 1], value);
    }
 
    executor.stackTrace.push(trace);
@@ -570,7 +594,8 @@ void builtinReturn(const Command &command, Executor &executor) {
    }
 
    for (size_t i = 0; i < executor.returnCount; ++i) {
-      executor.returnRegisters[i] = resolveVariable(executor, command.args[i], "return");
+      Value value = resolveVariable(executor, command.args[i], "return");
+      moveValue(executor, executor.returnRegisters[i], value);
    }
    executor.stackTrace.pop();
 
@@ -598,12 +623,6 @@ void builtinSet(const Command &command, Executor &executor) {
    storeInRegister(executor, reg, resolveVariable(executor, command.args[1], "set"));
 }
 
-void builtinMove(const Command &command, Executor &executor) {
-   Value reg = command.args[1];
-   if (registerOrError(executor, reg, "move", "2nd")) return;
-   storeInRegister(executor, reg, resolveVariable(executor, command.args[0], "move"));
-}
-
 void builtinGlobal(const Command &command, Executor &executor) {
    Value value {VALUE_COUNT};
    size_t definitionCount = command.args.size();
@@ -619,8 +638,12 @@ void builtinGlobal(const Command &command, Executor &executor) {
       }
       size_t lexeme = command.args[i].identifier;
       if (executor.values[lexeme].init && executor.values[lexeme].type != GLOBAL) {
-         error(executor.diagnostics, command.file, command.line, "global: Cannot define global '5s' as a 5s with the same name already exists", getLexeme(executor.cache, lexeme).c_str(), getParseValueName(executor.values[lexeme].type));
+         error(executor.diagnostics, command.file, command.line, "global: Cannot define global '%s' as a %s with the same name already exists", getLexeme(executor.cache, lexeme).c_str(), getParseValueName(executor.values[lexeme].type));
          continue;
+      }
+
+      if (executor.values[lexeme].init) {
+         deallocate(executor, executor.values[lexeme].global);
       }
       ParseValue global;
       global.type = GLOBAL;

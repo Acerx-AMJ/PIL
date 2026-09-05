@@ -59,10 +59,10 @@ int main(int argc, char *argv[]) {
    auto rend = std::chrono::steady_clock::now();
 
    printf("\nExecution time:\n");
-   printf("File read: %f.\n", std::chrono::duration_cast<std::chrono::microseconds>(fend - fbegin).count() / 1000.0f);
-   printf("Lexer: %f.\n", std::chrono::duration_cast<std::chrono::microseconds>(lend - lbegin).count() / 1000.0f);
-   printf("translator: %f.\n", std::chrono::duration_cast<std::chrono::microseconds>(tend - tbegin).count() / 1000.0f);
-   printf("definitions: %f.\n", std::chrono::duration_cast<std::chrono::microseconds>(dend - dbegin).count() / 1000.0f);
-   printf("parser: %f.\n", std::chrono::duration_cast<std::chrono::microseconds>(pend - pbegin).count() / 1000.0f);
-   printf("runtime: %f.\n", std::chrono::duration_cast<std::chrono::microseconds>(rend - rbegin).count() / 1000.0f);
+   printf("File read: %.3fms.\n", std::chrono::duration_cast<std::chrono::microseconds>(fend - fbegin).count() / 1000.0f);
+   printf("Lexer: %.3fms.\n", std::chrono::duration_cast<std::chrono::microseconds>(lend - lbegin).count() / 1000.0f);
+   printf("translator: %.3fms.\n", std::chrono::duration_cast<std::chrono::microseconds>(tend - tbegin).count() / 1000.0f);
+   printf("definitions: %.3fms.\n", std::chrono::duration_cast<std::chrono::microseconds>(dend - dbegin).count() / 1000.0f);
+   printf("parser: %.3fms.\n", std::chrono::duration_cast<std::chrono::microseconds>(pend - pbegin).count() / 1000.0f);
+   printf("runtime: %.3fms.\n", std::chrono::duration_cast<std::chrono::microseconds>(rend - rbegin).count() / 1000.0f);
 }

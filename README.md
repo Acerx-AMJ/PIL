@@ -154,11 +154,11 @@ printf STRING, ANY...
 printfn STRING, ANY...
 ```
 Output all values to the console. N variants will automatically output a newline. F variants will take a format string as the first argument and replace any '{}' with the value. F variants will not check format count. Non-F variants will not output spaces or any other character between values.
-#### str
+#### string-new
 ```txt
-str ANY, ANY...
+string-new ANY, ANY..., DESTINATION
 ```
-Concatenates all values and turns them into a string.
+Concatenates all values and allocates a string.
 #### format
 ```txt
 format STRING, ANY, ANY...
@@ -252,12 +252,11 @@ jmp CONDITION, LABEL
 jmpn CONDITION, LABEL
 ```
 Jump to label LABEL. goto - unconditional jump, jmp - only jump if condition is truthy, jmpn - only jump if condition is not thruthy.
-#### move, set
+#### set
 ```txt
-move VALUE, DESTINATION
 set DESTINATION, VALUE
 ```
-Move a VALUE into DESTINATION. Set DESTINATION to VALUE.
+Set DESTINATION to VALUE.
 #### global
 ```
 global IDENTIFIER1, IDENTIFIER2..., VALUE?
