@@ -3,18 +3,21 @@
 
 constexpr size_t DEFAULT_REGISTER_COUNT = 16;
 constexpr size_t DEFAULT_RETURN_REGISTER_COUNT = 4;
+constexpr size_t DEFAULT_LOCAL_RESERVE = 1024;
 
 void call(Executor &executor, const Command &command, ParseValue &function, size_t functionPos, size_t returnCount, size_t args) {
    if (function.type == NATIVE_FUNCTION) {
       function.nativeFunction(command, executor);
    }
    else if (function.type == FUNCTION) {
-      Trace trace (executor.pointer, command.lexeme, returnCount);
-      trace.locals = std::vector<Value>(function.localCount, Value{VALUE_COUNT});
+      Trace trace (executor.pointer, command.lexeme, command.argStart, returnCount);
+      trace.localStart = executor.locals.size();
+      trace.localCount = function.localCount;
+      executor.locals.resize(trace.localStart + trace.localCount, Value{VALUE_COUNT});
 
       for (size_t i = functionPos + 1; i < functionPos + 1 + function.params.size(); ++i) {
          Value value = resolveVariable(executor, executor.arguments[i + command.argStart], "call", command.file, command.line);
-         moveValue(executor, trace.locals[i - functionPos - 1], value);
+         moveValue(executor, executor.locals[trace.localStart + (i - functionPos - 1)], value);
       }
       executor.stackTrace.push(trace);
       executor.pointer = function.function - 1;
@@ -45,6 +48,7 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
    if (executor.returnRegisters.empty()) {
       executor.returnRegisters.resize(DEFAULT_RETURN_REGISTER_COUNT);
    }
+   executor.locals.reserve(DEFAULT_LOCAL_RESERVE);
    executor.stackTrace = {};
    executor.pointer = executor.values[lexeme].function;
    executor.returnCount = 0;
@@ -53,7 +57,7 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
    while (true) {
       Command &command = executor.code[executor.pointer];
       ParseValue &function = executor.values[command.lexeme];
-      call(executor, command, function, -1, 0, command.argCount);
+      call(executor, command, function, -1, std::string::npos, command.argCount);
       if (executor.exitCalled || shouldError(executor.diagnostics, stopSeverity)) {
          break;
       }

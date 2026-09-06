@@ -12,6 +12,20 @@ fib(n) let minus1, minus2, fib1, fib2, result
 fib-end:
    return n
 
+fib-less(n) let r1
+   leeq n, 1, $0
+   jmp $0, fib-less-end
+
+   add n, -1, $1
+   fib, $1
+   set r1, R$0
+   add n, -2, $1
+   fib, $1
+   add r1, R$0, $1
+   return $1
+fib-less-end:
+   return n
+
 fib-iterative(n) let prev1, prev2, curr
    leeq n, 1, $0
    jmp $0, fib-iterative-end

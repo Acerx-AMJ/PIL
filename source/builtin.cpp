@@ -27,7 +27,7 @@ void moveValue(Executor &executor, Value &target, Value &move) {
 
 Value resolveVariable(Executor &executor, Value value, const char *function, size_t file, size_t line) {
    if (value.type == VALUE_LOCAL) {
-      return executor.stackTrace.top().locals[value.local];
+      return executor.locals[executor.stackTrace.top().localStart + value.local];
    }
 
    if (value.type == VALUE_IDENTIFIER) {
@@ -82,7 +82,7 @@ bool registerOrError(Executor &executor, Value value, const char *function, cons
 
 void storeInRegister(Executor &executor, Value reg, Value value) {
    switch (reg.type) {
-   case VALUE_LOCAL: copyValue(executor, executor.stackTrace.top().locals[reg.local], value); break;
+   case VALUE_LOCAL: copyValue(executor, executor.locals[executor.stackTrace.top().localStart + reg.local], value); break;
    case VALUE_IDENTIFIER: copyValue(executor, executor.values[reg.identifier].global, value); break;
    case VALUE_REGISTER: copyValue(executor, executor.registers[reg.reg], value); break;
    case VALUE_RETURN_REGISTER: copyValue(executor, executor.returnRegisters[reg.reg], value); break;
@@ -540,12 +540,12 @@ void builtinReturn(const Command &command, Executor &executor) {
       return;
    }
    Trace &trace = executor.stackTrace.top();
-   size_t position = trace.position;
-   size_t callExpectedReturnCount = trace.callExpectedReturnCount;
-   size_t lexeme = trace.lexeme;
+   size_t callArgStart = trace.callArgStart;
+   size_t callArgCount = trace.callArgCount;
+   size_t localStart = trace.localStart;
    executor.pointer = trace.position;
-
    executor.returnCount = command.argCount;
+
    if (executor.returnCount > executor.returnRegisters.size()) {
       error(executor.diagnostics, command.file, command.line, "return: Can return at maximum %zu values. Define 'return-register-count %zu' directive to mitigate. Error", executor.returnRegisters.size(), executor.returnCount);
       executor.stackTrace.pop();
@@ -556,19 +556,18 @@ void builtinReturn(const Command &command, Executor &executor) {
       Value value = resolveVariable(executor, arg(executor, command, i), "return", command.file, command.line);
       moveValue(executor, executor.returnRegisters[i], value);
    }
+   executor.locals.resize(localStart);
    executor.stackTrace.pop();
 
    // call shenanigans
-   static size_t callLexeme = cacheLexeme(executor.cache, "call");
-   if (lexeme == callLexeme) {
-      const Command &call = executor.code[position];
-      if (executor.returnCount != callExpectedReturnCount) {
-         warn(executor.diagnostics, call.file, call.line, "call: Expected %zu return values, but got %zu instead", callExpectedReturnCount, executor.returnCount);
+   if (callArgCount != std::string::npos) {
+      if (executor.returnCount != callArgCount) {
+         warn(executor.diagnostics, command.file, command.line, "call: Expected %zu return values, but got %zu instead", callArgCount, executor.returnCount);
       }
 
-      size_t count = std::min(executor.returnCount, callExpectedReturnCount);
+      size_t count = std::min(executor.returnCount, callArgCount);
       for (size_t i = 0; i < count; ++i) {
-         Value reg = arg(executor, call, i);
+         Value reg = executor.arguments[callArgStart + i];
          if (registerOrError(executor, reg, "call", "return", command.file, command.line)) return;
          storeInRegister(executor, reg, executor.returnRegisters[i]);
       }

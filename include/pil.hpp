@@ -12,13 +12,15 @@ struct PILFile {
 };
 
 struct Trace {
-   Trace(size_t position, size_t lexeme, size_t callExpectedReturnCount)
-      : position(position), lexeme(lexeme), callExpectedReturnCount(callExpectedReturnCount) {}
+   Trace(size_t position, size_t lexeme, size_t callArgStart, size_t callArgCount)
+      : position(position), lexeme(lexeme), callArgStart(callArgStart), callArgCount(callArgCount) {}
 
    size_t position;
    size_t lexeme;
-   size_t callExpectedReturnCount;
-   std::vector<Value> locals;
+   size_t callArgStart;
+   size_t callArgCount;
+   size_t localStart;
+   size_t localCount;
 };
 
 struct Command {
@@ -47,6 +49,7 @@ struct Executor {
    std::unordered_map<size_t, std::string> strings;
    std::vector<ParseValue> values;
 
+   std::vector<Value> locals;
    std::vector<Value> arguments;
    std::vector<Command> code;
 
