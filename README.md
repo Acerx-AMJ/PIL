@@ -50,10 +50,10 @@ Values can be stored in 4 different places:
 - registers (accessed via $N syntax)
 - return registers (accessed via R$N syntax)
 
-To store a value into a container we use **move** or **set**:
+To store a value into a container we use **set**:
 ```txt
-move 20, $0                ; register $0 is now 20
-move 'a', $1               ; register $1 is now 'a'
+set $0, 20                 ; register $0 is now 20
+set $1, 'a'                ; register $1 is now 'a'
 global my-var              ; declare 'my-var'
 set my-var "Hello, World!" ; my-var is now "Hello, World!"
 ```

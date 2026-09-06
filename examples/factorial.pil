@@ -9,6 +9,20 @@ factorial(n) let minus1, result
 factorial-end:
    return 1
 
+factorial-iterative(n)
+   leeq n, 1, $0
+   jmp $0, factorial-iterative-end
+
+   sub n, 1, $0
+factorial-iterative-loop:
+   mul n, $0, n
+   sub $0, 1, $0
+   gr $0, 1, $1
+   jmp $1, factorial-iterative-loop
+   return n
+factorial-iterative-end:
+   return 1
+
 main()
    factorial 20.0
-   print R$0
+   printn R$0

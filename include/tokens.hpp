@@ -7,13 +7,13 @@ enum TokenType: char {
    TOKEN_NEWLINE, TOKEN_EOF, TOKEN_COUNT,
 };
 
-constexpr const char *getTokenName(TokenType token) {
-   constexpr const char *tokenTypeStrings[TOKEN_COUNT + 1] = {
-      "Return Register", "Register", "Left Parentheses", "Right Parentheses", "Three Dots", "Colon",
-      "Identifier", "Integer", "Floating", "String", "Character",
-      "Newline", "EOF", "Invalid Token",
-   };
+constexpr const char *tokenTypeStrings[TOKEN_COUNT + 1] = {
+   "Return Register", "Register", "Left Parentheses", "Right Parentheses", "Three Dots", "Colon",
+   "Identifier", "Integer", "Floating", "String", "Character",
+   "Newline", "EOF", "Invalid Token",
+};
 
+constexpr const char *getTokenName(TokenType token) {
    if (token < 0 || token >= TOKEN_COUNT) {
       return tokenTypeStrings[TOKEN_COUNT];
    }
@@ -22,11 +22,11 @@ constexpr const char *getTokenName(TokenType token) {
 
 struct Token {
    Token(TokenType type, size_t lexeme, size_t file, size_t line)
-      : type(type), lexeme(lexeme), file(file), line(line) {}
+      : parsed(false), type(type), lexeme(lexeme), file(file), line(line) {}
 
-   bool parsed = false;
+   bool parsed;
    TokenType type;
    size_t lexeme;
    size_t file;
-   size_t line = 0;
+   size_t line;
 };

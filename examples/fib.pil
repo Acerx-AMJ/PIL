@@ -1,6 +1,6 @@
 fib(n) let minus1, minus2, fib1, fib2, result
    leeq n, 1, $0
-   jmp $0, fib-branch
+   jmp $0, fib-end
 
    add n, -1, minus1
    add n, -2, minus2
@@ -9,10 +9,29 @@ fib(n) let minus1, minus2, fib1, fib2, result
    call fib2, fib, minus2
    add fib1, fib2, result
    return result
+fib-end:
+   return n
 
-fib-branch:
+fib-iterative(n) let prev1, prev2, curr
+   leeq n, 1, $0
+   jmp $0, fib-iterative-end
+
+   set $1, n
+   set prev1, 1
+   set prev2, 0
+   set curr, 0
+
+fib-iterative-loop:
+   add prev1, prev2, curr
+   set prev2, prev1
+   set prev1, curr
+   sub $1, 1, $1
+   gr $1, 1, $2
+   jmp $2, fib-iterative-loop
+   return curr
+fib-iterative-end:
    return n
 
 main()
-   call $0, fib, 30
-   printn $0
+   fib 30
+   printn R$0

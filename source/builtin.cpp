@@ -533,7 +533,7 @@ void builtinCall(const Command &command, Executor &executor) {
 
    for (size_t i = 0; i < command.args.size(); ++i) {
       size_t identifier = command.args[i].identifier; // access before check
-      if (command.args[i].type == VALUE_IDENTIFIER && identifier < executor.values.size() && executor.values[identifier].init && (executor.values[identifier].type == FUNCTION || executor.values[identifier].type == NATIVE_FUNCTION)) {
+      if (command.args[i].type == VALUE_IDENTIFIER && identifier < executor.values.size() && executor.values[identifier].init && executor.values[identifier].type == FUNCTION) {
          if (functionPos != std::string::npos) {
             error(executor.diagnostics, command.file, command.line, "call: Cannot call multiple functions in a single call");
             return;
@@ -551,28 +551,7 @@ void builtinCall(const Command &command, Executor &executor) {
       return;
    }
    ParseValue &function = executor.values[command.args[functionPos].identifier];
-   size_t params = function.params.size();
-   bool variadic = function.variadic;
-
-   if ((!variadic && argCount != params) || (variadic && argCount < params)) {
-      error(executor.diagnostics, command.file, command.line, "call: Called function expected %s%zu parameters, but received %zu arguments", (variadic ? ">" : ""), params, argCount);
-      return;
-   }
-
-   if (function.type == NATIVE_FUNCTION) {
-      error(executor.diagnostics, command.file, command.line, "call: Cannot call native function. Remove excess call");
-      return;
-   }
-
-   Trace trace (executor.pointer, command.lexeme, returnCount);
-   trace.locals.resize(function.localCount);
-   for (size_t i = functionPos + 1; i < functionPos + 1 + params; ++i) {
-      Value value = resolveVariable(executor, command.args[i], "call");
-      moveValue(executor, trace.locals[i - functionPos - 1], value);
-   }
-
-   executor.stackTrace.push(trace);
-   executor.pointer = function.function - 1;
+   call(executor, command, function, functionPos, returnCount, argCount);
 }
 
 void builtinReturn(const Command &command, Executor &executor) {
