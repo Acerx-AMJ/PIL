@@ -50,6 +50,10 @@ Value resolveVariable(Executor &executor, Value value, const char *function) {
    return registers[value.reg];
 }
 
+Value arg(const Executor &executor, const Command &command, size_t i) {
+   return executor.arguments[command.argStart + i];
+}
+
 bool registerOrError(Executor &executor, Value value, const char *function, const char *argument) {
    if (value.type == VALUE_LOCAL) {
       return false;
@@ -110,29 +114,30 @@ std::string toString(Executor &executor, Value value, const char *function) {
 }
 
 std::string format(const Command &command, Executor &executor, const char *function, size_t offset) {
-   if (command.args[0].type != VALUE_CSTRING && command.args[0].type != VALUE_STRING) {
-      error(executor.diagnostics, command.file, command.line, "%s: Expected String for the 1st argument, got %s instead", function, getValueName(command.args[0].type));
+   Value string = arg(executor, command, 0);
+   if (string.type != VALUE_CSTRING && string.type != VALUE_STRING) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected String for the 1st argument, got %s instead", function, getValueName(string.type));
       return "";
    }
-   std::string result = command.args[0].type == VALUE_CSTRING ? getLexeme(executor.cache, command.args[0].string) : getString(executor, command.args[0].string, command.file, command.line);
+   std::string result = string.type == VALUE_CSTRING ? getLexeme(executor.cache, string.string) : getString(executor, string.string, command.file, command.line);
    size_t pos = 0;
 
-   for (size_t i = 1; i < command.args.size() - offset; ++i) {
+   for (size_t i = 1; i < command.argCount - offset; ++i) {
       pos = result.find("{}", pos);
-      result = (pos != std::string::npos ? result.replace(pos, 2, toString(executor, command.args[i], function)) : result);
+      result = (pos != std::string::npos ? result.replace(pos, 2, toString(executor, arg(executor, command, i), function)) : result);
    }
    return result;
 }
 
 void print(const Command &command, Executor &executor, const char *function) {
-   for (size_t i = 0; i < command.args.size(); ++i) {
-      Value arg = resolveVariable(executor, command.args[i], function);
-      switch (arg.type) {
-      case VALUE_INTEGER: printf("%ld", arg.integer); break;
-      case VALUE_FLOATING: printf("%.3F", arg.floating); break;
-      case VALUE_CHARACTER: printf("%c", arg.character); break;
-      case VALUE_CSTRING: printf("%s", getLexeme(executor.cache, arg.string).c_str()); break;
-      case VALUE_STRING: printf("%s", getString(executor, arg.string, arg.file, arg.line).c_str()); break;
+   for (size_t i = 0; i < command.argCount; ++i) {
+      Value a = resolveVariable(executor, arg(executor, command, i), function);
+      switch (a.type) {
+      case VALUE_INTEGER: printf("%ld", a.integer); break;
+      case VALUE_FLOATING: printf("%.3F", a.floating); break;
+      case VALUE_CHARACTER: printf("%c", a.character); break;
+      case VALUE_CSTRING: printf("%s", getLexeme(executor.cache, a.string).c_str()); break;
+      case VALUE_STRING: printf("%s", getString(executor, a.string, a.file, a.line).c_str()); break;
       default: printf("(null)");
       }
    }
@@ -158,22 +163,22 @@ void builtinPrintfn(const Command &command, Executor &executor) {
 // string
 void builtinStringNew(const Command &command, Executor &executor) {
    std::string result;
-   for (size_t i = 0; i < command.args.size() - 1; ++i) {
-      result += toString(executor, command.args[i], "string-new");
+   for (size_t i = 0; i < command.argCount - 1; ++i) {
+      result += toString(executor, arg(executor, command, i), "string-new");
    }
    Value value {VALUE_STRING, command.line, command.file};
    value.string = allocateString(executor, result);
    value.allocations = 0;
-   if (registerOrError(executor, command.args.back(), "string-new", "destination")) return;
-   storeInRegister(executor, command.args.back(), value);
+   if (registerOrError(executor, arg(executor, command, command.argCount-1), "string-new", "destination")) return;
+   storeInRegister(executor, arg(executor, command, command.argCount-1), value);
 }
 
 void builtinFormat(const Command &command, Executor &executor) {
    Value value {VALUE_STRING, command.line, command.file};
    value.string = allocateString(executor, format(command, executor, "format", 1));
    value.allocations = 0;
-   if (registerOrError(executor, command.args.back(), "format", "destination")) return;
-   storeInRegister(executor, command.args.back(), value);
+   if (registerOrError(executor, arg(executor, command, command.argCount-1), "format", "destination")) return;
+   storeInRegister(executor, arg(executor, command, command.argCount-1), value);
 }
 
 // math
@@ -201,213 +206,213 @@ void storeNumber(Executor &executor, Value reg, double number, bool floating) {
 void builtinAdd(const Command &command, Executor &executor) {
    bool floating = false;
    double number = 0.0;
-   for (size_t i = 0; i < command.args.size() - 1; ++i) {
-      number += getNum(executor, command.args[i], "add", &floating);
+   for (size_t i = 0; i < command.argCount - 1; ++i) {
+      number += getNum(executor, arg(executor, command, i), "add", &floating);
    }
-   if (registerOrError(executor, command.args.back(), "add", "destination")) return;
-   storeNumber(executor, command.args.back(), number, floating);
+   if (registerOrError(executor, arg(executor, command, command.argCount-1), "add", "destination")) return;
+   storeNumber(executor, arg(executor, command, command.argCount-1), number, floating);
 }
 
 void builtinSub(const Command &command, Executor &executor) {
    bool floating = false;
-   double number = getNum(executor, command.args[0], "sub", &floating);
-   for (size_t i = 1; i < command.args.size() - 1; ++i) {
-      number -= getNum(executor, command.args[i], "sub", &floating);
+   double number = getNum(executor, arg(executor, command, 0), "sub", &floating);
+   for (size_t i = 1; i < command.argCount - 1; ++i) {
+      number -= getNum(executor, arg(executor, command, i), "sub", &floating);
    }
-   if (registerOrError(executor, command.args.back(), "sub", "destination")) return;
-   storeNumber(executor, command.args.back(), number, floating);
+   if (registerOrError(executor, arg(executor, command, command.argCount-1), "sub", "destination")) return;
+   storeNumber(executor, arg(executor, command, command.argCount-1), number, floating);
 }
 
 void builtinMul(const Command &command, Executor &executor) {
    bool floating = false;
    double number = 1.0;
-   for (size_t i = 0; i < command.args.size() - 1; ++i) {
-      number *= getNum(executor, command.args[i], "mul", &floating);
+   for (size_t i = 0; i < command.argCount - 1; ++i) {
+      number *= getNum(executor, arg(executor, command, i), "mul", &floating);
    }
-   if (registerOrError(executor, command.args.back(), "mul", "destination")) return;
-   storeNumber(executor, command.args.back(), number, floating);
+   if (registerOrError(executor, arg(executor, command, command.argCount-1), "mul", "destination")) return;
+   storeNumber(executor, arg(executor, command, command.argCount-1), number, floating);
 }
 
 void builtinDiv(const Command &command, Executor &executor) {
    bool floating = false;
-   double number = getNum(executor, command.args[0], "div", &floating);
-   for (size_t i = 1; i < command.args.size() - 1; ++i) {
-      double num = getNum(executor, command.args[i], "div", &floating);
+   double number = getNum(executor, arg(executor, command, 0), "div", &floating);
+   for (size_t i = 1; i < command.argCount - 1; ++i) {
+      double num = getNum(executor, arg(executor, command, i), "div", &floating);
       number = (num == 0.0 ? 0.0 : number / num); // defined behavior
    }
-   if (registerOrError(executor, command.args.back(), "div", "destination")) return;
-   storeNumber(executor, command.args.back(), number, floating);
+   if (registerOrError(executor, arg(executor, command, command.argCount-1), "div", "destination")) return;
+   storeNumber(executor, arg(executor, command, command.argCount-1), number, floating);
 }
 
 void builtinMod(const Command &command, Executor &executor) {
    bool floating = false;
-   double a = getNum(executor, command.args[0], "mod", &floating);
-   double b = getNum(executor, command.args[1], "mod", &floating);
-   if (registerOrError(executor, command.args[2], "mod", "destination")) return;
-   storeNumber(executor, command.args[2], fmod(a, b), floating);
+   double a = getNum(executor, arg(executor, command, 0), "mod", &floating);
+   double b = getNum(executor, arg(executor, command, 1), "mod", &floating);
+   if (registerOrError(executor, arg(executor, command, 2), "mod", "destination")) return;
+   storeNumber(executor, arg(executor, command, 2), fmod(a, b), floating);
 }
 
 void builtinPow(const Command &command, Executor &executor) {
    bool floating = false;
-   double a = getNum(executor, command.args[0], "pow", &floating);
-   double b = getNum(executor, command.args[1], "pow", &floating);
-   if (registerOrError(executor, command.args[2], "pow", "destination")) return;
-   storeNumber(executor, command.args[2], pow(a, b), floating);
+   double a = getNum(executor, arg(executor, command, 0), "pow", &floating);
+   double b = getNum(executor, arg(executor, command, 1), "pow", &floating);
+   if (registerOrError(executor, arg(executor, command, 2), "pow", "destination")) return;
+   storeNumber(executor, arg(executor, command, 2), pow(a, b), floating);
 }
 
 void builtinNeg(const Command &command, Executor &executor) {
    bool floating = false;
-   if (registerOrError(executor, command.args[1], "neg", "destination")) return;
-   storeNumber(executor, command.args[1], -getNum(executor, command.args[0], "neg", &floating), floating);
+   if (registerOrError(executor, arg(executor, command, 1), "neg", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), -getNum(executor, arg(executor, command, 0), "neg", &floating), floating);
 }
 
 void builtinSqrt(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "sqrt", "destination")) return;
-   storeNumber(executor, command.args[1], sqrt(getNum(executor, command.args[0], "sqrt")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "sqrt", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), sqrt(getNum(executor, arg(executor, command, 0), "sqrt")), true);
 }
 
 void builtinCbrt(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "cbrt", "destination")) return;
-   storeNumber(executor, command.args[1], cbrt(getNum(executor, command.args[0], "cbrt")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "cbrt", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), cbrt(getNum(executor, arg(executor, command, 0), "cbrt")), true);
 }
 
 void builtinSin(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "sin", "destination")) return;
-   storeNumber(executor, command.args[1], sin(getNum(executor, command.args[0], "sin")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "sin", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), sin(getNum(executor, arg(executor, command, 0), "sin")), true);
 }
 
 void builtinCos(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "cos", "destination")) return;
-   storeNumber(executor, command.args[1], cos(getNum(executor, command.args[0], "cos")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "cos", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), cos(getNum(executor, arg(executor, command, 0), "cos")), true);
 }
 
 void builtinTan(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "tan", "destination")) return;
-   storeNumber(executor, command.args[1], tan(getNum(executor, command.args[0], "tan")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "tan", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), tan(getNum(executor, arg(executor, command, 0), "tan")), true);
 }
 
 void builtinAsin(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "asin", "destination")) return;
-   storeNumber(executor, command.args[1], asin(getNum(executor, command.args[0], "asin")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "asin", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), asin(getNum(executor, arg(executor, command, 0), "asin")), true);
 }
 
 void builtinAcos(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "acos", "destination")) return;
-   storeNumber(executor, command.args[1], acos(getNum(executor, command.args[0], "acos")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "acos", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), acos(getNum(executor, arg(executor, command, 0), "acos")), true);
 }
 
 void builtinAtan(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "atan", "destination")) return;
-   storeNumber(executor, command.args[1], atan(getNum(executor, command.args[0], "atan")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "atan", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), atan(getNum(executor, arg(executor, command, 0), "atan")), true);
 }
 
 void builtinAtan2(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[2], "atan2", "destination")) return;
-   storeNumber(executor, command.args[2], atan2(getNum(executor, command.args[0], "atan2"), getNum(executor, command.args[1], "atan2")), true);
+   if (registerOrError(executor, arg(executor, command, 2), "atan2", "destination")) return;
+   storeNumber(executor, arg(executor, command, 2), atan2(getNum(executor, arg(executor, command, 0), "atan2"), getNum(executor, arg(executor, command, 1), "atan2")), true);
 }
 
 void builtinAsinh(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "asinh", "destination")) return;
-   storeNumber(executor, command.args[1], asinh(getNum(executor, command.args[0], "asinh")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "asinh", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), asinh(getNum(executor, arg(executor, command, 0), "asinh")), true);
 }
 
 void builtinAcosh(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "acosh", "destination")) return;
-   storeNumber(executor, command.args[1], acosh(getNum(executor, command.args[0], "acosh")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "acosh", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), acosh(getNum(executor, arg(executor, command, 0), "acosh")), true);
 }
 
 void builtinAtanh(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "atanh", "destination")) return;
-   storeNumber(executor, command.args[1], atanh(getNum(executor, command.args[0], "atanh")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "atanh", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), atanh(getNum(executor, arg(executor, command, 0), "atanh")), true);
 }
 
 void builtinSinh(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "sinh", "destination")) return;
-   storeNumber(executor, command.args[1], sinh(getNum(executor, command.args[0], "sinh")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "sinh", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), sinh(getNum(executor, arg(executor, command, 0), "sinh")), true);
 }
 
 void builtinCosh(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "cosh", "destination")) return;
-   storeNumber(executor, command.args[1], cosh(getNum(executor, command.args[0], "cosh")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "cosh", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), cosh(getNum(executor, arg(executor, command, 0), "cosh")), true);
 }
 
 void builtinTanh(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "tanh", "destination")) return;
-   storeNumber(executor, command.args[1], tanh(getNum(executor, command.args[0], "tanh")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "tanh", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), tanh(getNum(executor, arg(executor, command, 0), "tanh")), true);
 }
 
 void builtinAbs(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "abs", "destination")) return;
-   storeNumber(executor, command.args[1], fabs(getNum(executor, command.args[0], "abs")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "abs", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), fabs(getNum(executor, arg(executor, command, 0), "abs")), true);
 }
 
 void builtinMin(const Command &command, Executor &executor) {
    bool floating = false;
    double number = std::numeric_limits<double>::max();
-   for (size_t i = 0; i < command.args.size() - 1; ++i) {
-      number = std::min(number, getNum(executor, command.args[i], "min", &floating));
+   for (size_t i = 0; i < command.argCount - 1; ++i) {
+      number = std::min(number, getNum(executor, arg(executor, command, i), "min", &floating));
    }
-   if (registerOrError(executor, command.args.back(), "min", "destination")) return;
-   storeNumber(executor, command.args.back(), number, floating);
+   if (registerOrError(executor, arg(executor, command, command.argCount-1), "min", "destination")) return;
+   storeNumber(executor, arg(executor, command, command.argCount-1), number, floating);
 }
 
 void builtinMax(const Command &command, Executor &executor) {
    bool floating = false;
    double number = std::numeric_limits<double>::min();
-   for (size_t i = 0; i < command.args.size() - 1; ++i) {
-      number = std::max(number, getNum(executor, command.args[i], "max", &floating));
+   for (size_t i = 0; i < command.argCount - 1; ++i) {
+      number = std::max(number, getNum(executor, arg(executor, command, i), "max", &floating));
    }
-   if (registerOrError(executor, command.args.back(), "max", "destination")) return;
-   storeNumber(executor, command.args.back(), number, floating);
+   if (registerOrError(executor, arg(executor, command, command.argCount-1), "max", "destination")) return;
+   storeNumber(executor, arg(executor, command, command.argCount-1), number, floating);
 }
 
 void builtinClamp(const Command &command, Executor &executor) {
    bool floating = false;
-   double x = getNum(executor, command.args[0], "clamp", &floating);
-   double lo = getNum(executor, command.args[1], "clamp", &floating);
-   double hi = getNum(executor, command.args[2], "clamp", &floating);
-   if (registerOrError(executor, command.args[3], "clamp", "destination")) return;
-   storeNumber(executor, command.args[3], std::clamp(x, lo, hi), floating);
+   double x = getNum(executor, arg(executor, command, 0), "clamp", &floating);
+   double lo = getNum(executor, arg(executor, command, 1), "clamp", &floating);
+   double hi = getNum(executor, arg(executor, command, 2), "clamp", &floating);
+   if (registerOrError(executor, arg(executor, command, 3), "clamp", "destination")) return;
+   storeNumber(executor, arg(executor, command, 3), std::clamp(x, lo, hi), floating);
 }
 
 void builtinCeil(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "ceil", "destination")) return;
-   storeNumber(executor, command.args[1], ceil(getNum(executor, command.args[0], "ceil")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "ceil", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), ceil(getNum(executor, arg(executor, command, 0), "ceil")), true);
 }
 
 void builtinFloor(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "floor", "destination")) return;
-   storeNumber(executor, command.args[1], floor(getNum(executor, command.args[0], "floor")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "floor", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), floor(getNum(executor, arg(executor, command, 0), "floor")), true);
 }
 
 void builtinRound(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "round", "destination")) return;
-   storeNumber(executor, command.args[1], round(getNum(executor, command.args[0], "round")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "round", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), round(getNum(executor, arg(executor, command, 0), "round")), true);
 }
 
 void builtinExp(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "exp", "destination")) return;
-   storeNumber(executor, command.args[1], exp(getNum(executor, command.args[0], "exp")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "exp", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), exp(getNum(executor, arg(executor, command, 0), "exp")), true);
 }
 
 void builtinLn(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "ln", "destination")) return;
-   storeNumber(executor, command.args[1], log(getNum(executor, command.args[0], "ln")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "ln", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), log(getNum(executor, arg(executor, command, 0), "ln")), true);
 }
 
 void builtinLog(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[2], "log", "destination")) return;
-   storeNumber(executor, command.args[2], log(getNum(executor, command.args[0], "log")) / log(getNum(executor, command.args[1], "log")), true);
+   if (registerOrError(executor, arg(executor, command, 2), "log", "destination")) return;
+   storeNumber(executor, arg(executor, command, 2), log(getNum(executor, arg(executor, command, 0), "log")) / log(getNum(executor, arg(executor, command, 1), "log")), true);
 }
 
 void builtinLog2(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "log2", "destination")) return;
-   storeNumber(executor, command.args[1], log2(getNum(executor, command.args[0], "log2")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "log2", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), log2(getNum(executor, arg(executor, command, 0), "log2")), true);
 }
 
 void builtinLog10(const Command &command, Executor &executor) {
-   if (registerOrError(executor, command.args[1], "log10", "destination")) return;
-   storeNumber(executor, command.args[1], log10(getNum(executor, command.args[0], "log10")), true);
+   if (registerOrError(executor, arg(executor, command, 1), "log10", "destination")) return;
+   storeNumber(executor, arg(executor, command, 1), log10(getNum(executor, arg(executor, command, 0), "log10")), true);
 }
 
 // comparison
@@ -467,62 +472,62 @@ void storeBoolean(Executor &executor, Value reg, bool result, const char *functi
 }
 
 void builtinLe(const Command &command, Executor &executor) {
-   Comparison result = compareValues(executor, command.args[0], command.args[1], "le", false);
-   if (result != COMPARISON_ERROR) storeBoolean(executor, command.args[2], result == COMPARISON_LESS, "le");
+   Comparison result = compareValues(executor, arg(executor, command, 0), arg(executor, command, 1), "le", false);
+   if (result != COMPARISON_ERROR) storeBoolean(executor, arg(executor, command, 2), result == COMPARISON_LESS, "le");
 }
 
 void builtinGr(const Command &command, Executor &executor) {
-   Comparison result = compareValues(executor, command.args[0], command.args[1], "gr", false);
-   if (result != COMPARISON_ERROR) storeBoolean(executor, command.args[2], result == COMPARISON_GREATER, "gr");
+   Comparison result = compareValues(executor, arg(executor, command, 0), arg(executor, command, 1), "gr", false);
+   if (result != COMPARISON_ERROR) storeBoolean(executor, arg(executor, command, 2), result == COMPARISON_GREATER, "gr");
 }
 
 void builtinLeeq(const Command &command, Executor &executor) {
-   Comparison result = compareValues(executor, command.args[0], command.args[1], "leeq", false);
-   if (result != COMPARISON_ERROR) storeBoolean(executor, command.args[2], result != COMPARISON_GREATER, "leeq");
+   Comparison result = compareValues(executor, arg(executor, command, 0), arg(executor, command, 1), "leeq", false);
+   if (result != COMPARISON_ERROR) storeBoolean(executor, arg(executor, command, 2), result != COMPARISON_GREATER, "leeq");
 }
 
 void builtinGreq(const Command &command, Executor &executor) {
-   Comparison result = compareValues(executor, command.args[0], command.args[1], "greq", false);
-   if (result != COMPARISON_ERROR) storeBoolean(executor, command.args[2], result != COMPARISON_LESS, "greq");
+   Comparison result = compareValues(executor, arg(executor, command, 0), arg(executor, command, 1), "greq", false);
+   if (result != COMPARISON_ERROR) storeBoolean(executor, arg(executor, command, 2), result != COMPARISON_LESS, "greq");
 }
 
 void builtinEq(const Command &command, Executor &executor) {
-   Comparison result = compareValues(executor, command.args[0], command.args[1], "eq", true);
-   if (result != COMPARISON_ERROR) storeBoolean(executor, command.args[2], result == COMPARISON_EQUAL, "eq");
+   Comparison result = compareValues(executor, arg(executor, command, 0), arg(executor, command, 1), "eq", true);
+   if (result != COMPARISON_ERROR) storeBoolean(executor, arg(executor, command, 2), result == COMPARISON_EQUAL, "eq");
 }
 
 void builtinNeq(const Command &command, Executor &executor) {
-   Comparison result = compareValues(executor, command.args[0], command.args[1], "neq", true);
-   if (result != COMPARISON_ERROR) storeBoolean(executor, command.args[2], result != COMPARISON_EQUAL, "neq");
+   Comparison result = compareValues(executor, arg(executor, command, 0), arg(executor, command, 1), "neq", true);
+   if (result != COMPARISON_ERROR) storeBoolean(executor, arg(executor, command, 2), result != COMPARISON_EQUAL, "neq");
 }
 
 void builtinNot(const Command &command, Executor &executor) {
    bool ok;
-   bool thruthy = isThruthy(executor, command.args[0], "not", "1st", ok);
-   if (ok) storeBoolean(executor, command.args[1], thruthy, "not");
+   bool thruthy = isThruthy(executor, arg(executor, command, 0), "not", "1st", ok);
+   if (ok) storeBoolean(executor, arg(executor, command, 1), thruthy, "not");
 }
 
 // control flow
 void builtinGoto(const Command &command, Executor &executor) {
-   if (labelOrError(executor, command.args[0], "goto", "1st")) return;
-   executor.pointer = executor.values[command.args[0].identifier].label - 1;
+   if (labelOrError(executor, arg(executor, command, 0), "goto", "1st")) return;
+   executor.pointer = executor.values[arg(executor, command, 0).identifier].label - 1;
 }
 
 void builtinJmp(const Command &command, Executor &executor) {
-   if (labelOrError(executor, command.args[1], "jmp", "2nd")) return;
+   if (labelOrError(executor, arg(executor, command, 1), "jmp", "2nd")) return;
    bool ok;
-   bool thruthy = isThruthy(executor, command.args[0], "jmp", "1st", ok);
+   bool thruthy = isThruthy(executor, arg(executor, command, 0), "jmp", "1st", ok);
    if (ok && thruthy) {
-      executor.pointer = executor.values[command.args[1].identifier].label - 1;
+      executor.pointer = executor.values[arg(executor, command, 1).identifier].label - 1;
    }
 }
 
 void builtinJmpn(const Command &command, Executor &executor) {
-   if (labelOrError(executor, command.args[1], "jmpn", "2nd")) return;
+   if (labelOrError(executor, arg(executor, command, 1), "jmpn", "2nd")) return;
    bool ok;
-   bool thruthy = isThruthy(executor, command.args[0], "jmpn", "1st", ok);
+   bool thruthy = isThruthy(executor, arg(executor, command, 0), "jmpn", "1st", ok);
    if (ok && !thruthy) {
-      executor.pointer = executor.values[command.args[1].identifier].label - 1;
+      executor.pointer = executor.values[arg(executor, command, 1).identifier].label - 1;
    }
 }
 
@@ -531,9 +536,9 @@ void builtinCall(const Command &command, Executor &executor) {
    size_t argCount = 0;
    size_t functionPos = std::string::npos;
 
-   for (size_t i = 0; i < command.args.size(); ++i) {
-      size_t identifier = command.args[i].identifier; // access before check
-      if (command.args[i].type == VALUE_IDENTIFIER && identifier < executor.values.size() && executor.values[identifier].init && executor.values[identifier].type == FUNCTION) {
+   for (size_t i = 0; i < command.argCount; ++i) {
+      size_t identifier = arg(executor, command, i).identifier; // access before check
+      if (arg(executor, command, i).type == VALUE_IDENTIFIER && identifier < executor.values.size() && executor.values[identifier].init && executor.values[identifier].type == FUNCTION) {
          if (functionPos != std::string::npos) {
             error(executor.diagnostics, command.file, command.line, "call: Cannot call multiple functions in a single call");
             return;
@@ -550,7 +555,7 @@ void builtinCall(const Command &command, Executor &executor) {
       error(executor.diagnostics, command.file, command.line, "call: Expected function name to call");
       return;
    }
-   ParseValue &function = executor.values[command.args[functionPos].identifier];
+   ParseValue &function = executor.values[arg(executor, command, functionPos).identifier];
    call(executor, command, function, functionPos, returnCount, argCount);
 }
 
@@ -565,7 +570,7 @@ void builtinReturn(const Command &command, Executor &executor) {
    size_t lexeme = trace.lexeme;
    executor.pointer = trace.position;
 
-   executor.returnCount = command.args.size();
+   executor.returnCount = command.argCount;
    if (executor.returnCount > executor.returnRegisters.size()) {
       error(executor.diagnostics, command.file, command.line, "return: Can return at maximum %zu values. Define 'return-register-count %zu' directive to mitigate. Error", executor.returnRegisters.size(), executor.returnCount);
       executor.stackTrace.pop();
@@ -573,7 +578,7 @@ void builtinReturn(const Command &command, Executor &executor) {
    }
 
    for (size_t i = 0; i < executor.returnCount; ++i) {
-      Value value = resolveVariable(executor, command.args[i], "return");
+      Value value = resolveVariable(executor, arg(executor, command, i), "return");
       moveValue(executor, executor.returnRegisters[i], value);
    }
    executor.stackTrace.pop();
@@ -588,7 +593,7 @@ void builtinReturn(const Command &command, Executor &executor) {
 
       size_t count = std::min(executor.returnCount, callExpectedReturnCount);
       for (size_t i = 0; i < count; ++i) {
-         Value reg = call.args[i];
+         Value reg = arg(executor, call, i);
          if (registerOrError(executor, reg, "call", "return")) return;
          storeInRegister(executor, reg, executor.returnRegisters[i]);
       }
@@ -597,25 +602,25 @@ void builtinReturn(const Command &command, Executor &executor) {
 
 // variables. set and move being the same with different order is intentional
 void builtinSet(const Command &command, Executor &executor) {
-   Value reg = command.args[0];
+   Value reg = arg(executor, command, 0);
    if (registerOrError(executor, reg, "set", "1st")) return;
-   storeInRegister(executor, reg, resolveVariable(executor, command.args[1], "set"));
+   storeInRegister(executor, reg, resolveVariable(executor, arg(executor, command, 1), "set"));
 }
 
 void builtinGlobal(const Command &command, Executor &executor) {
    Value value {VALUE_COUNT};
-   size_t definitionCount = command.args.size();
+   size_t definitionCount = command.argCount;
 
-   if (command.args.size() > 1 && (command.args.back().type != VALUE_IDENTIFIER || (executor.values[command.args.back().identifier].init && executor.values[command.args.back().identifier].type == GLOBAL))) {
-      value = resolveVariable(executor, command.args.back(), "global");
+   if (command.argCount > 1 && (arg(executor, command, command.argCount-1).type != VALUE_IDENTIFIER || (executor.values[arg(executor, command, command.argCount-1).identifier].init && executor.values[arg(executor, command, command.argCount-1).identifier].type == GLOBAL))) {
+      value = resolveVariable(executor, arg(executor, command, command.argCount-1), "global");
       definitionCount -= 1;
    }
    for (size_t i = 0; i < definitionCount; ++i) {
-      if (command.args[i].type != VALUE_IDENTIFIER) {
-         error(executor.diagnostics, command.file, command.line, "global: Expected Identifier, but got %s instead", getValueName(command.args[i].type));
+      if (arg(executor, command, i).type != VALUE_IDENTIFIER) {
+         error(executor.diagnostics, command.file, command.line, "global: Expected Identifier, but got %s instead", getValueName(arg(executor, command, i).type));
          continue;
       }
-      size_t lexeme = command.args[i].identifier;
+      size_t lexeme = arg(executor, command, i).identifier;
       if (executor.values[lexeme].init && executor.values[lexeme].type != GLOBAL) {
          error(executor.diagnostics, command.file, command.line, "global: Cannot define global '%s' as a %s with the same name already exists", getLexeme(executor.cache, lexeme).c_str(), getParseValueName(executor.values[lexeme].type));
          continue;

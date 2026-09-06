@@ -189,6 +189,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
    // estimate code size
    size_t size = tokens.size();
    executor.code.reserve(size / 3);
+   executor.arguments.reserve(size / 4);
 
    // function name and label prepass
    for (size_t i = 0; i < size; ++i) {
@@ -234,7 +235,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
       // function declarations
       else if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_L_PAREN) {
          if (!firstFunction && (executor.code.empty() || executor.code.back().lexeme != returnLexeme)) {
-            executor.code.emplace_back(returnLexeme, tokens[i-1].file, tokens[i-1].line, std::vector<Value>{});
+            executor.code.emplace_back(returnLexeme, tokens[i-1].file, tokens[i-1].line, 0, 0);
          }
          size_t start = i;
          ParseValue &function = executor.values[tokens[i].lexeme];
@@ -306,15 +307,16 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
             continue;
          }
 
-         executor.code.emplace_back(tokens[i].lexeme, tokens[i].file, tokens[i].line, std::vector<Value>{});
+         executor.code.emplace_back(tokens[i].lexeme, tokens[i].file, tokens[i].line, executor.arguments.size(), 0);
          Command &command = executor.code.back();
 
          for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
-            command.args.push_back(parseToken(executor, tokens[i], functionParamMap));
+            executor.arguments.push_back(parseToken(executor, tokens[i], functionParamMap));
+            command.argCount += 1;
          }
       }
    }
    if (!tokens.empty()) {
-      executor.code.emplace_back(returnLexeme, tokens.back().file, tokens.back().line, std::vector<Value>{});
+      executor.code.emplace_back(returnLexeme, tokens.back().file, tokens.back().line, 0, 0);
    }
 }

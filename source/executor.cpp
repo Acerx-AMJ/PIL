@@ -26,7 +26,7 @@ void call(Executor &executor, const Command &command, ParseValue &function, size
       trace.locals = std::vector<Value>(function.localCount, Value{VALUE_COUNT});
 
       for (size_t i = functionPos + 1; i < functionPos + 1 + params; ++i) {
-         Value value = resolveVariable(executor, command.args[i], "call");
+         Value value = resolveVariable(executor, executor.arguments[i + command.argStart], "call");
          moveValue(executor, trace.locals[i - functionPos - 1], value);
       }
       executor.stackTrace.push(trace);
@@ -63,7 +63,7 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
    while (true) {
       Command &command = executor.code[executor.pointer];
       ParseValue &function = executor.values[command.lexeme];
-      call(executor, command, function, -1, 0, command.args.size());
+      call(executor, command, function, -1, 0, command.argCount);
       if (executor.exitCalled || shouldError(executor.diagnostics, stopSeverity)) {
          break;
       }

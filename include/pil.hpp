@@ -22,13 +22,14 @@ struct Trace {
 };
 
 struct Command {
-   Command(size_t lexeme, size_t file, size_t line, const std::vector<Value> &args)
-      : lexeme(lexeme), file(file), line(line), args(args) {}
+   Command(size_t lexeme, size_t file, size_t line, size_t argStart, size_t argCount)
+      : lexeme(lexeme), file(file), line(line), argStart(argStart), argCount(argCount) {}
 
    size_t lexeme;
    size_t file;
    size_t line;
-   std::vector<Value> args;
+   size_t argStart;
+   size_t argCount;
 };
 
 struct Executor {
@@ -44,6 +45,8 @@ struct Executor {
 
    std::unordered_map<size_t, std::string> strings;
    std::vector<ParseValue> values;
+
+   std::vector<Value> arguments;
    std::vector<Command> code;
 
    size_t pointer;

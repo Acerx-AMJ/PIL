@@ -22,8 +22,8 @@ void debugBytecode(Executor &executor) {
    printf("\nBytecode:\n");
    for (Command &command: executor.code) {
       printf("%s:%-5zu %s: ", getLexeme(executor.cache, command.file).c_str(), command.line, getLexeme(executor.cache, command.lexeme).c_str());
-      for (Value param: command.args) {
-         printf("%s ", getValueName(param.type));
+      for (size_t i = command.argStart; i < command.argStart + command.argCount; ++i) {
+         printf("%s ", getValueName(executor.arguments[i].type));
       }
       putchar('\n');
    }
