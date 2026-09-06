@@ -29,78 +29,108 @@ Value resolveVariable(Executor &executor, Value value, const char *function, siz
    if (value.type == VALUE_LOCAL) {
       return executor.locals[executor.stackTrace.top().localStart + value.local];
    }
-
-   if (value.type == VALUE_IDENTIFIER) {
+   else if (value.type == VALUE_IDENTIFIER) {
       if (!executor.values[value.identifier].init || executor.values[value.identifier].type != GLOBAL) {
          error(executor.diagnostics, file, line, "%s: Variable '%s' does not exist", function, getLexeme(executor.cache, value.identifier).c_str());
          return value;
       }
       return executor.values[value.identifier].global;
    }
+   else if (value.type == VALUE_REGISTER || value.type == VALUE_RETURN_REGISTER) {
+      std::vector<Value> &registers = (value.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
 
-   if (value.type != VALUE_REGISTER && value.type != VALUE_RETURN_REGISTER) {
+      if (value.reg < 0 || value.reg >= registers.size()) {
+         error(executor.diagnostics, file, line, "%s: Register %s$%zu is out of bounds", function, value.type == VALUE_RETURN_REGISTER ? "R" : "", value.reg);
+         return value;
+      }
+      return registers[value.reg];
+   }
+   else {
       return value;
    }
-   std::vector<Value> &registers = (value.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
-
-   if (value.reg < 0 || value.reg >= registers.size()) {
-      error(executor.diagnostics, file, line, "%s: Register %s$%zu is out of bounds", function, value.type == VALUE_RETURN_REGISTER ? "R" : "", value.reg);
-      return value;
-   }
-   return registers[value.reg];
 }
 
 Value arg(const Executor &executor, const Command &command, size_t i) {
    return executor.arguments[command.argStart + i];
 }
 
-bool registerOrError(Executor &executor, Value value, const char *function, const char *argument, size_t file, size_t line) {
-   if (value.type == VALUE_LOCAL) {
-      return false;
-   }
+Value back(const Executor &executor, const Command &command) {
+   return executor.arguments[command.argStart + command.argCount - 1];
+}
 
-   if (value.type == VALUE_IDENTIFIER) {
-      if (!executor.values[value.identifier].init || executor.values[value.identifier].type != GLOBAL) {
-         error(executor.diagnostics, file, line, "%s: Expected Register/Variable for the %s argument, got %s instead", function, argument, getParseValueName(executor.values[value.identifier].type));
-         return true;
+void storeInRegister(Executor &executor, const Command &command, Value reg, Value value, const char *function) {
+   if (reg.type == VALUE_LOCAL) {
+      copyValue(executor, executor.locals[executor.stackTrace.top().localStart + reg.local], value);
+   }
+   else if (reg.type == VALUE_IDENTIFIER) {
+      if (!executor.values[reg.identifier].init || executor.values[reg.identifier].type != GLOBAL) {
+         error(executor.diagnostics, command.file, command.line, "%s: Expected Register/Variable for the destination argument, got %s instead", function, getParseValueName(executor.values[reg.identifier].type));
+         return;
       }
-      return false;
+      copyValue(executor, executor.values[reg.identifier].global, value);
    }
-
-   if (value.type != VALUE_REGISTER && value.type != VALUE_RETURN_REGISTER) {
-      error(executor.diagnostics, file, line, "%s: Expected Register/Variable for the %s argument, got %s instead", function, argument, getValueName(value.type));
-      return true;
+   else if (reg.type == VALUE_REGISTER || reg.type == VALUE_RETURN_REGISTER) {
+      std::vector<Value> &registers = (reg.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
+      if (reg.reg < 0 || reg.reg >= registers.size()) {
+         error(executor.diagnostics, command.file, command.line, "%s: Register %s$%zu is out of bounds", function, reg.type == VALUE_RETURN_REGISTER ? "R" : "", reg.reg);
+         return;
+      }
+      copyValue(executor, registers[reg.reg], value);
    }
-   std::vector<Value> &registers = (value.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
-
-   if (value.reg < 0 || value.reg >= registers.size()) {
-      error(executor.diagnostics, file, line, "%s: Register %s$%zu is out of bounds", function, value.type == VALUE_RETURN_REGISTER ? "R" : "", value.reg);
-      return true;
-   }
-   return false;
-}
-
-void storeInRegister(Executor &executor, Value reg, Value value) {
-   switch (reg.type) {
-   case VALUE_LOCAL: copyValue(executor, executor.locals[executor.stackTrace.top().localStart + reg.local], value); break;
-   case VALUE_IDENTIFIER: copyValue(executor, executor.values[reg.identifier].global, value); break;
-   case VALUE_REGISTER: copyValue(executor, executor.registers[reg.reg], value); break;
-   case VALUE_RETURN_REGISTER: copyValue(executor, executor.returnRegisters[reg.reg], value); break;
-   default:
-      printf("PIL::storeInRegister: Cannot store into %s.\n", getValueName(value.type));
-      exit(EXIT_FAILURE);
+   else {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected Register/Variable for the destination argument, got %s instead", function, getValueName(reg.type));
    }
 }
 
-bool labelOrError(Executor &executor, Value value, const char *function, const char *argument, size_t file, size_t line) {
-   if (value.type != VALUE_IDENTIFIER || value.identifier >= executor.values.size() || !executor.values[value.identifier].init || executor.values[value.identifier].type != LABEL) {
+void storeInRegister(Executor &executor, const Command &command, Value value, const char *function) {
+   storeInRegister(executor, command, back(executor, command), value, function);
+}
+
+void jumpToLabel(Executor &executor, Value value, const char *function, const char *argument, size_t file, size_t line, bool condition) {
+   if (value.type != VALUE_IDENTIFIER || !executor.values[value.identifier].init || executor.values[value.identifier].type != LABEL) {
       error(executor.diagnostics, file, line, "%s: Expected Label for the %s argument, got %s instead", function, argument, getValueName(value.type));
-      return true;
+      return;
    }
-   return false;
+   if (condition) {
+      executor.pointer = executor.values[value.identifier].label - 1;
+   }
 }
 
-// output
+double getNum(Executor &executor, const Command &command, size_t i, const char *function, bool *floating = nullptr) {
+   Value value = resolveVariable(executor, arg(executor, command, i), function, command.file, command.line);
+   if (value.type != VALUE_INTEGER && value.type != VALUE_FLOATING) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected numeral, got %s instead", function, getValueName(value.type));
+      return 0.0;
+   }
+   if (floating && value.type == VALUE_FLOATING) *floating = true;
+   return (value.type == VALUE_INTEGER ? (double)value.integer : value.floating);
+}
+
+void storeNumber(Executor &executor, const Command &command, double number, bool floating, const char *function) {
+   Value value {floating ? VALUE_FLOATING : VALUE_INTEGER};
+   if (floating) {
+      value.floating = number;
+   }
+   else {
+      value.integer = number;
+   }
+   storeInRegister(executor, command, value, function);
+}
+
+void storeBoolean(Executor &executor, const Command &command, bool result, const char *function) {
+   Value value {VALUE_INTEGER};
+   value.integer = (result ? 1 : 0);
+   storeInRegister(executor, command, value, function);
+}
+
+void unaryBuiltin(Executor &executor, const Command &command, double(*fn)(double), const char *function) {
+   storeNumber(executor, command, fn(getNum(executor, command, 0, function)), true, function);
+}
+
+void binaryBuiltin(Executor &executor, const Command &command, double(*fn)(double, double), const char *function) {
+   storeNumber(executor, command, fn(getNum(executor, command, 0, function), getNum(executor, command, 1, function)), true, function);
+}
+
 std::string toString(Executor &executor, Value value, const char *function, size_t file, size_t line) {
    value = resolveVariable(executor, value, function, file, line);
    switch (value.type) {
@@ -143,6 +173,59 @@ void print(const Command &command, Executor &executor, const char *function, siz
    }
 }
 
+enum Comparison: char {
+   COMPARISON_LESS, COMPARISON_GREATER, COMPARISON_EQUAL, COMPARISON_ERROR, COMPARISON_NOT_EQUAL
+};
+
+Comparison compareValues(Executor &executor, const Command &command, const char *function, bool softie) {
+   Value a = resolveVariable(executor, arg(executor, command, 0), function, command.file, command.line);
+   Value b = resolveVariable(executor, arg(executor, command, 1), function, command.file, command.line);
+
+   if ((a.type == VALUE_INTEGER || a.type == VALUE_FLOATING) && (b.type == VALUE_INTEGER || b.type == VALUE_FLOATING)) {
+      double x = (a.type == VALUE_INTEGER) ? (double)a.integer : a.floating;
+      double y = (b.type == VALUE_INTEGER) ? (double)b.integer : b.floating;
+      return x < y ? COMPARISON_LESS : x > y ? COMPARISON_GREATER : COMPARISON_EQUAL;
+   }
+   else if (a.type == VALUE_CHARACTER && b.type == VALUE_CHARACTER) {
+      return a.character < b.character ? COMPARISON_LESS : a.character > b.character ? COMPARISON_GREATER : COMPARISON_EQUAL;
+   }
+   else if ((a.type == VALUE_STRING || a.type == VALUE_CSTRING) && (b.type == VALUE_STRING || b.type == VALUE_CSTRING)) {
+      const std::string &as = (a.type == VALUE_STRING ? getString(executor, a.string, command.file, command.line) : getLexeme(executor.cache, a.string));
+      const std::string &bs = (b.type == VALUE_STRING ? getString(executor, b.string, command.file, command.line) : getLexeme(executor.cache, b.string));
+      int c = as.compare(bs);
+      return c < 0 ? COMPARISON_LESS : c > 0 ? COMPARISON_GREATER : COMPARISON_EQUAL;
+   }
+
+   if (!softie) {
+      error(executor.diagnostics, command.file, command.line, "%s: Cannot compare %s to %s", function, getValueName(a.type), getValueName(b.type));
+      return COMPARISON_ERROR;
+   }
+   return COMPARISON_NOT_EQUAL;
+}
+
+void comparisonBuiltin(Executor &executor, const Command &command, const char *function, Comparison expected, bool reverse, bool softie) {
+   Comparison result = compareValues(executor, command, function, softie);
+   if (result != COMPARISON_ERROR) storeBoolean(executor, command, (result == expected) != reverse, function);
+}
+
+bool isThruthy(Executor &executor, Value value, const char *function, const char *argument, bool &ok, size_t file, size_t line) {
+   Value v = resolveVariable(executor, value, function, file, line);
+   ok = true;
+
+   switch (v.type) {
+   case VALUE_INTEGER: return v.integer != 0;
+   case VALUE_FLOATING: return v.floating != 0.0;
+   case VALUE_CHARACTER: return v.character != 0;
+   case VALUE_CSTRING: return !getLexeme(executor.cache, v.string).empty();
+   case VALUE_STRING: return !getString(executor, v.string, file, line).empty();
+   default:
+      error(executor.diagnostics, file, line, "%s: Expected value for the %s argument, got %s", function, argument, getValueName(v.type));
+      ok = false;
+      return false;
+   }
+}
+
+// output
 void builtinPrint(const Command &command, Executor &executor) {
    print(command, executor, "print", command.file, command.line);
 }
@@ -168,365 +251,243 @@ void builtinStringNew(const Command &command, Executor &executor) {
    }
    Value value {VALUE_STRING, 0};
    value.string = allocateString(executor, result);
-   if (registerOrError(executor, arg(executor, command, command.argCount-1), "string-new", "destination", command.file, command.line)) return;
-   storeInRegister(executor, arg(executor, command, command.argCount-1), value);
+   storeInRegister(executor, command, value, "string-new");
 }
 
 void builtinFormat(const Command &command, Executor &executor) {
    Value value {VALUE_STRING, 0};
    value.string = allocateString(executor, format(command, executor, "format", 1));
-   if (registerOrError(executor, arg(executor, command, command.argCount-1), "format", "destination", command.file, command.line)) return;
-   storeInRegister(executor, arg(executor, command, command.argCount-1), value);
+   storeInRegister(executor, command, value, "format");
 }
 
 // math
-double getNum(Executor &executor, Value value, const char *function, size_t file, size_t line, bool *floating = nullptr) {
-   value = resolveVariable(executor, value, function, file, line);
-   if (value.type != VALUE_INTEGER && value.type != VALUE_FLOATING) {
-      error(executor.diagnostics, file, line, "%s: Expected numeral, got %s instead", function, getValueName(value.type));
-      return 0.0;
-   }
-   if (floating && value.type == VALUE_FLOATING) *floating = true;
-   return (value.type == VALUE_INTEGER ? (double)value.integer : value.floating);
-}
-
-void storeNumber(Executor &executor, Value reg, double number, bool floating) {
-   Value value {floating ? VALUE_FLOATING : VALUE_INTEGER};
-   if (floating) {
-      value.floating = number;
-   }
-   else {
-      value.integer = number;
-   }
-   storeInRegister(executor, reg, value);
-}
-
 void builtinAdd(const Command &command, Executor &executor) {
    bool floating = false;
    double number = 0.0;
    for (size_t i = 0; i < command.argCount - 1; ++i) {
-      number += getNum(executor, arg(executor, command, i), "add", command.file, command.line, &floating);
+      number += getNum(executor, command, i, "add", &floating);
    }
-   if (registerOrError(executor, arg(executor, command, command.argCount-1), "add", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, command.argCount-1), number, floating);
+   storeNumber(executor, command, number, floating, "add");
 }
 
 void builtinSub(const Command &command, Executor &executor) {
    bool floating = false;
-   double number = getNum(executor, arg(executor, command, 0), "sub", command.file, command.line, &floating);
+   double number = getNum(executor, command, 0, "sub", &floating);
    for (size_t i = 1; i < command.argCount - 1; ++i) {
-      number -= getNum(executor, arg(executor, command, i), "sub", command.file, command.line, &floating);
+      number -= getNum(executor, command, i, "sub", &floating);
    }
-   if (registerOrError(executor, arg(executor, command, command.argCount-1), "sub", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, command.argCount-1), number, floating);
+   storeNumber(executor, command, number, floating, "sub");
 }
 
 void builtinMul(const Command &command, Executor &executor) {
    bool floating = false;
    double number = 1.0;
    for (size_t i = 0; i < command.argCount - 1; ++i) {
-      number *= getNum(executor, arg(executor, command, i), "mul", command.file, command.line, &floating);
+      number *= getNum(executor, command, i, "mul", &floating);
    }
-   if (registerOrError(executor, arg(executor, command, command.argCount-1), "mul", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, command.argCount-1), number, floating);
+   storeNumber(executor, command, number, floating, "mul");
 }
 
 void builtinDiv(const Command &command, Executor &executor) {
    bool floating = false;
-   double number = getNum(executor, arg(executor, command, 0), "div", command.file, command.line, &floating);
+   double number = getNum(executor, command, 0, "div", &floating);
    for (size_t i = 1; i < command.argCount - 1; ++i) {
-      double num = getNum(executor, arg(executor, command, i), "div", command.file, command.line, &floating);
+      double num = getNum(executor, command, i, "div", &floating);
       number = (num == 0.0 ? 0.0 : number / num); // defined behavior
    }
-   if (registerOrError(executor, arg(executor, command, command.argCount-1), "div", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, command.argCount-1), number, floating);
+   storeNumber(executor, command, number, floating, "div");
 }
 
 void builtinMod(const Command &command, Executor &executor) {
    bool floating = false;
-   double a = getNum(executor, arg(executor, command, 0), "mod", command.file, command.line, &floating);
-   double b = getNum(executor, arg(executor, command, 1), "mod", command.file, command.line, &floating);
-   if (registerOrError(executor, arg(executor, command, 2), "mod", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 2), fmod(a, b), floating);
+   double a = getNum(executor, command, 0, "mod", &floating);
+   double b = getNum(executor, command, 1, "mod", &floating);
+   storeNumber(executor, command, fmod(a, b), floating, "mod");
 }
 
 void builtinPow(const Command &command, Executor &executor) {
    bool floating = false;
-   double a = getNum(executor, arg(executor, command, 0), "pow", command.file, command.line, &floating);
-   double b = getNum(executor, arg(executor, command, 1), "pow", command.file, command.line, &floating);
-   if (registerOrError(executor, arg(executor, command, 2), "pow", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 2), pow(a, b), floating);
+   double a = getNum(executor, command, 0, "pow", &floating);
+   double b = getNum(executor, command, 1, "pow", &floating);
+   storeNumber(executor, command, pow(a, b), floating, "pow");
 }
 
 void builtinNeg(const Command &command, Executor &executor) {
    bool floating = false;
-   if (registerOrError(executor, arg(executor, command, 1), "neg", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), -getNum(executor, arg(executor, command, 0), "neg", command.file, command.line, &floating), floating);
+   double n = getNum(executor,command, 0, "neg", &floating);
+   storeNumber(executor, command, -n, floating, "neg");
 }
 
 void builtinSqrt(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "sqrt", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), sqrt(getNum(executor, arg(executor, command, 0), "sqrt", command.file, command.line)), true);
+   unaryBuiltin(executor, command, sqrt, "sqrt");
 }
 
 void builtinCbrt(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "cbrt", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), cbrt(getNum(executor, arg(executor, command, 0), "cbrt", command.file, command.line)), true);
+   unaryBuiltin(executor, command, cbrt, "cbrt");
 }
 
 void builtinSin(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "sin", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), sin(getNum(executor, arg(executor, command, 0), "sin", command.file, command.line)), true);
+   unaryBuiltin(executor, command, sin, "sin");
 }
 
 void builtinCos(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "cos", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), cos(getNum(executor, arg(executor, command, 0), "cos", command.file, command.line)), true);
+   unaryBuiltin(executor, command, cos, "cos");
 }
 
 void builtinTan(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "tan", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), tan(getNum(executor, arg(executor, command, 0), "tan", command.file, command.line)), true);
+   unaryBuiltin(executor, command, tan, "tan");
 }
 
 void builtinAsin(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "asin", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), asin(getNum(executor, arg(executor, command, 0), "asin", command.file, command.line)), true);
+   unaryBuiltin(executor, command, asin, "asin");
 }
 
 void builtinAcos(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "acos", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), acos(getNum(executor, arg(executor, command, 0), "acos", command.file, command.line)), true);
+   unaryBuiltin(executor, command, acos, "acos");
 }
 
 void builtinAtan(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "atan", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), atan(getNum(executor, arg(executor, command, 0), "atan", command.file, command.line)), true);
+   unaryBuiltin(executor, command, atan, "atan");
 }
 
 void builtinAtan2(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 2), "atan2", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 2), atan2(getNum(executor, arg(executor, command, 0), "atan2", command.file, command.line), getNum(executor, arg(executor, command, 1), "atan2", command.file, command.line)), true);
+   binaryBuiltin(executor, command, atan2, "atan2");
 }
 
 void builtinAsinh(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "asinh", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), asinh(getNum(executor, arg(executor, command, 0), "asinh", command.file, command.line)), true);
+   unaryBuiltin(executor, command, asinh, "asinh");
 }
 
 void builtinAcosh(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "acosh", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), acosh(getNum(executor, arg(executor, command, 0), "acosh", command.file, command.line)), true);
+   unaryBuiltin(executor, command, acosh, "acosh");
 }
 
 void builtinAtanh(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "atanh", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), atanh(getNum(executor, arg(executor, command, 0), "atanh", command.file, command.line)), true);
+   unaryBuiltin(executor, command, atanh, "atanh");
 }
 
 void builtinSinh(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "sinh", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), sinh(getNum(executor, arg(executor, command, 0), "sinh", command.file, command.line)), true);
+   unaryBuiltin(executor, command, sinh, "sinh");
 }
 
 void builtinCosh(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "cosh", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), cosh(getNum(executor, arg(executor, command, 0), "cosh", command.file, command.line)), true);
+   unaryBuiltin(executor, command, cosh, "cosh");
 }
 
 void builtinTanh(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "tanh", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), tanh(getNum(executor, arg(executor, command, 0), "tanh", command.file, command.line)), true);
+   unaryBuiltin(executor, command, tanh, "tanh");
 }
 
 void builtinAbs(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "abs", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), fabs(getNum(executor, arg(executor, command, 0), "abs", command.file, command.line)), true);
+   bool floating = false;
+   double n = getNum(executor,command, 0, "abs", &floating);
+   storeNumber(executor, command, fabs(n), floating, "abs");
 }
 
 void builtinMin(const Command &command, Executor &executor) {
    bool floating = false;
    double number = std::numeric_limits<double>::max();
    for (size_t i = 0; i < command.argCount - 1; ++i) {
-      number = std::min(number, getNum(executor, arg(executor, command, i), "min", command.file, command.line, &floating));
+      number = std::min(number, getNum(executor, command, i, "min", &floating));
    }
-   if (registerOrError(executor, arg(executor, command, command.argCount-1), "min", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, command.argCount-1), number, floating);
+   storeNumber(executor, command, number, floating, "min");
 }
 
 void builtinMax(const Command &command, Executor &executor) {
    bool floating = false;
    double number = std::numeric_limits<double>::min();
    for (size_t i = 0; i < command.argCount - 1; ++i) {
-      number = std::max(number, getNum(executor, arg(executor, command, i), "max", command.file, command.line, &floating));
+      number = std::max(number, getNum(executor, command, i, "max", &floating));
    }
-   if (registerOrError(executor, arg(executor, command, command.argCount-1), "max", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, command.argCount-1), number, floating);
+   storeNumber(executor, command, number, floating, "max");
 }
 
 void builtinClamp(const Command &command, Executor &executor) {
    bool floating = false;
-   double x = getNum(executor, arg(executor, command, 0), "clamp", command.file, command.line, &floating);
-   double lo = getNum(executor, arg(executor, command, 1), "clamp", command.file, command.line, &floating);
-   double hi = getNum(executor, arg(executor, command, 2), "clamp", command.file, command.line, &floating);
-   if (registerOrError(executor, arg(executor, command, 3), "clamp", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 3), std::clamp(x, lo, hi), floating);
+   double x = getNum(executor, command, 0, "clamp", &floating);
+   double lo = getNum(executor, command, 1, "clamp", &floating);
+   double hi = getNum(executor, command, 2, "clamp", &floating);
+   storeNumber(executor, command, std::clamp(x, lo, hi), floating, "clamp");
 }
 
 void builtinCeil(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "ceil", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), ceil(getNum(executor, arg(executor, command, 0), "ceil", command.file, command.line)), true);
+   unaryBuiltin(executor, command, ceil, "ceil");
 }
 
 void builtinFloor(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "floor", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), floor(getNum(executor, arg(executor, command, 0), "floor", command.file, command.line)), true);
+   unaryBuiltin(executor, command, floor, "floor");
 }
 
 void builtinRound(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "round", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), round(getNum(executor, arg(executor, command, 0), "round", command.file, command.line)), true);
+   unaryBuiltin(executor, command, round, "round");
 }
 
 void builtinExp(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "exp", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), exp(getNum(executor, arg(executor, command, 0), "exp", command.file, command.line)), true);
+   unaryBuiltin(executor, command, exp, "exp");
 }
 
 void builtinLn(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "ln", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), log(getNum(executor, arg(executor, command, 0), "ln", command.file, command.line)), true);
+   unaryBuiltin(executor, command, log, "ln");
 }
 
 void builtinLog(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 2), "log", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 2), log(getNum(executor, arg(executor, command, 0), "log", command.file, command.line)) / log(getNum(executor, arg(executor, command, 1), "log", command.file, command.line)), true);
+   binaryBuiltin(executor, command, [](double a, double b){ return log(a) / log(b); }, "log");
 }
 
 void builtinLog2(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "log2", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), log2(getNum(executor, arg(executor, command, 0), "log2", command.file, command.line)), true);
+   unaryBuiltin(executor, command, log2, "log2");
 }
 
 void builtinLog10(const Command &command, Executor &executor) {
-   if (registerOrError(executor, arg(executor, command, 1), "log10", "destination", command.file, command.line)) return;
-   storeNumber(executor, arg(executor, command, 1), log10(getNum(executor, arg(executor, command, 0), "log10", command.file, command.line)), true);
+   unaryBuiltin(executor, command, log10, "log10");
 }
 
 // comparison
-enum Comparison: char {
-   COMPARISON_LESS, COMPARISON_GREATER, COMPARISON_EQUAL, COMPARISON_ERROR, COMPARISON_NOT_EQUAL
-};
-
-Comparison compareValues(Executor &executor, Value lhs, Value rhs, const char *function, bool softie, size_t file, size_t line) {
-   Value a = resolveVariable(executor, lhs, function, file, line);
-   Value b = resolveVariable(executor, rhs, function, file, line);
-
-   if ((a.type == VALUE_INTEGER || a.type == VALUE_FLOATING) && (b.type == VALUE_INTEGER || b.type == VALUE_FLOATING)) {
-      double x = (a.type == VALUE_INTEGER) ? (double)a.integer : a.floating;
-      double y = (b.type == VALUE_INTEGER) ? (double)b.integer : b.floating;
-      return x < y ? COMPARISON_LESS : x > y ? COMPARISON_GREATER : COMPARISON_EQUAL;
-   }
-   else if (a.type == VALUE_CHARACTER && b.type == VALUE_CHARACTER) {
-      return a.character < b.character ? COMPARISON_LESS : a.character > b.character ? COMPARISON_GREATER : COMPARISON_EQUAL;
-   }
-   else if ((a.type == VALUE_STRING || a.type == VALUE_CSTRING) && (b.type == VALUE_STRING || b.type == VALUE_CSTRING)) {
-      const std::string &as = (a.type == VALUE_STRING ? getString(executor, a.string, file, line) : getLexeme(executor.cache, a.string));
-      const std::string &bs = (b.type == VALUE_STRING ? getString(executor, b.string, file, line) : getLexeme(executor.cache, b.string));
-      int c = as.compare(bs);
-      return c < 0 ? COMPARISON_LESS : c > 0 ? COMPARISON_GREATER : COMPARISON_EQUAL;
-   }
-
-   if (!softie) {
-      error(executor.diagnostics, file, line, "%s: Cannot compare %s and %s", function, getValueName(a.type), getValueName(b.type));
-      return COMPARISON_ERROR;
-   }
-   return COMPARISON_NOT_EQUAL;
-}
-
-bool isThruthy(Executor &executor, Value value, const char *function, const char *argument, bool &ok, size_t file, size_t line) {
-   Value v = resolveVariable(executor, value, function, file, line);
-   ok = true;
-
-   switch (v.type) {
-   case VALUE_INTEGER: return v.integer != 0;
-   case VALUE_FLOATING: return v.floating != 0.0;
-   case VALUE_CHARACTER: return v.character != 0;
-   case VALUE_CSTRING: return !getLexeme(executor.cache, v.string).empty();
-   case VALUE_STRING: return !getString(executor, v.string, file, line).empty();
-   default:
-      error(executor.diagnostics, file, line, "%s: Expected value for the %s argument, got %s", function, argument, getValueName(v.type));
-      ok = false;
-      return false;
-   }
-}
-
-void storeBoolean(Executor &executor, Value reg, bool result, const char *function, size_t file, size_t line) {
-   if (registerOrError(executor, reg, function, "destination", file, line)) return;
-   Value out = reg;
-   out.type = VALUE_INTEGER;
-   out.integer = (result ? 1 : 0);
-   storeInRegister(executor, reg, out);
-}
-
 void builtinLe(const Command &command, Executor &executor) {
-   Comparison result = compareValues(executor, arg(executor, command, 0), arg(executor, command, 1), "le", false, command.file, command.line);
-   if (result != COMPARISON_ERROR) storeBoolean(executor, arg(executor, command, 2), result == COMPARISON_LESS, "le", command.file, command.line);
+   comparisonBuiltin(executor, command, "le", COMPARISON_LESS, false, false);
 }
 
 void builtinGr(const Command &command, Executor &executor) {
-   Comparison result = compareValues(executor, arg(executor, command, 0), arg(executor, command, 1), "gr", false, command.file, command.line);
-   if (result != COMPARISON_ERROR) storeBoolean(executor, arg(executor, command, 2), result == COMPARISON_GREATER, "gr", command.file, command.line);
+   comparisonBuiltin(executor, command, "gr", COMPARISON_GREATER, false, false);
 }
 
 void builtinLeeq(const Command &command, Executor &executor) {
-   Comparison result = compareValues(executor, arg(executor, command, 0), arg(executor, command, 1), "leeq", false, command.file, command.line);
-   if (result != COMPARISON_ERROR) storeBoolean(executor, arg(executor, command, 2), result != COMPARISON_GREATER, "leeq", command.file, command.line);
+   comparisonBuiltin(executor, command, "leeq", COMPARISON_GREATER, true, false);
 }
 
 void builtinGreq(const Command &command, Executor &executor) {
-   Comparison result = compareValues(executor, arg(executor, command, 0), arg(executor, command, 1), "greq", false, command.file, command.line);
-   if (result != COMPARISON_ERROR) storeBoolean(executor, arg(executor, command, 2), result != COMPARISON_LESS, "greq", command.file, command.line);
+   comparisonBuiltin(executor, command, "greq", COMPARISON_LESS, true, false);
 }
 
 void builtinEq(const Command &command, Executor &executor) {
-   Comparison result = compareValues(executor, arg(executor, command, 0), arg(executor, command, 1), "eq", true, command.file, command.line);
-   if (result != COMPARISON_ERROR) storeBoolean(executor, arg(executor, command, 2), result == COMPARISON_EQUAL, "eq", command.file, command.line);
+   comparisonBuiltin(executor, command, "eq", COMPARISON_EQUAL, false, true);
 }
 
 void builtinNeq(const Command &command, Executor &executor) {
-   Comparison result = compareValues(executor, arg(executor, command, 0), arg(executor, command, 1), "neq", true, command.file, command.line);
-   if (result != COMPARISON_ERROR) storeBoolean(executor, arg(executor, command, 2), result != COMPARISON_EQUAL, "neq", command.file, command.line);
+   comparisonBuiltin(executor, command, "neq", COMPARISON_EQUAL, true, true);
 }
 
 void builtinNot(const Command &command, Executor &executor) {
    bool ok;
    bool thruthy = isThruthy(executor, arg(executor, command, 0), "not", "1st", ok, command.file, command.line);
-   if (ok) storeBoolean(executor, arg(executor, command, 1), thruthy, "not", command.file, command.line);
+   if (ok) storeBoolean(executor, command, thruthy, "not");
 }
 
 // control flow
 void builtinGoto(const Command &command, Executor &executor) {
-   if (labelOrError(executor, arg(executor, command, 0), "goto", "1st", command.file, command.line)) return;
-   executor.pointer = executor.values[arg(executor, command, 0).identifier].label - 1;
+   jumpToLabel(executor, arg(executor, command, 0), "goto", "1st", command.file, command.line, true);
 }
 
 void builtinJmp(const Command &command, Executor &executor) {
-   if (labelOrError(executor, arg(executor, command, 1), "jmp", "2nd", command.file, command.line)) return;
    bool ok;
    bool thruthy = isThruthy(executor, arg(executor, command, 0), "jmp", "1st", ok, command.file, command.line);
-   if (ok && thruthy) {
-      executor.pointer = executor.values[arg(executor, command, 1).identifier].label - 1;
-   }
+   jumpToLabel(executor, arg(executor, command, 1), "jmp", "2nd", command.file, command.line, ok && thruthy);
 }
 
 void builtinJmpn(const Command &command, Executor &executor) {
-   if (labelOrError(executor, arg(executor, command, 1), "jmpn", "2nd", command.file, command.line)) return;
    bool ok;
    bool thruthy = isThruthy(executor, arg(executor, command, 0), "jmpn", "1st", ok, command.file, command.line);
-   if (ok && !thruthy) {
-      executor.pointer = executor.values[arg(executor, command, 1).identifier].label - 1;
-   }
+   jumpToLabel(executor, arg(executor, command, 1), "jmpn", "2nd", command.file, command.line, ok && !thruthy);
 }
 
 void builtinCall(const Command &command, Executor &executor) {
@@ -568,33 +529,32 @@ void builtinReturn(const Command &command, Executor &executor) {
       size_t count = std::min(executor.returnCount, callArgCount);
       for (size_t i = 0; i < count; ++i) {
          Value reg = executor.arguments[callArgStart + i];
-         if (registerOrError(executor, reg, "call", "return", command.file, command.line)) return;
-         storeInRegister(executor, reg, executor.returnRegisters[i]);
+         storeInRegister(executor, command, reg, executor.returnRegisters[i], "call");
       }
    }
 }
 
 // variables. set and move being the same with different order is intentional
 void builtinSet(const Command &command, Executor &executor) {
-   Value reg = arg(executor, command, 0);
-   if (registerOrError(executor, reg, "set", "1st", command.file, command.line)) return;
-   storeInRegister(executor, reg, resolveVariable(executor, arg(executor, command, 1), "set", command.file, command.line));
+   storeInRegister(executor, command, arg(executor, command, 0), "set");
 }
 
 void builtinGlobal(const Command &command, Executor &executor) {
    Value value {VALUE_COUNT};
+   Value last = back(executor, command);
    size_t definitionCount = command.argCount;
 
-   if (command.argCount > 1 && (arg(executor, command, command.argCount-1).type != VALUE_IDENTIFIER || (executor.values[arg(executor, command, command.argCount-1).identifier].init && executor.values[arg(executor, command, command.argCount-1).identifier].type == GLOBAL))) {
-      value = resolveVariable(executor, arg(executor, command, command.argCount-1), "global", command.file, command.line);
+   if (command.argCount > 1 && (last.type != VALUE_IDENTIFIER || (executor.values[last.identifier].init && executor.values[last.identifier].type == GLOBAL))) {
+      value = resolveVariable(executor, last, "global", command.file, command.line);
       definitionCount -= 1;
    }
    for (size_t i = 0; i < definitionCount; ++i) {
-      if (arg(executor, command, i).type != VALUE_IDENTIFIER) {
-         error(executor.diagnostics, command.file, command.line, "global: Expected Identifier, but got %s instead", getValueName(arg(executor, command, i).type));
+      Value a = arg(executor, command, i);
+      if (a.type != VALUE_IDENTIFIER) {
+         error(executor.diagnostics, command.file, command.line, "global: Expected Identifier, but got %s instead", getValueName(a.type));
          continue;
       }
-      size_t lexeme = arg(executor, command, i).identifier;
+      size_t lexeme = a.identifier;
       if (executor.values[lexeme].init && executor.values[lexeme].type != GLOBAL) {
          error(executor.diagnostics, command.file, command.line, "global: Cannot define global '%s' as a %s with the same name already exists", getLexeme(executor.cache, lexeme).c_str(), getParseValueName(executor.values[lexeme].type));
          continue;

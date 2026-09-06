@@ -52,10 +52,10 @@ Values can be stored in 4 different places:
 
 To store a value into a container we use **set**:
 ```txt
-set $0, 20                 ; register $0 is now 20
-set $1, 'a'                ; register $1 is now 'a'
-global my-var              ; declare 'my-var'
-set my-var "Hello, World!" ; my-var is now "Hello, World!"
+set 20, $0                  ; register $0 is now 20
+set 'a', $1                 ; register $1 is now 'a'
+global my-var               ; declare 'my-var'
+set "Hello, World!", my-var ; my-var is now "Hello, World!"
 ```
 There are also functions that store the result in a container, like the [arithmetic](#arithmetic) functions.
 
@@ -102,8 +102,8 @@ The values are stored in return registers (R$N). But to store the results elsewh
 To define locals just like parameters, you must use the **let** keyword right after the function declaration. Note that you cannot do it on the next line or the interpreter will interpret it as a function call, which is totally valid.
 ```txt
 my-add() let a, b
-   set a 10
-   set b 30
+   set 10, a
+   set 30, b
    add a, b, $0
    return $0
 ```
@@ -254,7 +254,7 @@ jmpn CONDITION, LABEL
 Jump to label LABEL. goto - unconditional jump, jmp - only jump if condition is truthy, jmpn - only jump if condition is not thruthy.
 #### set
 ```txt
-set DESTINATION, VALUE
+set VALUE, DESTINATION
 ```
 Set DESTINATION to VALUE.
 #### global
