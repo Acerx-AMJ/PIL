@@ -261,6 +261,18 @@ void builtinFormat(const Command &command, Executor &executor) {
 }
 
 // math
+void builtinIncr(const Command &command, Executor &executor) {
+   bool floating = false;
+   double number = getNum(executor, command, 0, "incr");
+   storeNumber(executor, command, number + 1, floating, "incr");
+}
+
+void builtinDecr(const Command &command, Executor &executor) {
+   bool floating = false;
+   double number = getNum(executor, command, 0, "decr");
+   storeNumber(executor, command, number - 1, floating, "decr");
+}
+
 void builtinAdd(const Command &command, Executor &executor) {
    bool floating = false;
    double number = 0.0;
@@ -536,7 +548,7 @@ void builtinReturn(const Command &command, Executor &executor) {
 
 // variables. set and move being the same with different order is intentional
 void builtinSet(const Command &command, Executor &executor) {
-   storeInRegister(executor, command, arg(executor, command, 0), "set");
+   storeInRegister(executor, command, resolveVariable(executor, arg(executor, command, 0), "set", command.file, command.line), "set");
 }
 
 void builtinGlobal(const Command &command, Executor &executor) {

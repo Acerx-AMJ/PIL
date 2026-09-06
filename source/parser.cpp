@@ -57,6 +57,8 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "format", builtinFormat, 2, true);
 
    // math
+   pushBuiltin(executor, "incr", builtinIncr, 1, false);
+   pushBuiltin(executor, "decr", builtinDecr, 1, false);
    pushBuiltin(executor, "add", builtinAdd, 3, true);
    pushBuiltin(executor, "sub", builtinSub, 3, true);
    pushBuiltin(executor, "mul", builtinMul, 3, true);

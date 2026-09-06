@@ -18,7 +18,7 @@ fib-less(n) let r1
 
    add n, -1, $1
    fib, $1
-   set r1, R$0
+   set R$0, r1
    add n, -2, $1
    fib, $1
    add r1, R$0, $1
@@ -30,16 +30,16 @@ fib-iterative(n) let prev1, prev2, curr
    leeq n, 1, $0
    jmp $0, fib-iterative-end
 
-   set $1, n
-   set prev1, 1
-   set prev2, 0
-   set curr, 0
+   set n, $1
+   set 1, prev1
+   set 0, prev2
+   set 0, curr
 
 fib-iterative-loop:
    add prev1, prev2, curr
-   set prev2, prev1
-   set prev1, curr
-   sub $1, 1, $1
+   set prev1, prev2
+   set curr, prev1
+   decr $1
    gr $1, 1, $2
    jmp $2, fib-iterative-loop
    return curr

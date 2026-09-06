@@ -18,6 +18,8 @@ void builtinStringNew(const Command &command, Executor &executor);
 void builtinFormat(const Command &command, Executor &executor);
 
 // math
+void builtinIncr(const Command &command, Executor &executor);
+void builtinDecr(const Command &command, Executor &executor);
 void builtinAdd(const Command &command, Executor &executor);
 void builtinSub(const Command &command, Executor &executor);
 void builtinMul(const Command &command, Executor &executor);

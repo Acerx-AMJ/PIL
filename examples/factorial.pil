@@ -1,11 +1,11 @@
-factorial(n) let minus1, result
+factorial(n)
    leeq n, 1, $0
    jmp $0, factorial-end
 
-   sub n, 1, minus1
-   call result, factorial, minus1
-   mul result, n, result
-   return result
+   sub n, 1, $1
+   factorial, $1
+   mul R$0, n, R$0
+   return R$0
 factorial-end:
    return 1
 
@@ -16,7 +16,7 @@ factorial-iterative(n)
    sub n, 1, $0
 factorial-iterative-loop:
    mul n, $0, n
-   sub $0, 1, $0
+   decr $0
    gr $0, 1, $1
    jmp $1, factorial-iterative-loop
    return n

@@ -164,6 +164,12 @@ Concatenates all values and allocates a string.
 format STRING, ANY, ANY...
 ```
 Formats the string by replacing all '{}' with values. Does not check format argument count.
+#### increment, decrement
+```txt
+incr REGISTER
+decr REGISTER
+```
+Increment/decrement the register/variable.
 #### arithmetic
 ```txt
 add N1, N2..., DESTINATION
