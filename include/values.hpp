@@ -16,11 +16,10 @@ constexpr const char *getValueName(ValueType value) {
    return valueTypeStrings[value];
 }
 
+// please keep it 16 bytes. this heavily affects performance. 3 bytes are free after type.
 struct Value {
    ValueType type;
-   size_t allocations;
-   size_t line;
-   size_t file;
+   int allocations;
    union {
       long integer;
       double floating;

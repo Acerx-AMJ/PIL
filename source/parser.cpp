@@ -6,8 +6,6 @@ void pushConstant(Executor &executor, const std::string &lexeme, float value) {
    if (auto it = executor.cache.lexemeCache.find(lexeme); it != executor.cache.lexemeCache.end()) {
       Value v {VALUE_FLOATING};
       v.floating = value;
-      v.line = 0;
-      v.file = 0;
 
       ParseValue constant;
       constant.init = true;
@@ -48,7 +46,7 @@ void pushReservedBuiltin(Executor &executor, const std::string &lexeme, NativeFu
 }
 
 void defineStandardBuiltins(Executor &executor) {
-   executor.values.resize(getLexemeCount(executor.cache) + 1); // plus reserved built-ins. avoid extra allocation
+   executor.values.resize(getLexemeCount(executor.cache) + 2); // plus reserved built-ins. avoid extra allocation
 
    // output
    pushBuiltin(executor, "print", builtinPrint, 1, true);
@@ -107,7 +105,6 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "goto", builtinGoto, 1, false);
    pushBuiltin(executor, "jmp", builtinJmp, 2, false);
    pushBuiltin(executor, "jmpn", builtinJmpn, 2, false);
-   pushBuiltin(executor, "call", builtinCall, 1, true);
 
    // variables
    pushBuiltin(executor, "set", builtinSet, 2, false);
@@ -121,9 +118,6 @@ void defineStandardBuiltins(Executor &executor) {
 
 Value parseToken(Executor &executor, Token token, const std::unordered_map<size_t, size_t> &functionParamMap) {
    Value value {VALUE_COUNT};
-   value.line = token.line;
-   value.file = token.file;
-
    switch (token.type) {
    case TOKEN_IDENTIFIER:
       if (auto it = functionParamMap.find(token.lexeme); it != functionParamMap.end()) {
@@ -142,7 +136,7 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
       }
       catch (...) {
          value.integer = 0;
-         error(executor.diagnostics, value.file, value.line, "Invalid integer: %s", getLexeme(executor.cache, token.lexeme).c_str());
+         error(executor.diagnostics, token.file, token.line, "Invalid integer: %s", getLexeme(executor.cache, token.lexeme).c_str());
       }
       break;
    case TOKEN_FLOATING:
@@ -152,7 +146,7 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
       }
       catch (...) {
          value.floating = 0;
-         error(executor.diagnostics, value.file, value.line, "Invalid floating point number: %s", getLexeme(executor.cache, token.lexeme).c_str());
+         error(executor.diagnostics, token.file, token.line, "Invalid floating point number: %s", getLexeme(executor.cache, token.lexeme).c_str());
       }
       break;
    case TOKEN_STRING:
@@ -171,11 +165,11 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
       }
       catch (...) {
          value.reg = 0;
-         error(executor.diagnostics, value.file, value.line, "Invalid register: %s$%s", token.type == TOKEN_RETURN_REGISTER ? "R" : "", getLexeme(executor.cache, token.lexeme).c_str());
+         error(executor.diagnostics, token.file, token.line, "Invalid register: %s$%s", token.type == TOKEN_RETURN_REGISTER ? "R" : "", getLexeme(executor.cache, token.lexeme).c_str());
       }
       break;
    default:
-      error(executor.diagnostics, value.file, value.line, "Unexpected token %s in function call", getLexeme(executor.cache, token.lexeme).c_str());
+      error(executor.diagnostics, token.file, token.line, "Unexpected token %s in function call", getLexeme(executor.cache, token.lexeme).c_str());
    }
    return value;
 }
@@ -185,6 +179,7 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
 void parsePIL(Executor &executor, std::vector<Token> &tokens) {
    // reserved built-ins. must always be there.
    pushReservedBuiltin(executor, "return", builtinReturn, 0, true);
+   pushReservedBuiltin(executor, "call", builtinCall, 1, true);
 
    // estimate code size
    size_t size = tokens.size();
@@ -214,6 +209,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
    std::unordered_map<size_t, size_t> functionParamMap;
    size_t returnLexeme = cacheLexeme(executor.cache, "return");
    size_t defineLexeme = cacheLexeme(executor.cache, "let");
+   size_t callLexeme = cacheLexeme(executor.cache, "call");
    bool firstFunction = true;
 
    for (size_t i = 0; i < size && tokens[i].type != TOKEN_EOF; ++i) {
@@ -309,10 +305,43 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
 
          executor.code.emplace_back(tokens[i].lexeme, tokens[i].file, tokens[i].line, executor.arguments.size(), 0);
          Command &command = executor.code.back();
+         bool isCall = (tokens[i].lexeme == callLexeme);
+         size_t start = i + 1;
 
          for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
-            executor.arguments.push_back(parseToken(executor, tokens[i], functionParamMap));
+            Value value = parseToken(executor, tokens[i], functionParamMap);
+            if (isCall && value.type == VALUE_IDENTIFIER && executor.values[value.identifier].init && executor.values[value.identifier].type == FUNCTION) {
+               if (command.callee != std::string::npos) {
+                  error(executor.diagnostics, command.file, command.line, "call: Cannot call multiple functions in a single call");
+               }
+               command.callee = i - start;
+            }
+
+            executor.arguments.push_back(value);
             command.argCount += 1;
+         }
+
+         if (isCall && command.callee == std::string::npos) {
+            error(executor.diagnostics, command.file, command.line, "call: Expected function name to call");
+         }
+
+         size_t args = command.argCount;
+         size_t params = executor.values[command.lexeme].params.size();
+         bool variadic = executor.values[command.lexeme].variadic;
+
+         if ((!variadic && args != params) || (variadic && args < params)) {
+            error(executor.diagnostics, command.file, command.line, "Function '%s' expected %s%zu parameters, but received %zu arguments", getLexeme(executor.cache, command.lexeme).c_str(), (variadic ? ">" : ""), params, args);
+         }
+
+         if (isCall) {
+            size_t lexeme = executor.arguments[command.argStart + command.callee].identifier;
+            ParseValue &function = executor.values[lexeme];
+            args = command.argCount - command.callee - 1;
+            params = function.params.size();
+            variadic = function.variadic;
+            if ((!variadic && args != params) || (variadic && args < params)) {
+               error(executor.diagnostics, command.file, command.line, "call: Function '%s' expected %s%zu parameters, but received %zu arguments", getLexeme(executor.cache, lexeme).c_str(), (variadic ? ">" : ""), params, args);
+            }
          }
       }
    }

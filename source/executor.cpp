@@ -5,19 +5,6 @@ constexpr size_t DEFAULT_REGISTER_COUNT = 16;
 constexpr size_t DEFAULT_RETURN_REGISTER_COUNT = 4;
 
 void call(Executor &executor, const Command &command, ParseValue &function, size_t functionPos, size_t returnCount, size_t args) {
-   size_t params = function.params.size();
-   bool variadic = function.variadic;
-
-   if ((!variadic && args != params) || (variadic && args < params)) {
-      error(executor.diagnostics, command.file, command.line, "call: Called function expected %s%zu parameters, but received %zu arguments", (variadic ? ">" : ""), params, args);
-      return;
-   }
-
-   if (function.type != FUNCTION && function.type != NATIVE_FUNCTION) {
-      error(executor.diagnostics, command.file, command.line, "Stray %s '%s'", getParseValueName(function.type), getLexeme(executor.cache, command.lexeme).c_str());
-      return;
-   }
-
    if (function.type == NATIVE_FUNCTION) {
       function.nativeFunction(command, executor);
    }
@@ -25,12 +12,15 @@ void call(Executor &executor, const Command &command, ParseValue &function, size
       Trace trace (executor.pointer, command.lexeme, returnCount);
       trace.locals = std::vector<Value>(function.localCount, Value{VALUE_COUNT});
 
-      for (size_t i = functionPos + 1; i < functionPos + 1 + params; ++i) {
-         Value value = resolveVariable(executor, executor.arguments[i + command.argStart], "call");
+      for (size_t i = functionPos + 1; i < functionPos + 1 + function.params.size(); ++i) {
+         Value value = resolveVariable(executor, executor.arguments[i + command.argStart], "call", command.file, command.line);
          moveValue(executor, trace.locals[i - functionPos - 1], value);
       }
       executor.stackTrace.push(trace);
       executor.pointer = function.function - 1;
+   }
+   else {
+      error(executor.diagnostics, command.file, command.line, "Stray %s '%s'", getParseValueName(function.type), getLexeme(executor.cache, command.lexeme).c_str());
    }
 }
 

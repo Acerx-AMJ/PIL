@@ -23,13 +23,14 @@ struct Trace {
 
 struct Command {
    Command(size_t lexeme, size_t file, size_t line, size_t argStart, size_t argCount)
-      : lexeme(lexeme), file(file), line(line), argStart(argStart), argCount(argCount) {}
+      : lexeme(lexeme), file(file), line(line), argStart(argStart), argCount(argCount), callee(std::string::npos) {}
 
    size_t lexeme;
    size_t file;
    size_t line;
    size_t argStart;
    size_t argCount;
+   size_t callee;
 };
 
 struct Executor {

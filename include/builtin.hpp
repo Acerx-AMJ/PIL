@@ -4,7 +4,7 @@
 void deallocate(Executor &executor, Value &value);
 void copyValue(Executor &executor, Value &target, Value &copy);
 void moveValue(Executor &executor, Value &target, Value &move);
-Value resolveVariable(Executor &executor, Value value, const char *function);
+Value resolveVariable(Executor &executor, Value value, const char *function, size_t file, size_t line);
 
 // output
 void builtinPrint(const Command &command, Executor &executor);

@@ -20,11 +20,8 @@
 ;   string-delete
 ;   printn $0
 
+fn(a, b, c)
+   return a, b, c
+
 main()
-   string-new "Hello, World!", $0
-   set $1, $0
-   printn $0, $1
-   set $1, 0
-   printn $0, $1
-   set $0, 0
-   printn $0, $1
+   call fn, 1, 2, 3, 4
