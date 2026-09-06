@@ -46,6 +46,8 @@ void builtinAbs(const Command &command, Executor &executor);
 void builtinMin(const Command &command, Executor &executor);
 void builtinMax(const Command &command, Executor &executor);
 void builtinClamp(const Command &command, Executor &executor);
+void builtinSign(const Command &command, Executor &executor);
+void builtinTrunc(const Command &command, Executor &executor);
 void builtinCeil(const Command &command, Executor &executor);
 void builtinFloor(const Command &command, Executor &executor);
 void builtinRound(const Command &command, Executor &executor);
@@ -54,6 +56,8 @@ void builtinLn(const Command &command, Executor &executor);
 void builtinLog(const Command &command, Executor &executor);
 void builtinLog2(const Command &command, Executor &executor);
 void builtinLog10(const Command &command, Executor &executor);
+void builtinLerp(const Command &command, Executor &executor);
+void builtinStepTowards(const Command &command, Executor &executor);
 
 // comparison
 void builtinLe(const Command &command, Executor &executor);
@@ -72,5 +76,6 @@ void builtinCall(const Command &command, Executor &executor);
 void builtinReturn(const Command &command, Executor &executor);
 
 // variables
+void builtinSwap(const Command &command, Executor &executor);
 void builtinSet(const Command &command, Executor &executor);
 void builtinGlobal(const Command &command, Executor &executor);

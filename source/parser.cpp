@@ -85,6 +85,8 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "min", builtinMin, 3, true);
    pushBuiltin(executor, "max", builtinMax, 3, true);
    pushBuiltin(executor, "clamp", builtinClamp, 4, false);
+   pushBuiltin(executor, "sign", builtinSign, 2, false);
+   pushBuiltin(executor, "trunc", builtinTrunc, 2, false);
    pushBuiltin(executor, "ceil", builtinCeil, 2, false);
    pushBuiltin(executor, "floor", builtinFloor, 2, false);
    pushBuiltin(executor, "round", builtinRound, 2, false);
@@ -93,6 +95,8 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "log", builtinLog, 3, false);
    pushBuiltin(executor, "log2", builtinLog2, 2, false);
    pushBuiltin(executor, "log10", builtinLog10, 2, false);
+   pushBuiltin(executor, "lerp", builtinLerp, 4, false);
+   pushBuiltin(executor, "step-towards", builtinStepTowards, 3, false);
 
    // comparison
    pushBuiltin(executor, "le", builtinLe, 3, false);
@@ -109,6 +113,7 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "jmpn", builtinJmpn, 2, false);
 
    // variables
+   pushBuiltin(executor, "swap", builtinSwap, 2, false);
    pushBuiltin(executor, "set", builtinSet, 2, false);
    pushBuiltin(executor, "global", builtinGlobal, 1, true);
 

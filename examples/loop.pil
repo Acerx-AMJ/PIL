@@ -1,6 +1,6 @@
 main()
-   set $1, 1        ; starting index
-   set $2, 100      ; how many times to loop
+   set 1, $1        ; starting index
+   set 100, $2      ; how many times to loop
 
 loop:
    print $1         ; print current iteration

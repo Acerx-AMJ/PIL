@@ -422,6 +422,15 @@ void builtinClamp(const Command &command, Executor &executor) {
    storeNumber(executor, command, std::clamp(x, lo, hi), floating, "clamp");
 }
 
+void builtinSign(const Command &command, Executor &executor) {
+   double a = getNum(executor, command, 0, "sign");
+   storeNumber(executor, command, (a < 0 ? -1 : a > 0 ? 1 : 0), false, "sign");
+}
+
+void builtinTrunc(const Command &command, Executor &executor) {
+   unaryBuiltin(executor, command, trunc, "trunc");
+}
+
 void builtinCeil(const Command &command, Executor &executor) {
    unaryBuiltin(executor, command, ceil, "ceil");
 }
@@ -452,6 +461,20 @@ void builtinLog2(const Command &command, Executor &executor) {
 
 void builtinLog10(const Command &command, Executor &executor) {
    unaryBuiltin(executor, command, log10, "log10");
+}
+
+void builtinLerp(const Command &command, Executor &executor) {
+   double a = getNum(executor, command, 0, "lerp");
+   double b = getNum(executor, command, 1, "lerp");
+   double t = getNum(executor, command, 2, "lerp");
+   storeNumber(executor, command, a + (b - a) * t, true, "lerp");
+}
+
+void builtinStepTowards(const Command &command, Executor &executor) {
+   bool floating = false;
+   double a = getNum(executor, command, 0, "step-towards", &floating);
+   double b = getNum(executor, command, 1, "step-towards", &floating);
+   storeNumber(executor, command, (a < b ? a + 1 : a > b ? a - 1 : a), floating, "step-towards");
 }
 
 // comparison
@@ -516,6 +539,7 @@ void builtinReturn(const Command &command, Executor &executor) {
    size_t callArgStart = trace.callArgStart;
    size_t callArgCount = trace.callArgCount;
    size_t localStart = trace.localStart;
+   size_t localCount = trace.localCount;
    executor.pointer = trace.position;
    executor.returnCount = command.argCount;
 
@@ -523,6 +547,10 @@ void builtinReturn(const Command &command, Executor &executor) {
       error(executor.diagnostics, command.file, command.line, "return: Can return at maximum %zu values. Define 'return-register-count %zu' directive to mitigate. Error", executor.returnRegisters.size(), executor.returnCount);
       executor.stackTrace.pop();
       return;
+   }
+
+   for (size_t i = localStart; i < localStart + localCount; ++i) {
+      deallocate(executor, executor.locals[i]);
    }
 
    for (size_t i = 0; i < executor.returnCount; ++i) {
@@ -546,7 +574,14 @@ void builtinReturn(const Command &command, Executor &executor) {
    }
 }
 
-// variables. set and move being the same with different order is intentional
+// variables
+void builtinSwap(const Command &command, Executor &executor) {
+   Value a = resolveVariable(executor, arg(executor, command, 0), "swap", command.file, command.line);
+   Value b = resolveVariable(executor, arg(executor, command, 1), "swap", command.file, command.line);
+   storeInRegister(executor, command, arg(executor, command, 1), a, "swap");
+   storeInRegister(executor, command, arg(executor, command, 0), b, "swap");
+}
+
 void builtinSet(const Command &command, Executor &executor) {
    storeInRegister(executor, command, resolveVariable(executor, arg(executor, command, 0), "set", command.file, command.line), "set");
 }

@@ -20,8 +20,6 @@
 ;   string-delete
 ;   printn $0
 
-fn(a, b, c)
-   return a, b, c
-
 main()
-   call fn, 1, 2, 3, 4
+   lerp 0, 10, 0.45, $0
+   printn $0
