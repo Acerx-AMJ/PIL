@@ -112,6 +112,16 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "jmp", builtinJmp, 2, false);
    pushBuiltin(executor, "jmpn", builtinJmpn, 2, false);
 
+   // misc. (time, random)
+   pushBuiltin(executor, "time", builtinTime, 1, false);
+   pushBuiltin(executor, "unix-time", builtinUnixTime, 1, false);
+   pushBuiltin(executor, "date", builtinDate, 2, false);
+   pushBuiltin(executor, "sleep", builtinSleep, 1, false);
+   pushBuiltin(executor, "seed-random", builtinSeedRandom, 1, false);
+   pushBuiltin(executor, "random", builtinRandom, 1, false);
+   pushBuiltin(executor, "randf-range", builtinRandfRange, 3, false);
+   pushBuiltin(executor, "randi-range", builtinRandiRange, 3, false);
+
    // variables
    pushBuiltin(executor, "swap", builtinSwap, 2, false);
    pushBuiltin(executor, "set", builtinSet, 2, false);

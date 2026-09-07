@@ -1,7 +1,11 @@
 #include "builtin.hpp"
 #include "pil.hpp"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <iomanip>
+#include <random>
+#include <thread>
 
 // helper functions
 void deallocate(Executor &executor, Value &value) {
@@ -574,7 +578,79 @@ void builtinReturn(const Command &command, Executor &executor) {
    }
 }
 
-// variables
+// misc. (time, random)
+void builtinTime(const Command &command, Executor &executor) {
+   static const auto start = std::chrono::steady_clock::now();
+   double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+   storeNumber(executor, command, ms, true, "time");
+}
+
+void builtinUnixTime(const Command &command, Executor &executor) {
+   double epoch = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+   storeNumber(executor, command, epoch, false, "unix-time");
+}
+
+void builtinDate(const Command &command, Executor &executor) {
+   Value string = arg(executor, command, 0);
+   if (string.type != VALUE_CSTRING && string.type != VALUE_STRING) {
+      error(executor.diagnostics, command.file, command.line, "date: Expected String for the 1st argument, got %s instead", getValueName(string.type));
+      return;
+   }
+   std::string &str = (string.type == VALUE_CSTRING ? getLexeme(executor.cache, string.string) : getString(executor, string.string, command.file, command.line));
+   long long t = std::time(nullptr);
+   tm lt = *std::localtime(&t);
+   std::ostringstream stream;
+   stream << std::put_time(&lt, str.c_str());
+   std::string result = stream.str();
+
+   Value value {VALUE_STRING, 0};
+   value.string = allocateString(executor, result);
+   storeInRegister(executor, command, value, "date");
+}
+
+void builtinSleep(const Command &command, Executor &executor) {
+   double s = getNum(executor, command, 0, "sleep");
+   std::this_thread::sleep_for(std::chrono::duration<double>(s));
+}
+
+std::mt19937 &RNG() {
+   static std::mt19937 rng {std::random_device{}()};
+   return rng;
+}
+
+void builtinSeedRandom(const Command &command, Executor &executor) {
+   double seed = getNum(executor, command, 0, "seed-random");
+   RNG().seed(seed);
+}
+
+void builtinRandom(const Command &command, Executor &executor) {
+   double r = std::uniform_real_distribution<double>{}(RNG());
+   storeNumber(executor, command, r, true, "random");
+}
+
+void builtinRandfRange(const Command &command, Executor &executor) {
+   double min = getNum(executor, command, 0, "randf-range");
+   double max = getNum(executor, command, 1, "randf-range");
+   if (min > max) {
+      error(executor.diagnostics, command.file, command.line, "randf-range: Min %F is bigger than Max %F. Flip the arguments", min, max);
+      return;
+   }
+   double r = std::uniform_real_distribution<double>{min, max}(RNG());
+   storeNumber(executor, command, r, true, "randf-range");
+}
+
+void builtinRandiRange(const Command &command, Executor &executor) {
+   long min = getNum(executor, command, 0, "randi-range");
+   long max = getNum(executor, command, 1, "randi-range");
+   if (min > max) {
+      error(executor.diagnostics, command.file, command.line, "randi-range: Min %ld is bigger than Max %ld. Flip the arguments", min, max);
+      return;
+   }
+   double r = std::uniform_int_distribution<long>{min, max}(RNG());
+   storeNumber(executor, command, r, false, "randi-range");
+}
+
+// variables, registers
 void builtinSwap(const Command &command, Executor &executor) {
    Value a = resolveVariable(executor, arg(executor, command, 0), "swap", command.file, command.line);
    Value b = resolveVariable(executor, arg(executor, command, 1), "swap", command.file, command.line);

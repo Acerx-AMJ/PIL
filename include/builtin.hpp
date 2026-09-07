@@ -75,7 +75,17 @@ void builtinJmpn(const Command &command, Executor &executor);
 void builtinCall(const Command &command, Executor &executor);
 void builtinReturn(const Command &command, Executor &executor);
 
-// variables
+// misc. (time, random)
+void builtinTime(const Command &command, Executor &executor);
+void builtinUnixTime(const Command &command, Executor &executor);
+void builtinDate(const Command &command, Executor &executor);
+void builtinSleep(const Command &command, Executor &executor);
+void builtinSeedRandom(const Command &command, Executor &executor);
+void builtinRandom(const Command &command, Executor &executor);
+void builtinRandfRange(const Command &command, Executor &executor);
+void builtinRandiRange(const Command &command, Executor &executor);
+
+// variables/registers
 void builtinSwap(const Command &command, Executor &executor);
 void builtinSet(const Command &command, Executor &executor);
 void builtinGlobal(const Command &command, Executor &executor);
