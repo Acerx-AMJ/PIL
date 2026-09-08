@@ -1,3 +1,5 @@
+; written before sign and step-towards functions were added.
+; left here as an implementation example.
 move-to-zero(n) let cond, tmp
    gr n, 0, cond
    jmp cond, move-to-zero-positive
@@ -11,6 +13,8 @@ move-to-zero-negative:
    add n, 1, tmp
    return tmp
 
+; multiple two integers without using mul command. while not
+; effective, it works. supports negative numbers.
 imul(a, b) let r, c, sa, cond
    set 0, r
    set b, c
@@ -28,6 +32,7 @@ imul-loop:
 imul-end:
    return r
 
+; test here
 main()
    imul 9, 8
    printn R$0

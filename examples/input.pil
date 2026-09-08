@@ -1,3 +1,5 @@
+; input name and age application. feel free to add more
+; things to read from the user.
 main()
    print "Input your name: "
    readline $0

@@ -1,3 +1,6 @@
+; simple, 6 command calculator.
+
+; read float input from the user with error checking
 input-number(msg)
    goto input-number-start
 input-number-error:
@@ -10,6 +13,7 @@ input-number-start:
    jmp $4, input-number-error
    return $3
 
+; calculate result based on the operator.
 calculate-result(n1, n2, op)
    eq op, '+', $6
    jmp $6, calculate-result-add
@@ -45,6 +49,7 @@ calculate-result-pow:
    pow, n1, n2, $5
    return $5
 
+; program.
 main()
    call $0, input-number, "Input first number: "
    call $1, input-number, "Input second number: "

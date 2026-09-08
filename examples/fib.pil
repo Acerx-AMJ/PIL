@@ -1,3 +1,5 @@
+; this file contains 3 different nth fibonacci number implementations.
+; fib-iterative is by far the most efficient.
 fib(n) let minus1, minus2, fib1, fib2, result
    leeq n, 1, $0
    jmp $0, fib-end
@@ -46,6 +48,7 @@ fib-iterative-loop:
 fib-iterative-end:
    return n
 
+; test here
 main()
    fib 30
    printn R$0
