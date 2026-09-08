@@ -75,6 +75,25 @@ void builtinJmpn(const Command &command, Executor &executor);
 void builtinCall(const Command &command, Executor &executor);
 void builtinReturn(const Command &command, Executor &executor);
 
+// types
+void builtinTypeof(const Command &command, Executor &executor);
+void builtinSizeof(const Command &command, Executor &executor);
+void builtinIsnum(const Command &command, Executor &executor);
+void builtinIsfloat(const Command &command, Executor &executor);
+void builtinIsint(const Command &command, Executor &executor);
+void builtinIschar(const Command &command, Executor &executor);
+void builtinIsstring(const Command &command, Executor &executor);
+void builtinIsreg(const Command &command, Executor &executor);
+void builtinIsfunction(const Command &command, Executor &executor);
+void builtinIslabel(const Command &command, Executor &executor);
+void builtinIsnull(const Command &command, Executor &executor);
+void builtinIsinf(const Command &command, Executor &executor);
+void builtinIsnan(const Command &command, Executor &executor);
+void builtinToint(const Command &command, Executor &executor);
+void builtinTofloat(const Command &command, Executor &executor);
+void builtinTochar(const Command &command, Executor &executor);
+void builtinExists(const Command &command, Executor &executor);
+
 // misc. (time, random)
 void builtinTime(const Command &command, Executor &executor);
 void builtinUnixTime(const Command &command, Executor &executor);

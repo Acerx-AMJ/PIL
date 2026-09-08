@@ -1,10 +1,6 @@
 #include "builtin.hpp"
 #include "pil.hpp"
 
-constexpr size_t DEFAULT_REGISTER_COUNT = 16;
-constexpr size_t DEFAULT_RETURN_REGISTER_COUNT = 4;
-constexpr size_t DEFAULT_LOCAL_RESERVE = 1024;
-
 void call(Executor &executor, const Command &command, ParseValue &function, size_t functionPos, size_t returnCount, size_t args) {
    if (function.type == NATIVE_FUNCTION) {
       function.nativeFunction(command, executor);
@@ -42,11 +38,11 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
    }
 
    if (executor.registers.empty()) {
-      executor.registers.resize(DEFAULT_REGISTER_COUNT);
+      executor.registers.resize(DEFAULT_REGISTER_COUNT, Value{VALUE_COUNT});
    }
 
    if (executor.returnRegisters.empty()) {
-      executor.returnRegisters.resize(DEFAULT_RETURN_REGISTER_COUNT);
+      executor.returnRegisters.resize(DEFAULT_RETURN_REGISTER_COUNT, Value{VALUE_COUNT});
    }
    executor.locals.reserve(DEFAULT_LOCAL_RESERVE);
    executor.stackTrace = {};

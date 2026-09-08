@@ -5,6 +5,10 @@
 #include <stack>
 #include <string>
 
+constexpr size_t DEFAULT_REGISTER_COUNT = 16;
+constexpr size_t DEFAULT_RETURN_REGISTER_COUNT = 4;
+constexpr size_t DEFAULT_LOCAL_RESERVE = 64;
+
 // PIL parser
 struct PILFile {
    std::string code;

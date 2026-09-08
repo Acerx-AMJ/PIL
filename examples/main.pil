@@ -1,3 +1,11 @@
+func()
+   exists define, $0
+   jmpn $0, func-end
+   printfn "define is {}!", define
+   return
+func-end:
+   printn "define is not defined!"
+
 main()
-   date "%d-%m-%Y %H:%M:%S", $0
-   printn $0
+   global define 243
+   func

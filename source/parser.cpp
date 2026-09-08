@@ -112,6 +112,25 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "jmp", builtinJmp, 2, false);
    pushBuiltin(executor, "jmpn", builtinJmpn, 2, false);
 
+   // types
+   pushBuiltin(executor, "typeof", builtinTypeof, 2, false);
+   pushBuiltin(executor, "sizeof", builtinSizeof, 2, false);
+   pushBuiltin(executor, "isnum", builtinIsnum, 2, false);
+   pushBuiltin(executor, "isfloat", builtinIsfloat, 2, false);
+   pushBuiltin(executor, "isint", builtinIsint, 2, false);
+   pushBuiltin(executor, "ischar", builtinIschar, 2, false);
+   pushBuiltin(executor, "isstring", builtinIsstring, 2, false);
+   pushBuiltin(executor, "isreg", builtinIsreg, 2, false);
+   pushBuiltin(executor, "isfunction", builtinIsfunction, 2, false);
+   pushBuiltin(executor, "islabel", builtinIslabel, 2, false);
+   pushBuiltin(executor, "isnull", builtinIsnull, 2, false);
+   pushBuiltin(executor, "isinf", builtinIsinf, 2, false);
+   pushBuiltin(executor, "isnan", builtinIsnan, 2, false);
+   pushBuiltin(executor, "toint", builtinToint, 2, false);
+   pushBuiltin(executor, "tofloat", builtinTofloat, 2, false);
+   pushBuiltin(executor, "tochar", builtinTochar, 2, false);
+   pushBuiltin(executor, "exists", builtinExists, 2, false);
+
    // misc. (time, random)
    pushBuiltin(executor, "time", builtinTime, 1, false);
    pushBuiltin(executor, "unix-time", builtinUnixTime, 1, false);
@@ -175,7 +194,11 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
       value.character = getLexeme(executor.cache, token.lexeme).front();
       break;
    case TOKEN_RETURN_REGISTER:
-   case TOKEN_REGISTER:
+   case TOKEN_REGISTER: {
+      std::vector<Value> &container = (token.type == TOKEN_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
+      size_t maxDefaultValue = (token.type == TOKEN_RETURN_REGISTER ? DEFAULT_RETURN_REGISTER_COUNT : DEFAULT_REGISTER_COUNT);
+      size_t maxValue = (container.empty() ? maxDefaultValue : container.size());
+
       value.type = (token.type == TOKEN_RETURN_REGISTER ? VALUE_RETURN_REGISTER : VALUE_REGISTER);
       try {
          value.reg = std::stoull(getLexeme(executor.cache, token.lexeme));
@@ -184,7 +207,12 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
          value.reg = 0;
          error(executor.diagnostics, token.file, token.line, "Invalid register: %s$%s", token.type == TOKEN_RETURN_REGISTER ? "R" : "", getLexeme(executor.cache, token.lexeme).c_str());
       }
+
+      if (value.reg >= maxValue) {
+         error(executor.diagnostics, token.file, token.line, "Register %s$%zu is out of bounds", token.type == TOKEN_RETURN_REGISTER ? "R" : "", value.reg);
+      }
       break;
+   }
    default:
       error(executor.diagnostics, token.file, token.line, "Unexpected token %s in function call", getLexeme(executor.cache, token.lexeme).c_str());
    }
