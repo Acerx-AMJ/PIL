@@ -115,20 +115,20 @@ void defineStandardBuiltins(Executor &executor) {
    // types
    pushBuiltin(executor, "typeof", builtinTypeof, 2, false);
    pushBuiltin(executor, "sizeof", builtinSizeof, 2, false);
-   pushBuiltin(executor, "isnum", builtinIsnum, 2, false);
-   pushBuiltin(executor, "isfloat", builtinIsfloat, 2, false);
-   pushBuiltin(executor, "isint", builtinIsint, 2, false);
-   pushBuiltin(executor, "ischar", builtinIschar, 2, false);
-   pushBuiltin(executor, "isstring", builtinIsstring, 2, false);
-   pushBuiltin(executor, "isreg", builtinIsreg, 2, false);
-   pushBuiltin(executor, "isfunction", builtinIsfunction, 2, false);
-   pushBuiltin(executor, "islabel", builtinIslabel, 2, false);
-   pushBuiltin(executor, "isnull", builtinIsnull, 2, false);
-   pushBuiltin(executor, "isinf", builtinIsinf, 2, false);
-   pushBuiltin(executor, "isnan", builtinIsnan, 2, false);
-   pushBuiltin(executor, "toint", builtinToint, 2, false);
-   pushBuiltin(executor, "tofloat", builtinTofloat, 2, false);
-   pushBuiltin(executor, "tochar", builtinTochar, 2, false);
+   pushBuiltin(executor, "is-num", builtinIsnum, 2, false);
+   pushBuiltin(executor, "is-float", builtinIsfloat, 2, false);
+   pushBuiltin(executor, "is-int", builtinIsint, 2, false);
+   pushBuiltin(executor, "is-char", builtinIschar, 2, false);
+   pushBuiltin(executor, "is-string", builtinIsstring, 2, false);
+   pushBuiltin(executor, "is-reg", builtinIsreg, 2, false);
+   pushBuiltin(executor, "is-function", builtinIsfunction, 2, false);
+   pushBuiltin(executor, "is-label", builtinIslabel, 2, false);
+   pushBuiltin(executor, "is-null", builtinIsnull, 2, false);
+   pushBuiltin(executor, "is-inf", builtinIsinf, 2, false);
+   pushBuiltin(executor, "is-nan", builtinIsnan, 2, false);
+   pushBuiltin(executor, "to-int", builtinToint, 2, false);
+   pushBuiltin(executor, "to-float", builtinTofloat, 2, false);
+   pushBuiltin(executor, "to-char", builtinTochar, 2, false);
    pushBuiltin(executor, "exists", builtinExists, 2, false);
 
    // misc. (time, random)
