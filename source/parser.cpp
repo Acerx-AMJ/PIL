@@ -53,6 +53,12 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "printn", builtinPrintn, 1, true);
    pushBuiltin(executor, "printf", builtinPrintf, 1, true);
    pushBuiltin(executor, "printfn", builtinPrintfn, 1, true);
+   pushBuiltin(executor, "read", builtinRead, 1, false);
+   pushBuiltin(executor, "readline", builtinReadline, 1, false);
+   pushBuiltin(executor, "readchar", builtinReadchar, 1, false);
+   pushBuiltin(executor, "setecho", builtinSetecho, 1, false);
+
+   // string
    pushBuiltin(executor, "string-new", builtinStringNew, 1, true);
    pushBuiltin(executor, "format", builtinFormat, 2, true);
 
@@ -105,6 +111,8 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "greq", builtinGreq, 3, false);
    pushBuiltin(executor, "eq", builtinEq, 3, false);
    pushBuiltin(executor, "neq", builtinNeq, 3, false);
+   pushBuiltin(executor, "and", builtinAnd, 3, true);
+   pushBuiltin(executor, "or", builtinOr, 3, true);
    pushBuiltin(executor, "not", builtinNot, 2, false);
 
    // control flow

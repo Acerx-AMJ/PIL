@@ -7,11 +7,15 @@ void copyValue(Executor &executor, Value &target, Value &copy);
 void moveValue(Executor &executor, Value &target, Value &move);
 Value resolveVariable(Executor &executor, Value value, const char *function, size_t file, size_t line);
 
-// output
+// i/o
 void builtinPrint(const Command &command, Executor &executor);
 void builtinPrintn(const Command &command, Executor &executor);
 void builtinPrintf(const Command &command, Executor &executor);
 void builtinPrintfn(const Command &command, Executor &executor);
+void builtinRead(const Command &command, Executor &executor);
+void builtinReadline(const Command &command, Executor &executor);
+void builtinReadchar(const Command &command, Executor &executor);
+void builtinSetecho(const Command &command, Executor &executor);
 
 // string
 void builtinStringNew(const Command &command, Executor &executor);
@@ -66,6 +70,8 @@ void builtinLeeq(const Command &command, Executor &executor);
 void builtinGreq(const Command &command, Executor &executor);
 void builtinEq(const Command &command, Executor &executor);
 void builtinNeq(const Command &command, Executor &executor);
+void builtinAnd(const Command &command, Executor &executor);
+void builtinOr(const Command &command, Executor &executor);
 void builtinNot(const Command &command, Executor &executor);
 
 // control flow

@@ -1,0 +1,19 @@
+main()
+   print "Input your name: "
+   readline $0
+   goto main-input-age
+
+main-input-age-error:
+   print "Invalid input, try again. "
+
+main-input-age:
+   print "Input your age: "
+   readline $1
+   to-int $1, $1
+   is-null $1, $2
+   leeq $1, 0, $3
+   greq $1, 120, $4
+   or $2, $3, $4, $5
+   jmp $5, main-input-age-error
+
+   printfn "Hello, {}! You are {} years old.", $0, $1

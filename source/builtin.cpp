@@ -4,8 +4,17 @@
 #include <chrono>
 #include <cmath>
 #include <iomanip>
+#include <iostream>
 #include <random>
 #include <thread>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <termios.h>
+#include <unistd.h>
+#endif
 
 // helper functions
 void deallocate(Executor &executor, Value &value) {
@@ -70,10 +79,6 @@ void storeInRegister(Executor &executor, const Command &command, Value reg, Valu
    }
    else if (reg.type == VALUE_REGISTER || reg.type == VALUE_RETURN_REGISTER) {
       std::vector<Value> &registers = (reg.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
-      if (reg.reg < 0 || reg.reg >= registers.size()) {
-         error(executor.diagnostics, command.file, command.line, "%s: Register %s$%zu is out of bounds", function, reg.type == VALUE_RETURN_REGISTER ? "R" : "", reg.reg);
-         return;
-      }
       copyValue(executor, registers[reg.reg], value);
    }
    else {
@@ -224,6 +229,16 @@ bool isThruthy(Executor &executor, Value value, const char *function, const char
    }
 }
 
+void storeString(Executor &executor, const Command &command, const std::string &string, const char *function) {
+   Value value {VALUE_STRING, 0};
+   value.string = allocateString(executor, string);
+   storeInRegister(executor, command, value, function);
+}
+
+bool getBool(Executor &executor, const Command &command, size_t i, const char *function, const char *argument, bool &ok) {
+   return isThruthy(executor, resolveVariable(executor, arg(executor, command, i), function, command.file, command.line), function, argument, ok, command.file, command.line);
+}
+
 // output
 void builtinPrint(const Command &command, Executor &executor) {
    print(command, executor, "print", command.file, command.line);
@@ -240,6 +255,44 @@ void builtinPrintf(const Command &command, Executor &executor) {
 
 void builtinPrintfn(const Command &command, Executor &executor) {
    printf("%s\n", format(command, executor, "printfn", 0).c_str());
+}
+
+void builtinRead(const Command &command, Executor &executor) {
+   std::string input;
+   std::cin >> input;
+   storeString(executor, command, input, "read");
+}
+
+void builtinReadline(const Command &command, Executor &executor) {
+   std::string input;
+   std::getline(std::cin, input);
+   storeString(executor, command, input, "readline");
+}
+
+void builtinReadchar(const Command &command, Executor &executor) {
+   char ch = getchar();
+   Value value {VALUE_CHARACTER};
+   value.character = ch;
+   storeInRegister(executor, command, value, "readchar");
+}
+
+void builtinSetecho(const Command &command, Executor &executor) {
+   bool ok;
+   bool enable = getBool(executor, command, 0, "setecho", "1st", ok);
+   if (!ok) return;
+#ifdef _WIN32
+   HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+   DWORD mode;
+   GetConsoleMode(hStdin, &mode);
+   mode = enable ? (mode | ENABLE_ECHO_INPUT) : (mode & ~ENABLE_ECHO_INPUT);
+   SetConsoleMode(hStdin, mode);
+#else
+   termios tty;
+   tcgetattr(STDIN_FILENO, &tty);
+   if (enable) tty.c_lflag |= ECHO;
+   else        tty.c_lflag &= ~ECHO;
+   tcsetattr(STDIN_FILENO, TCSANOW, &tty);
+#endif
 }
 
 // string
@@ -499,6 +552,24 @@ void builtinEq(const Command &command, Executor &executor) {
 
 void builtinNeq(const Command &command, Executor &executor) {
    comparisonBuiltin(executor, command, "neq", COMPARISON_EQUAL, true, true);
+}
+
+void builtinOr(const Command &command, Executor &executor) {
+   bool ok;
+   bool cond = getBool(executor, command, 0, "or", "value", ok);
+   for (size_t i = 1; ok && i < command.argCount - 1; ++i) {
+      cond = cond || getBool(executor, command, i, "or", "value", ok);
+   }
+   if (ok) storeBoolean(executor, command, cond, "or");
+}
+
+void builtinAnd(const Command &command, Executor &executor) {
+   bool ok;
+   bool cond = getBool(executor, command, 0, "and", "value", ok);
+   for (size_t i = 1; ok && i < command.argCount - 1; ++i) {
+      cond = cond && getBool(executor, command, i, "and", "value", ok);
+   }
+   if (ok) storeBoolean(executor, command, cond, "and");
 }
 
 void builtinNot(const Command &command, Executor &executor) {
@@ -845,8 +916,13 @@ void builtinRandiRange(const Command &command, Executor &executor) {
 void builtinSwap(const Command &command, Executor &executor) {
    Value a = resolveVariable(executor, arg(executor, command, 0), "swap", command.file, command.line);
    Value b = resolveVariable(executor, arg(executor, command, 1), "swap", command.file, command.line);
+   // avoid accidental deallocation
+   a.allocations += 1;
+   b.allocations += 1;
    storeInRegister(executor, command, arg(executor, command, 1), a, "swap");
    storeInRegister(executor, command, arg(executor, command, 0), b, "swap");
+   a.allocations -= 1;
+   b.allocations -= 1;
 }
 
 void builtinSet(const Command &command, Executor &executor) {

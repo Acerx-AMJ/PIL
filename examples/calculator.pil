@@ -1,0 +1,54 @@
+input-number(msg)
+   goto input-number-start
+input-number-error:
+   print "Invalid input, try again."
+input-number-start:
+   print msg
+   readline $3
+   to-float $3, $3
+   is-null $3, $4
+   jmp $4, input-number-error
+   return $3
+
+calculate-result(n1, n2, op)
+   eq op, '+', $6
+   jmp $6, calculate-result-add
+   eq op, '-', $6
+   jmp $6, calculate-result-sub
+   eq op, '*', $6
+   jmp $6, calculate-result-mul
+   eq op, '/', $6
+   jmp $6, calculate-result-div
+   eq op, '%', $6
+   jmp $6, calculate-result-mod
+   eq op, '^', $6
+   jmp $6, calculate-result-pow
+   printn "Invalid operator."
+   return 0.0
+
+calculate-result-add:
+   add, n1, n2, $5
+   return $5
+calculate-result-sub:
+   sub, n1, n2, $5
+   return $5
+calculate-result-mul:
+   mul, n1, n2, $5
+   return $5
+calculate-result-div:
+   div, n1, n2, $5
+   return $5
+calculate-result-mod:
+   mod, n1, n2, $5
+   return $5
+calculate-result-pow:
+   pow, n1, n2, $5
+   return $5
+
+main()
+   call $0, input-number, "Input first number: "
+   call $1, input-number, "Input second number: "
+   print "Input operator (+,-,*,/,%,^): "
+   readchar $2
+   calculate-result $0, $1, $2
+   printfn "{} {} {} = {}", $0, $2, $1, R$0
