@@ -1,0 +1,16 @@
+digits(n)
+   neq n, 0, $0
+   jmp $0, digits-check-two
+   return 1
+digits-check-two:
+   gr n, 0, $0
+   jmp $0, digits-safe
+   neg n, n
+digits-safe:
+   log10 n, n
+   incr n
+   return n
+
+main()
+   digits 24343.23
+   printn R$0

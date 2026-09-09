@@ -2,52 +2,43 @@
 #include "pil.hpp"
 
 // we only define built-in functions that actually get used. thanks, cache. return is a special built-in that is always pushed.
-void pushConstant(Executor &executor, const std::string &lexeme, float value) {
-   if (auto it = executor.cache.lexemeCache.find(lexeme); it != executor.cache.lexemeCache.end()) {
-      Value v {VALUE_FLOATING};
-      v.floating = value;
-
-      ParseValue constant;
-      constant.init = true;
-      constant.type = GLOBAL;
-      constant.global = v;
-      executor.values[it->second] = constant;
-   }
-}
-
 void pushBuiltin(Executor &executor, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
    if (auto it = executor.cache.lexemeCache.find(lexeme); it != executor.cache.lexemeCache.end()) {
-      ParseValue function;
+      size_t functionId = executor.functions.size();
+      Function function;
       function.init = true;
-      function.type = NATIVE_FUNCTION;
+      function.native = true;
       function.variadic = variadic;
+      function.lexeme = it->second;
       function.params.resize(paramCount);
       function.nativeFunction = func;
-      executor.values[it->second] = function;
+
+      Value value {VALUE_FUNCTION};
+      value.function = functionId;
+      executor.functions.push_back(function);
+      executor.constants[it->second] = value;
    }
 }
 
 void pushReservedBuiltin(Executor &executor, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
-   ParseValue function;
+   size_t functionId = executor.functions.size();
+   size_t cached = cacheLexeme(executor.cache, lexeme);
+
+   Function function;
    function.init = true;
-   function.type = NATIVE_FUNCTION;
-   function.reserved = true;
+   function.native = true;
    function.variadic = variadic;
+   function.lexeme = cached;
    function.params.resize(paramCount);
    function.nativeFunction = func;
 
-   size_t index = cacheLexeme(executor.cache, lexeme);
-   if (index >= executor.values.size()) {
-      executor.values.push_back(function);
-   }
-   else {
-      executor.values[index] = function;
-   }
+   Value value {VALUE_FUNCTION};
+   value.function = functionId;
+   executor.functions.push_back(function);
+   executor.constants[cached] = value;
 }
 
 void defineStandardBuiltins(Executor &executor) {
-   executor.values.resize(getLexemeCount(executor.cache) + 2); // plus reserved built-ins. avoid extra allocation
-
    // output
    pushBuiltin(executor, "print", builtinPrint, 1, true);
    pushBuiltin(executor, "printn", builtinPrintn, 1, true);
@@ -137,7 +128,6 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "to-int", builtinToint, 2, false);
    pushBuiltin(executor, "to-float", builtinTofloat, 2, false);
    pushBuiltin(executor, "to-char", builtinTochar, 2, false);
-   pushBuiltin(executor, "exists", builtinExists, 2, false);
 
    // misc. (time, random)
    pushBuiltin(executor, "time", builtinTime, 1, false);
@@ -152,15 +142,13 @@ void defineStandardBuiltins(Executor &executor) {
    // variables
    pushBuiltin(executor, "swap", builtinSwap, 2, false);
    pushBuiltin(executor, "set", builtinSet, 2, false);
-   pushBuiltin(executor, "global", builtinGlobal, 1, true);
 
-   // built-in constants
-   pushConstant(executor, "pi", 3.1415926535897932384626);
-   pushConstant(executor, "tau", 2.0 * 3.1415926535897932384626);
-   pushConstant(executor, "e", 2.7182818284590452353602);
+   // reserved built-ins. must always be there.
+   pushReservedBuiltin(executor, "return", builtinReturn, 0, true);
+   pushReservedBuiltin(executor, "call", builtinCall, 1, true);
 }
 
-Value parseToken(Executor &executor, Token token, const std::unordered_map<size_t, size_t> &functionParamMap) {
+Value parseToken(Executor &executor, Token token, const std::unordered_map<size_t, size_t> &functionParamMap, const std::unordered_map<size_t, Value> &constantMap) {
    Value value {VALUE_COUNT};
    switch (token.type) {
    case TOKEN_IDENTIFIER:
@@ -168,9 +156,11 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
          value.type = VALUE_LOCAL;
          value.local = it->second;
       }
+      else if (auto it = constantMap.find(token.lexeme); it != constantMap.end()) {
+         return it->second;
+      }
       else {
-         value.type = VALUE_IDENTIFIER;
-         value.identifier = token.lexeme;
+         error(executor.diagnostics, token.file, token.line, "Variable '%s' does not exist", getLexeme(executor.cache, token.lexeme).c_str());
       }
       break;
    case TOKEN_INTEGER:
@@ -229,40 +219,50 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
 
 // take the tokens and turn them into executable function blocks and commands. we have 3 levels here: file -> functions ->
 // commands. there can be no commands in the file level and no functions in the command level.
-void parsePIL(Executor &executor, std::vector<Token> &tokens) {
-   // reserved built-ins. must always be there.
-   pushReservedBuiltin(executor, "return", builtinReturn, 0, true);
-   pushReservedBuiltin(executor, "call", builtinCall, 1, true);
+void parsePIL(Executor &executor, std::vector<Token> &tokens) {   
+   defineStandardBuiltins(executor);
 
-   // estimate code size
+   // estimate code size. some rough estimates
    size_t size = tokens.size();
    executor.code.reserve(size / 3);
    executor.arguments.reserve(size / 4);
+   executor.functions.reserve(size / 16 + 4);
 
    // function name and label prepass
+   std::unordered_map<size_t, size_t> functionParamMap;
+
    for (size_t i = 0; i < size; ++i) {
       if (tokens[i].type == TOKEN_IDENTIFIER && (tokens[i + 1].type == TOKEN_L_PAREN || tokens[i + 1].type == TOKEN_LABEL)) {
          size_t position = tokens[i].lexeme;
-
-         if (executor.values[position].init) {
-            ParseValue &definition = executor.values[position];
-            const char *type = getParseValueName(definition.type);
-            const char *lexeme = getLexeme(executor.cache, position).c_str();
-            error(executor.diagnostics, tokens[i].file, tokens[i].line, "%s '%s' redefined", type, lexeme);
+         if (auto it = executor.constants.find(position); it != executor.constants.end()) {
+            error(executor.diagnostics, tokens[i].file, tokens[i].line, "%s '%s' redefined", getValueName(it->second.type), getLexeme(executor.cache, position).c_str());
          }
-         ParseValue function;
+
+         size_t functionId = executor.functions.size();
+         Function function;
          function.init = true;
-         function.type = (tokens[i + 1].type == TOKEN_LABEL ? LABEL : FUNCTION);
-         function.label = 0;
-         executor.values[position] = function;
+         function.isLabel = (tokens[i + 1].type == TOKEN_LABEL);
+         function.lexeme = position;
+
+         if (function.isLabel) {
+            Value value {VALUE_LABEL};
+            value.label = functionId;
+            executor.constants[position] = value;
+         }
+         else {
+            Value value {VALUE_FUNCTION};
+            value.function = functionId;
+            executor.constants[position] = value;
+         }
+         executor.functions.push_back(function);
       }
    }
 
    // real parsing
-   std::unordered_map<size_t, size_t> functionParamMap;
    size_t returnLexeme = cacheLexeme(executor.cache, "return");
    size_t defineLexeme = cacheLexeme(executor.cache, "let");
    size_t callLexeme = cacheLexeme(executor.cache, "call");
+   size_t constLexeme = cacheLexeme(executor.cache, "const");
    bool firstFunction = true;
 
    for (size_t i = 0; i < size && tokens[i].type != TOKEN_EOF; ++i) {
@@ -273,8 +273,8 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
       // labels
       if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_LABEL) {
          size_t start = i;
-         ParseValue &label = executor.values[tokens[i].lexeme];
-         label.label = executor.code.size();
+         Function &label = executor.functions[executor.constants[tokens[i].lexeme].label];
+         label.position = executor.code.size();
 
          i += 2;
          if (i >= size || tokens[i].type != TOKEN_NEWLINE) {
@@ -283,11 +283,12 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
       }
       // function declarations
       else if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_L_PAREN) {
+         size_t functionId = executor.constants[tokens[i].lexeme].function;
          if (!firstFunction && (executor.code.empty() || executor.code.back().lexeme != returnLexeme)) {
-            executor.code.emplace_back(returnLexeme, tokens[i-1].file, tokens[i-1].line, 0, 0);
+            executor.code.emplace_back(returnLexeme, tokens[i-1].file, tokens[i-1].line, 0, 0, functionId);
          }
          size_t start = i;
-         ParseValue &function = executor.values[tokens[i].lexeme];
+         Function &function = executor.functions[functionId];
          bool variadic = false;
          firstFunction = false;
          functionParamMap.clear();
@@ -303,7 +304,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
                error(executor.diagnostics, tokens[i].file, tokens[i].line, "Function parameters: expected Identifier, got %s instead", getTokenName(tokens[i].type));
             }
 
-            if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || executor.values[tokens[i].lexeme].init) {
+            if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || executor.constants.find(tokens[i].lexeme) != executor.constants.end()) {
                error(executor.diagnostics, tokens[i].file, tokens[i].line, "Function parameters: redefined parameter '%s'", getLexeme(executor.cache, tokens[i].lexeme).c_str());
             }
             function.params.push_back(tokens[i].lexeme);
@@ -326,7 +327,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
                   continue;
                }
 
-               if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || executor.values[tokens[i].lexeme].init) {
+               if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || executor.constants.find(tokens[i].lexeme) != executor.constants.end()) {
                   error(executor.diagnostics, tokens[i].file, tokens[i].line, "Redefined define '%s'", getLexeme(executor.cache, tokens[i].lexeme).c_str());
                   continue;
                }
@@ -334,16 +335,34 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
             }
          }
          function.variadic = variadic;
-         function.function = executor.code.size();
+         function.position = executor.code.size();
          function.localCount = functionParamMap.size();
 
          if (i >= size || tokens[i].type != TOKEN_NEWLINE) {
             error(executor.diagnostics, tokens[start].file, tokens[start].line, "Excess tokens (or EOF) after function definition");
          }
       }
+      // const declaration
+      else if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i].lexeme == constLexeme) {
+         i += 1;
+         size_t lexeme = tokens[i].lexeme;
+         if (tokens[i].type != TOKEN_IDENTIFIER) {
+            error(executor.diagnostics, tokens[i].file, tokens[i].line, "Expected identifier after const keyword, got %s instead", getTokenName(tokens[i].type));
+            continue; // might be EOF
+         }
+         i += 1;
+         TokenType type = tokens[i].type;
+         if (type == TOKEN_NEWLINE || type == TOKEN_EOF || type == TOKEN_REGISTER || type == TOKEN_RETURN_REGISTER) {
+            error(executor.diagnostics, tokens[i].file, tokens[i].line, "Expected a constant value in the constant declaration, got %s instead", getTokenName(tokens[i].type));
+            continue;
+         }
+         Value value = parseToken(executor, tokens[i], {}, executor.constants); // functionParamMap handles runtime values, not constants
+         executor.constants[lexeme] = value;
+      }
       // function calls
       else {
-         if (tokens[i].type != TOKEN_IDENTIFIER || !executor.values[tokens[i].lexeme].init || (executor.values[tokens[i].lexeme].type != FUNCTION && executor.values[tokens[i].lexeme].type != NATIVE_FUNCTION)) {
+         auto it = executor.constants.find(tokens[i].lexeme);
+         if (it == executor.constants.end()) {
             if (tokens[i].type == TOKEN_IDENTIFIER) {
                error(executor.diagnostics, tokens[i].file, tokens[i].line, "No such function '%s'", getLexeme(executor.cache, tokens[i].lexeme).c_str());
             }
@@ -356,14 +375,14 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
             continue;
          }
 
-         executor.code.emplace_back(tokens[i].lexeme, tokens[i].file, tokens[i].line, executor.arguments.size(), 0);
+         executor.code.emplace_back(tokens[i].lexeme, tokens[i].file, tokens[i].line, executor.arguments.size(), 0, it->second.function);
          Command &command = executor.code.back();
          bool isCall = (tokens[i].lexeme == callLexeme);
          size_t start = i + 1;
 
          for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
-            Value value = parseToken(executor, tokens[i], functionParamMap);
-            if (isCall && value.type == VALUE_IDENTIFIER && executor.values[value.identifier].init && executor.values[value.identifier].type == FUNCTION) {
+            Value value = parseToken(executor, tokens[i], functionParamMap, executor.constants);
+            if (isCall && value.type == VALUE_FUNCTION) {
                if (command.callee != std::string::npos) {
                   error(executor.diagnostics, command.file, command.line, "call: Cannot call multiple functions in a single call");
                }
@@ -379,26 +398,26 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
          }
 
          size_t args = command.argCount;
-         size_t params = executor.values[command.lexeme].params.size();
-         bool variadic = executor.values[command.lexeme].variadic;
+         size_t params = executor.functions[it->second.function].params.size();
+         bool variadic = executor.functions[it->second.function].variadic;
 
          if ((!variadic && args != params) || (variadic && args < params)) {
             error(executor.diagnostics, command.file, command.line, "Function '%s' expected %s%zu parameters, but received %zu arguments", getLexeme(executor.cache, command.lexeme).c_str(), (variadic ? ">" : ""), params, args);
          }
 
          if (isCall) {
-            size_t lexeme = executor.arguments[command.argStart + command.callee].identifier;
-            ParseValue &function = executor.values[lexeme];
+            size_t idx = executor.arguments[command.argStart + command.callee].function;
+            Function &function = executor.functions[idx];
             args = command.argCount - command.callee - 1;
             params = function.params.size();
             variadic = function.variadic;
             if ((!variadic && args != params) || (variadic && args < params)) {
-               error(executor.diagnostics, command.file, command.line, "call: Function '%s' expected %s%zu parameters, but received %zu arguments", getLexeme(executor.cache, lexeme).c_str(), (variadic ? ">" : ""), params, args);
+               error(executor.diagnostics, command.file, command.line, "call: Function '%s' expected %s%zu parameters, but received %zu arguments", getLexeme(executor.cache, function.lexeme).c_str(), (variadic ? ">" : ""), params, args);
             }
          }
       }
    }
    if (!tokens.empty()) {
-      executor.code.emplace_back(returnLexeme, tokens.back().file, tokens.back().line, 0, 0);
+      executor.code.emplace_back(returnLexeme, tokens.back().file, tokens.back().line, 0, 0, executor.constants[returnLexeme].function);
    }
 }

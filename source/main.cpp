@@ -28,19 +28,17 @@ int main(int argc, char *argv[]) {
    float translatorTime = measureEnd();
 
    measure();
-   defineStandardBuiltins(executor);
-   float defsTime = measureEnd();
-
-   measure();
    parsePIL(executor, tokens);
    log(cache, diagnostics, SEVERITY_ERROR);
    tokens.clear(); // tokens are no longer in use
    tokens.shrink_to_fit();
    float parseTime = measureEnd();
 
+   debugBytecode(executor);
+
    measure();
    callPILFunction(executor, "main", SEVERITY_ERROR);
    logStackTrace(executor, SEVERITY_ERROR);
    float runtime = measureEnd();
-   debugExecutionTime(readTime, lexTime, translatorTime, defsTime, parseTime, runtime);
+   debugExecutionTime(readTime, lexTime, translatorTime, parseTime, runtime);
 }

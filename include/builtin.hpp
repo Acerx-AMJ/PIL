@@ -5,7 +5,7 @@
 void deallocate(Executor &executor, Value &value);
 void copyValue(Executor &executor, Value &target, Value &copy);
 void moveValue(Executor &executor, Value &target, Value &move);
-Value resolveVariable(Executor &executor, Value value, const char *function, size_t file, size_t line);
+Value resolveVariable(Executor &executor, Value value);
 
 // i/o
 void builtinPrint(const Command &command, Executor &executor);
@@ -98,7 +98,6 @@ void builtinIsnan(const Command &command, Executor &executor);
 void builtinToint(const Command &command, Executor &executor);
 void builtinTofloat(const Command &command, Executor &executor);
 void builtinTochar(const Command &command, Executor &executor);
-void builtinExists(const Command &command, Executor &executor);
 
 // misc. (time, random)
 void builtinTime(const Command &command, Executor &executor);
@@ -113,4 +112,3 @@ void builtinRandiRange(const Command &command, Executor &executor);
 // variables/registers
 void builtinSwap(const Command &command, Executor &executor);
 void builtinSet(const Command &command, Executor &executor);
-void builtinGlobal(const Command &command, Executor &executor);

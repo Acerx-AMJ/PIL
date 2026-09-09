@@ -23,18 +23,17 @@ void debugBytecode(Executor &executor) {
    for (Command &command: executor.code) {
       printf("%s:%-5zu %s: ", getLexeme(executor.cache, command.file).c_str(), command.line, getLexeme(executor.cache, command.lexeme).c_str());
       for (size_t i = command.argStart; i < command.argStart + command.argCount; ++i) {
-         printf("%s ", getValueName(executor.arguments[i].type));
+         printf("%s, ", getValueName(executor.arguments[i].type));
       }
       putchar('\n');
    }
 }
 
-void debugExecutionTime(float file, float lexer, float translator, float defs, float parser, float runtime) {
+void debugExecutionTime(float file, float lexer, float translator, float parser, float runtime) {
    printf("\nExecution time:\n");
    printf("File read: %.3fms.\n", file);
    printf("Lexer: %.3fms.\n", lexer);
    printf("translator: %.3fms.\n", translator);
-   printf("definitions: %.3fms.\n", defs);
    printf("parser: %.3fms.\n", parser);
    printf("runtime: %.3fms.\n", runtime);
 }

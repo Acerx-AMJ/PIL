@@ -19,8 +19,9 @@
 // helper functions
 void deallocate(Executor &executor, Value &value) {
    if (value.type == VALUE_STRING) {
-      value.allocations -= 1;
-      if (value.allocations <= 0) {
+      PILString &string = executor.strings[value.string];
+      string.allocations -= 1;
+      if (string.allocations <= 0) {
          executor.strings.erase(value.string);
          value = Value{VALUE_COUNT};
       }
@@ -30,7 +31,9 @@ void deallocate(Executor &executor, Value &value) {
 void copyValue(Executor &executor, Value &target, Value &copy) {
    deallocate(executor, target);
    target = copy;
-   target.allocations += 1;
+   if (target.type == VALUE_STRING) {
+      executor.strings[target.string].allocations += 1;
+   }
 }
 
 void moveValue(Executor &executor, Value &target, Value &move) {
@@ -38,16 +41,9 @@ void moveValue(Executor &executor, Value &target, Value &move) {
    target = move;
 }
 
-Value resolveVariable(Executor &executor, Value value, const char *function, size_t file, size_t line) {
+Value &resolveVariableByRef(Executor &executor, Value &value) {
    if (value.type == VALUE_LOCAL) {
       return executor.locals[executor.stackTrace.top().localStart + value.local];
-   }
-   else if (value.type == VALUE_IDENTIFIER) {
-      if (!executor.values[value.identifier].init || executor.values[value.identifier].type != GLOBAL) {
-         error(executor.diagnostics, file, line, "%s: Variable '%s' does not exist", function, getLexeme(executor.cache, value.identifier).c_str());
-         return value;
-      }
-      return executor.values[value.identifier].global;
    }
    else if (value.type == VALUE_REGISTER || value.type == VALUE_RETURN_REGISTER) {
       std::vector<Value> &registers = (value.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
@@ -56,6 +52,10 @@ Value resolveVariable(Executor &executor, Value value, const char *function, siz
    else {
       return value;
    }
+}
+
+Value resolveVariable(Executor &executor, Value value) {
+   return resolveVariableByRef(executor, value);
 }
 
 Value arg(const Executor &executor, const Command &command, size_t i) {
@@ -69,13 +69,6 @@ Value back(const Executor &executor, const Command &command) {
 void storeInRegister(Executor &executor, const Command &command, Value reg, Value value, const char *function) {
    if (reg.type == VALUE_LOCAL) {
       copyValue(executor, executor.locals[executor.stackTrace.top().localStart + reg.local], value);
-   }
-   else if (reg.type == VALUE_IDENTIFIER) {
-      if (!executor.values[reg.identifier].init || executor.values[reg.identifier].type != GLOBAL) {
-         error(executor.diagnostics, command.file, command.line, "%s: Expected Register/Variable for the destination argument, got %s instead", function, getParseValueName(executor.values[reg.identifier].type));
-         return;
-      }
-      copyValue(executor, executor.values[reg.identifier].global, value);
    }
    else if (reg.type == VALUE_REGISTER || reg.type == VALUE_RETURN_REGISTER) {
       std::vector<Value> &registers = (reg.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
@@ -91,17 +84,17 @@ void storeInRegister(Executor &executor, const Command &command, Value value, co
 }
 
 void jumpToLabel(Executor &executor, Value value, const char *function, const char *argument, size_t file, size_t line, bool condition) {
-   if (value.type != VALUE_IDENTIFIER || !executor.values[value.identifier].init || executor.values[value.identifier].type != LABEL) {
+   if (value.type != VALUE_LABEL) {
       error(executor.diagnostics, file, line, "%s: Expected Label for the %s argument, got %s instead", function, argument, getValueName(value.type));
       return;
    }
    if (condition) {
-      executor.pointer = executor.values[value.identifier].label - 1;
+      executor.pointer = executor.functions[value.label].position - 1;
    }
 }
 
 double getNum(Executor &executor, const Command &command, size_t i, const char *function, bool *floating = nullptr) {
-   Value value = resolveVariable(executor, arg(executor, command, i), function, command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, i));
    if (value.type != VALUE_INTEGER && value.type != VALUE_FLOATING) {
       error(executor.diagnostics, command.file, command.line, "%s: Expected numeral, got %s instead", function, getValueName(value.type));
       return 0.0;
@@ -136,13 +129,15 @@ void binaryBuiltin(Executor &executor, const Command &command, double(*fn)(doubl
 }
 
 std::string toString(Executor &executor, Value value, const char *function, size_t file, size_t line) {
-   value = resolveVariable(executor, value, function, file, line);
+   value = resolveVariable(executor, value);
    switch (value.type) {
    case VALUE_INTEGER: return std::to_string(value.integer);
    case VALUE_FLOATING: return std::to_string(value.floating);
    case VALUE_CHARACTER: return std::string(1, value.character);
    case VALUE_CSTRING: return getLexeme(executor.cache, value.string);
    case VALUE_STRING: return getString(executor, value.string, file, line);
+   case VALUE_FUNCTION: return getLexeme(executor.cache, executor.functions[value.function].lexeme) + "()";
+   case VALUE_LABEL: return getLexeme(executor.cache, executor.functions[value.label].lexeme) + ":";
    default: return "(null)";
    }
 }
@@ -165,13 +160,15 @@ std::string format(const Command &command, Executor &executor, const char *funct
 
 void print(const Command &command, Executor &executor, const char *function, size_t file, size_t line) {
    for (size_t i = 0; i < command.argCount; ++i) {
-      Value a = resolveVariable(executor, arg(executor, command, i), function, file, line);
+      Value a = resolveVariable(executor, arg(executor, command, i));
       switch (a.type) {
       case VALUE_INTEGER: printf("%ld", a.integer); break;
       case VALUE_FLOATING: printf("%.3F", a.floating); break;
       case VALUE_CHARACTER: printf("%c", a.character); break;
       case VALUE_CSTRING: printf("%s", getLexeme(executor.cache, a.string).c_str()); break;
       case VALUE_STRING: printf("%s", getString(executor, a.string, command.file, command.line).c_str()); break;
+      case VALUE_FUNCTION: printf("%s()", getLexeme(executor.cache, executor.functions[a.function].lexeme).c_str()); break;
+      case VALUE_LABEL: printf("%s:", getLexeme(executor.cache, executor.functions[a.label].lexeme).c_str()); break;
       default: printf("(null)");
       }
    }
@@ -182,8 +179,8 @@ enum Comparison: char {
 };
 
 Comparison compareValues(Executor &executor, const Command &command, const char *function, bool softie) {
-   Value a = resolveVariable(executor, arg(executor, command, 0), function, command.file, command.line);
-   Value b = resolveVariable(executor, arg(executor, command, 1), function, command.file, command.line);
+   Value a = resolveVariable(executor, arg(executor, command, 0));
+   Value b = resolveVariable(executor, arg(executor, command, 1));
 
    if ((a.type == VALUE_INTEGER || a.type == VALUE_FLOATING) && (b.type == VALUE_INTEGER || b.type == VALUE_FLOATING)) {
       double x = (a.type == VALUE_INTEGER) ? (double)a.integer : a.floating;
@@ -212,31 +209,27 @@ void comparisonBuiltin(Executor &executor, const Command &command, const char *f
    if (result != COMPARISON_ERROR) storeBoolean(executor, command, (result == expected) != reverse, function);
 }
 
-bool isThruthy(Executor &executor, Value value, const char *function, const char *argument, bool &ok, size_t file, size_t line) {
-   Value v = resolveVariable(executor, value, function, file, line);
-   ok = true;
-
+bool getBool(Executor &executor, const Command &command, size_t i) {
+   Value v = resolveVariable(executor, arg(executor, command, i));
    switch (v.type) {
    case VALUE_INTEGER: return v.integer != 0;
    case VALUE_FLOATING: return v.floating != 0.0;
    case VALUE_CHARACTER: return v.character != 0;
    case VALUE_CSTRING: return !getLexeme(executor.cache, v.string).empty();
-   case VALUE_STRING: return !getString(executor, v.string, file, line).empty();
-   default:
-      error(executor.diagnostics, file, line, "%s: Expected value for the %s argument, got %s", function, argument, getValueName(v.type));
-      ok = false;
-      return false;
+   case VALUE_STRING: return !getString(executor, v.string, command.file, command.line).empty();
+   case VALUE_FUNCTION: return true;
+   case VALUE_LABEL: return true;
+   case VALUE_COUNT: return false;
+   default: // should not happen
+      printf("PIL::isThruthy: Value %s cannot be checked for thruthiness.\n", getValueName(v.type));
+      exit(EXIT_FAILURE);
    }
 }
 
 void storeString(Executor &executor, const Command &command, const std::string &string, const char *function) {
-   Value value {VALUE_STRING, 0};
+   Value value {VALUE_STRING};
    value.string = allocateString(executor, string);
    storeInRegister(executor, command, value, function);
-}
-
-bool getBool(Executor &executor, const Command &command, size_t i, const char *function, const char *argument, bool &ok) {
-   return isThruthy(executor, resolveVariable(executor, arg(executor, command, i), function, command.file, command.line), function, argument, ok, command.file, command.line);
 }
 
 // output
@@ -277,9 +270,7 @@ void builtinReadchar(const Command &command, Executor &executor) {
 }
 
 void builtinSetecho(const Command &command, Executor &executor) {
-   bool ok;
-   bool enable = getBool(executor, command, 0, "setecho", "1st", ok);
-   if (!ok) return;
+   bool enable = getBool(executor, command, 0);
 #ifdef _WIN32
    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
    DWORD mode;
@@ -301,13 +292,13 @@ void builtinStringNew(const Command &command, Executor &executor) {
    for (size_t i = 0; i < command.argCount - 1; ++i) {
       result += toString(executor, arg(executor, command, i), "string-new", command.file, command.line);
    }
-   Value value {VALUE_STRING, 0};
+   Value value {VALUE_STRING};
    value.string = allocateString(executor, result);
    storeInRegister(executor, command, value, "string-new");
 }
 
 void builtinFormat(const Command &command, Executor &executor) {
-   Value value {VALUE_STRING, 0};
+   Value value {VALUE_STRING};
    value.string = allocateString(executor, format(command, executor, "format", 1));
    storeInRegister(executor, command, value, "format");
 }
@@ -555,27 +546,23 @@ void builtinNeq(const Command &command, Executor &executor) {
 }
 
 void builtinOr(const Command &command, Executor &executor) {
-   bool ok;
-   bool cond = getBool(executor, command, 0, "or", "value", ok);
-   for (size_t i = 1; ok && i < command.argCount - 1; ++i) {
-      cond = cond || getBool(executor, command, i, "or", "value", ok);
+   bool cond = getBool(executor, command, 0);
+   for (size_t i = 1; i < command.argCount - 1; ++i) {
+      cond = cond || getBool(executor, command, i);
    }
-   if (ok) storeBoolean(executor, command, cond, "or");
+   storeBoolean(executor, command, cond, "or");
 }
 
 void builtinAnd(const Command &command, Executor &executor) {
-   bool ok;
-   bool cond = getBool(executor, command, 0, "and", "value", ok);
-   for (size_t i = 1; ok && i < command.argCount - 1; ++i) {
-      cond = cond && getBool(executor, command, i, "and", "value", ok);
+   bool cond = getBool(executor, command, 0);
+   for (size_t i = 1; i < command.argCount - 1; ++i) {
+      cond = cond && getBool(executor, command, i);
    }
-   if (ok) storeBoolean(executor, command, cond, "and");
+   storeBoolean(executor, command, cond, "and");
 }
 
 void builtinNot(const Command &command, Executor &executor) {
-   bool ok;
-   bool thruthy = isThruthy(executor, arg(executor, command, 0), "not", "1st", ok, command.file, command.line);
-   if (ok) storeBoolean(executor, command, thruthy, "not");
+   storeBoolean(executor, command, !getBool(executor, command, 0), "not");
 }
 
 // control flow
@@ -584,19 +571,15 @@ void builtinGoto(const Command &command, Executor &executor) {
 }
 
 void builtinJmp(const Command &command, Executor &executor) {
-   bool ok;
-   bool thruthy = isThruthy(executor, arg(executor, command, 0), "jmp", "1st", ok, command.file, command.line);
-   jumpToLabel(executor, arg(executor, command, 1), "jmp", "2nd", command.file, command.line, ok && thruthy);
+   jumpToLabel(executor, arg(executor, command, 1), "jmp", "2nd", command.file, command.line, getBool(executor, command, 0));
 }
 
 void builtinJmpn(const Command &command, Executor &executor) {
-   bool ok;
-   bool thruthy = isThruthy(executor, arg(executor, command, 0), "jmpn", "1st", ok, command.file, command.line);
-   jumpToLabel(executor, arg(executor, command, 1), "jmpn", "2nd", command.file, command.line, ok && !thruthy);
+   jumpToLabel(executor, arg(executor, command, 1), "jmpn", "2nd", command.file, command.line, !getBool(executor, command, 0));
 }
 
 void builtinCall(const Command &command, Executor &executor) {
-   ParseValue &function = executor.values[arg(executor, command, command.callee).identifier];
+   Function &function = executor.functions[arg(executor, command, command.callee).function];
    call(executor, command, function, command.callee, command.callee, command.argCount - command.callee - 1);
 }
 
@@ -624,7 +607,7 @@ void builtinReturn(const Command &command, Executor &executor) {
    }
 
    for (size_t i = 0; i < executor.returnCount; ++i) {
-      Value value = resolveVariable(executor, arg(executor, command, i), "return", command.file, command.line);
+      Value value = resolveVariable(executor, arg(executor, command, i));
       moveValue(executor, executor.returnRegisters[i], value);
    }
    executor.locals.resize(localStart);
@@ -646,39 +629,26 @@ void builtinReturn(const Command &command, Executor &executor) {
 
 // types
 void builtinTypeof(const Command &command, Executor &executor) {
-   Value value {VALUE_STRING, 0};
-   Value v = arg(executor, command, 0);
-   if (v.type == VALUE_IDENTIFIER && executor.values[v.identifier].init && (executor.values[v.identifier].type == FUNCTION || executor.values[v.identifier].type == NATIVE_FUNCTION)) {
-      value.string = allocateString(executor, "function");
-   }
-   else if (v.type == VALUE_IDENTIFIER && executor.values[v.identifier].init && executor.values[v.identifier].type == LABEL) {
-      value.string = allocateString(executor, "label");
-   }
-   else {
-      ValueType type = resolveVariable(executor, v, "typeof", command.file, command.line).type;
-      switch (type) {
-      case VALUE_INTEGER: value.string = allocateString(executor, "int"); break;
-      case VALUE_FLOATING: value.string = allocateString(executor, "float"); break;
-      case VALUE_CHARACTER: value.string = allocateString(executor, "char"); break;
-      case VALUE_STRING: case VALUE_CSTRING: value.string = allocateString(executor, "string"); break;
-      default: value.string = allocateString(executor, "null"); break;
-      }
+   Value value {VALUE_STRING};
+   ValueType type = resolveVariable(executor, arg(executor, command, 0)).type;
+   switch (type) {
+   case VALUE_INTEGER: value.string = allocateString(executor, "int"); break;
+   case VALUE_FLOATING: value.string = allocateString(executor, "float"); break;
+   case VALUE_CHARACTER: value.string = allocateString(executor, "char"); break;
+   case VALUE_STRING: case VALUE_CSTRING: value.string = allocateString(executor, "string"); break;
+   case VALUE_FUNCTION: value.string = allocateString(executor, "function"); break;
+   case VALUE_LABEL: value.string = allocateString(executor, "label"); break;
+   case VALUE_COUNT: value.string = allocateString(executor, "null"); break;
+   default:
+      printf("PIL::builtinTypeof: Cannot get the type of value %s.\n", getValueName(type));
+      exit(EXIT_FAILURE);
    }
    storeInRegister(executor, command, value, "typeof");
 }
 
 void builtinSizeof(const Command &command, Executor &executor) {
    size_t size = 1;
-   Value v = arg(executor, command, 0);
-   if (v.type == VALUE_IDENTIFIER && executor.values[v.identifier].init) {
-      ParseValueType type = executor.values[v.identifier].type;
-      if (type == LABEL || type == FUNCTION || type == NATIVE_FUNCTION) {
-         storeNumber(executor, command, 0, false, "sizeof");
-         return;
-      }
-   }
-
-   Value value = resolveVariable(executor, v, "sizeof", command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, 0));
    switch (value.type) {
    case VALUE_STRING: size = getString(executor, value.string, command.file, command.line).size(); break;
    case VALUE_CSTRING: size = getLexeme(executor.cache, value.string).size(); break;
@@ -688,110 +658,62 @@ void builtinSizeof(const Command &command, Executor &executor) {
 }
 
 void builtinIsnum(const Command &command, Executor &executor) {
-   Value v = arg(executor, command, 0);
-   if (v.type == VALUE_IDENTIFIER && executor.values[v.identifier].init) {
-      ParseValueType type = executor.values[v.identifier].type;
-      if (type == LABEL || type == FUNCTION || type == NATIVE_FUNCTION) {
-         storeBoolean(executor, command, false, "is-num");
-         return;
-      }
-   }
-   Value value = resolveVariable(executor, v, "is-num", command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, 0));
    storeBoolean(executor, command, value.type == VALUE_INTEGER || value.type == VALUE_FLOATING, "is-num");
 }
 
 void builtinIsfloat(const Command &command, Executor &executor) {
-   Value v = arg(executor, command, 0);
-   if (v.type == VALUE_IDENTIFIER && executor.values[v.identifier].init) {
-      ParseValueType type = executor.values[v.identifier].type;
-      if (type == LABEL || type == FUNCTION || type == NATIVE_FUNCTION) {
-         storeBoolean(executor, command, false, "is-float");
-         return;
-      }
-   }
-   Value value = resolveVariable(executor, v, "is-float", command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, 0));
    storeBoolean(executor, command, value.type == VALUE_FLOATING, "is-float");
 }
 
 void builtinIsint(const Command &command, Executor &executor) {
-   Value v = arg(executor, command, 0);
-   if (v.type == VALUE_IDENTIFIER && executor.values[v.identifier].init) {
-      ParseValueType type = executor.values[v.identifier].type;
-      if (type == LABEL || type == FUNCTION || type == NATIVE_FUNCTION) {
-         storeBoolean(executor, command, false, "is-int");
-         return;
-      }
-   }
-   Value value = resolveVariable(executor, v, "is-int", command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, 0));
    storeBoolean(executor, command, value.type == VALUE_INTEGER, "is-int");
 }
 
 void builtinIschar(const Command &command, Executor &executor) {
-   Value v = arg(executor, command, 0);
-   if (v.type == VALUE_IDENTIFIER && executor.values[v.identifier].init) {
-      ParseValueType type = executor.values[v.identifier].type;
-      if (type == LABEL || type == FUNCTION || type == NATIVE_FUNCTION) {
-         storeBoolean(executor, command, false, "is-char");
-         return;
-      }
-   }
-   Value value = resolveVariable(executor, v, "is-char", command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, 0));
    storeBoolean(executor, command, value.type == VALUE_CHARACTER, "is-char");
 }
 
 void builtinIsstring(const Command &command, Executor &executor) {
-   Value v = arg(executor, command, 0);
-   if (v.type == VALUE_IDENTIFIER && executor.values[v.identifier].init) {
-      ParseValueType type = executor.values[v.identifier].type;
-      if (type == LABEL || type == FUNCTION || type == NATIVE_FUNCTION) {
-         storeBoolean(executor, command, false, "is-string");
-         return;
-      }
-   }
-   Value value = resolveVariable(executor, v, "is-string", command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, 0));
    storeBoolean(executor, command, value.type == VALUE_STRING || value.type == VALUE_CSTRING, "is-string");
 }
 
 void builtinIsreg(const Command &command, Executor &executor) {
    Value value = arg(executor, command, 0);
-   storeBoolean(executor, command, value.type == VALUE_LOCAL || value.type == VALUE_REGISTER || value.type == VALUE_RETURN_REGISTER || (value.type == VALUE_IDENTIFIER && executor.values[value.identifier].init && executor.values[value.identifier].type == GLOBAL), "is-reg");
+   storeBoolean(executor, command, value.type == VALUE_LOCAL || value.type == VALUE_REGISTER || value.type == VALUE_RETURN_REGISTER, "is-reg");
 }
 
 void builtinIsfunction(const Command &command, Executor &executor) {
-   Value value = arg(executor, command, 0);
-   storeBoolean(executor, command, value.type == VALUE_IDENTIFIER && executor.values[value.identifier].init && (executor.values[value.identifier].type == FUNCTION || executor.values[value.identifier].type == NATIVE_FUNCTION), "is-function");
+   Value value = resolveVariable(executor, arg(executor, command, 0));
+   storeBoolean(executor, command, value.type == VALUE_FUNCTION, "is-function");
 }
 
 void builtinIslabel(const Command &command, Executor &executor) {
-   Value value = arg(executor, command, 0);
-   storeBoolean(executor, command, value.type == VALUE_IDENTIFIER && executor.values[value.identifier].init && executor.values[value.identifier].type == LABEL, "is-label");
+   Value value = resolveVariable(executor, arg(executor, command, 0));
+   storeBoolean(executor, command, value.type == VALUE_LABEL, "is-label");
 }
 
 void builtinIsnull(const Command &command, Executor &executor) {
-   Value v = arg(executor, command, 0);
-   if (v.type == VALUE_IDENTIFIER && executor.values[v.identifier].init) {
-      ParseValueType type = executor.values[v.identifier].type;
-      if (type == LABEL || type == FUNCTION || type == NATIVE_FUNCTION) {
-         storeBoolean(executor, command, false, "is-null");
-         return;
-      }
-   }
-   Value value = resolveVariable(executor, v, "is-null", command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, 0));
    storeBoolean(executor, command, value.type == VALUE_COUNT, "is-null");
 }
 
 void builtinIsinf(const Command &command, Executor &executor) {
-   Value value = resolveVariable(executor, arg(executor, command, 0), "is-inf", command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, 0));
    storeBoolean(executor, command, value.type == VALUE_FLOATING && std::isinf(value.floating), "is-inf");
 }
 
 void builtinIsnan(const Command &command, Executor &executor) {
-   Value value = resolveVariable(executor, arg(executor, command, 0), "is-nan", command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, 0));
    storeBoolean(executor, command, value.type == VALUE_FLOATING && std::isnan(value.floating), "is-nan");
 }
 
 void builtinToint(const Command &command, Executor &executor) {
-   Value value = resolveVariable(executor, arg(executor, command, 0), "to-int", command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, 0));
    Value integer {VALUE_INTEGER};
    switch (value.type) {
    case VALUE_INTEGER: integer.integer = value.integer; break;
@@ -805,7 +727,7 @@ void builtinToint(const Command &command, Executor &executor) {
 }
 
 void builtinTofloat(const Command &command, Executor &executor) {
-   Value value = resolveVariable(executor, arg(executor, command, 0), "to-float", command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, 0));
    Value floating {VALUE_FLOATING};
    switch (value.type) {
    case VALUE_INTEGER: floating.floating = value.integer; break;
@@ -819,7 +741,7 @@ void builtinTofloat(const Command &command, Executor &executor) {
 }
 
 void builtinTochar(const Command &command, Executor &executor) {
-   Value value = resolveVariable(executor, arg(executor, command, 0), "to-char", command.file, command.line);
+   Value value = resolveVariable(executor, arg(executor, command, 0));
    Value character {VALUE_CHARACTER};
    switch (value.type) {
    case VALUE_INTEGER: character.character = value.integer; break;
@@ -828,16 +750,6 @@ void builtinTochar(const Command &command, Executor &executor) {
    default: error(executor.diagnostics, command.file, command.line, "to-char: Cannot convert %s to Character", getValueName(value.type));
    }
    storeInRegister(executor, command, character, "to-char");
-}
-
-void builtinExists(const Command &command, Executor &executor) {
-   Value v = arg(executor, command, 0);
-   if (v.type == VALUE_IDENTIFIER) {
-      storeBoolean(executor, command, executor.values[v.identifier].init, "exists");
-   }
-   else {
-      storeBoolean(executor, command, true, "exists");
-   }
 }
 
 // misc. (time, random)
@@ -865,7 +777,7 @@ void builtinDate(const Command &command, Executor &executor) {
    stream << std::put_time(&lt, str.c_str());
    std::string result = stream.str();
 
-   Value value {VALUE_STRING, 0};
+   Value value {VALUE_STRING};
    value.string = allocateString(executor, result);
    storeInRegister(executor, command, value, "date");
 }
@@ -914,49 +826,11 @@ void builtinRandiRange(const Command &command, Executor &executor) {
 
 // variables, registers
 void builtinSwap(const Command &command, Executor &executor) {
-   Value a = resolveVariable(executor, arg(executor, command, 0), "swap", command.file, command.line);
-   Value b = resolveVariable(executor, arg(executor, command, 1), "swap", command.file, command.line);
-   // avoid accidental deallocation
-   a.allocations += 1;
-   b.allocations += 1;
-   storeInRegister(executor, command, arg(executor, command, 1), a, "swap");
-   storeInRegister(executor, command, arg(executor, command, 0), b, "swap");
-   a.allocations -= 1;
-   b.allocations -= 1;
+   Value &a = resolveVariableByRef(executor, executor.arguments[command.argStart + 0]);
+   Value &b = resolveVariableByRef(executor, executor.arguments[command.argStart + 1]);
+   std::swap(a, b);
 }
 
 void builtinSet(const Command &command, Executor &executor) {
-   storeInRegister(executor, command, resolveVariable(executor, arg(executor, command, 0), "set", command.file, command.line), "set");
-}
-
-void builtinGlobal(const Command &command, Executor &executor) {
-   Value value {VALUE_COUNT};
-   Value last = back(executor, command);
-   size_t definitionCount = command.argCount;
-
-   if (command.argCount > 1 && (last.type != VALUE_IDENTIFIER || (executor.values[last.identifier].init && executor.values[last.identifier].type == GLOBAL))) {
-      value = resolveVariable(executor, last, "global", command.file, command.line);
-      definitionCount -= 1;
-   }
-   for (size_t i = 0; i < definitionCount; ++i) {
-      Value a = arg(executor, command, i);
-      if (a.type != VALUE_IDENTIFIER) {
-         error(executor.diagnostics, command.file, command.line, "global: Expected Identifier, but got %s instead", getValueName(a.type));
-         continue;
-      }
-      size_t lexeme = a.identifier;
-      if (executor.values[lexeme].init && executor.values[lexeme].type != GLOBAL) {
-         error(executor.diagnostics, command.file, command.line, "global: Cannot define global '%s' as a %s with the same name already exists", getLexeme(executor.cache, lexeme).c_str(), getParseValueName(executor.values[lexeme].type));
-         continue;
-      }
-
-      if (executor.values[lexeme].init) {
-         deallocate(executor, executor.values[lexeme].global);
-      }
-      ParseValue global;
-      global.type = GLOBAL;
-      global.global = value;
-      global.init = true;
-      executor.values[lexeme] = global;
-   }
+   storeInRegister(executor, command, resolveVariable(executor, arg(executor, command, 0)), "set");
 }

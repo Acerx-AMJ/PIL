@@ -210,7 +210,7 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
          tokens[i + 1].parsed = true;
          tokens[i + 2].parsed = true;
 
-         Value value = parseToken(executor, tokens[i + 1], {});
+         Value value = parseToken(executor, tokens[i + 1], {}, {});
          if (tokens[i].lexeme == registerLexeme) {
             executor.registers.resize(value.integer);
          }

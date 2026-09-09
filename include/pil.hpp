@@ -28,8 +28,8 @@ struct Trace {
 };
 
 struct Command {
-   Command(size_t lexeme, size_t file, size_t line, size_t argStart, size_t argCount)
-      : lexeme(lexeme), file(file), line(line), argStart(argStart), argCount(argCount), callee(std::string::npos) {}
+   Command(size_t lexeme, size_t file, size_t line, size_t argStart, size_t argCount, size_t functionId)
+      : lexeme(lexeme), file(file), line(line), argStart(argStart), argCount(argCount), callee(std::string::npos), functionId(functionId) {}
 
    size_t lexeme;
    size_t file;
@@ -37,6 +37,12 @@ struct Command {
    size_t argStart;
    size_t argCount;
    size_t callee;
+   size_t functionId;
+};
+
+struct PILString {
+   std::string string;
+   int allocations = 0;
 };
 
 struct Executor {
@@ -50,9 +56,10 @@ struct Executor {
    std::vector<Value> returnRegisters;
    std::stack<Trace, std::vector<Trace>> stackTrace;
 
-   std::unordered_map<size_t, std::string> strings;
-   std::vector<ParseValue> values;
+   std::unordered_map<size_t, Value> constants;
+   std::unordered_map<size_t, PILString> strings;
 
+   std::vector<Function> functions;
    std::vector<Value> locals;
    std::vector<Value> arguments;
    std::vector<Command> code;
@@ -69,10 +76,12 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
 void pushBuiltin(Executor &executor, const std::string &lexeme, NativeFunction function, size_t paramCount, bool variadic);
 void pushReservedBuiltin(Executor &executor, const std::string &lexeme, NativeFunction function, size_t paramCount, bool variadic);
 void defineStandardBuiltins(Executor &executor);
-Value parseToken(Executor &executor, Token token, const std::unordered_map<size_t, size_t> &functionParamMap);
+void defineReservedBuiltins(Executor &executor);
+
+Value parseToken(Executor &executor, Token token, const std::unordered_map<size_t, size_t> &functionParamMap, const std::unordered_map<size_t, Value> &constants);
 void parsePIL(Executor &executor, std::vector<Token> &tokens);
 
-void call(Executor &executor, const Command &command, ParseValue &function, size_t functionPos, size_t returnCount, size_t argCount);
+void call(Executor &executor, const Command &command, Function &function, size_t functionPos, size_t returnCount, size_t argCount);
 void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity stopSeverity);
 
 // allocation
@@ -85,4 +94,4 @@ float measureEnd();
 
 void debugTokens(LexemeCache &cache, const std::vector<Token> &tokens);
 void debugBytecode(Executor &executor);
-void debugExecutionTime(float file, float lexer, float translator, float defs, float parser, float runtime);
+void debugExecutionTime(float file, float lexer, float translator, float parser, float runtime);
