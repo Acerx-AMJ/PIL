@@ -338,7 +338,6 @@ void builtinJmpn(const Command &command, Executor &executor) {
 }
 
 void builtinJmptable(const Command &command, Executor &executor) {
-   // jmptable value, result1, label1, result2, label2, ...
    if (command.argCount % 2 != 1) {
       error(executor.diagnostics, command.file, command.line, "jmptable: Expected odd number of arguments");
       return;
@@ -346,13 +345,37 @@ void builtinJmptable(const Command &command, Executor &executor) {
    Value value = resolveVariable(executor, arg(executor, command, 0));
    for (size_t i = 1; i < command.argCount; i += 2) {
       Value result = resolveVariable(executor, arg(executor, command, i));
-      jumpToLabel(executor, arg(executor, command, i + 1), "jmptable", "destination", command.file, command.line, valuesEqual(executor, command, value, result));
+      if (valuesEqual(executor, command, value, result)) {
+         jumpToLabel(executor, arg(executor, command, i + 1), "jmptable", "destination", command.file, command.line, true);
+         break;
+      }
    }
 }
 
 void builtinCall(const Command &command, Executor &executor) {
    Function &function = executor.functions[arg(executor, command, command.callee).function];
    call(executor, command, function, command.callee, command.callee, command.argCount - command.callee - 1);
+}
+
+void builtinFunccall(const Command &command, Executor &executor) {
+   Value f = resolveVariable(executor, arg(executor, command, 0));
+   if (f.type != VALUE_FUNCTION) {
+      error(executor.diagnostics, command.file, command.line, "func-call: Expected function to call for the 1st argument, got %s instead", getValueName(f.type));
+      return;
+   }
+   Function &function = executor.functions[f.function];
+   size_t params = function.params.size();
+   size_t args = command.argCount - 1;
+   bool variadic = function.variadic;
+
+   if ((!variadic && args != params) || (variadic && args < params)) {
+      error(executor.diagnostics, command.file, command.line, "func-call: Called function expected %s%zu parameters, but received %zu arguments", (variadic ? ">" : ""), params, args);
+      return;
+   }
+   Command copy = command;
+   copy.argStart += 1;
+   copy.argCount -= 1;
+   call(executor, copy, function, -1, std::string::npos, args);
 }
 
 void builtinReturn(const Command &command, Executor &executor) {
@@ -595,4 +618,21 @@ void builtinSwap(const Command &command, Executor &executor) {
 
 void builtinSet(const Command &command, Executor &executor) {
    storeInRegister(executor, command, resolveVariable(executor, arg(executor, command, 0)), "set");
+}
+
+void builtinValTable(const Command &command, Executor &executor) {
+   if (command.argCount % 2 != 0) {
+      error(executor.diagnostics, command.file, command.line, "valtable: Expected even number of arguments");
+      return;
+   }
+   Value value = resolveVariable(executor, arg(executor, command, 0));
+   Value dest = arg(executor, command, 1);
+   for (size_t i = 2; i < command.argCount; i += 2) {
+      Value result = resolveVariable(executor, arg(executor, command, i));
+      if (valuesEqual(executor, command, value, result)) {
+         storeInRegister(executor, command, dest, resolveVariable(executor, arg(executor, command, i+1)), "valtable");
+         return;
+      }
+   }
+   storeInRegister(executor, command, dest, Value{VALUE_COUNT}, "valtable");
 }

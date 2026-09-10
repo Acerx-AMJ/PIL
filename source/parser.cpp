@@ -111,6 +111,7 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "jmp", builtinJmp, 2, false);
    pushBuiltin(executor, "jmpn", builtinJmpn, 2, false);
    pushBuiltin(executor, "jmptable", builtinJmptable, 3, true);
+   pushBuiltin(executor, "func-call", builtinFunccall, 1, true);
 
    // types
    pushBuiltin(executor, "typeof", builtinTypeof, 2, false);
@@ -143,6 +144,7 @@ void defineStandardBuiltins(Executor &executor) {
    // variables
    pushBuiltin(executor, "swap", builtinSwap, 2, false);
    pushBuiltin(executor, "set", builtinSet, 2, false);
+   pushBuiltin(executor, "valtable", builtinValTable, 4, true);
 
    // reserved built-ins. must always be there.
    pushReservedBuiltin(executor, "return", builtinReturn, 0, true);

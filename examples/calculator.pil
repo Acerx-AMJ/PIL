@@ -1,48 +1,36 @@
 ; simple, 6 command calculator.
 
 ; read float input from the user with error checking
-input-number(msg)
+input-number(msg) let input, tmp
    goto input-number-start
 input-number-error:
    print "Invalid input, try again."
 input-number-start:
    print msg
-   readline $3
-   to-float $3, $3
-   is-null $3, $4
-   jmp $4, input-number-error
-   return $3
+   readline input
+   to-float input, input
+   is-null input, tmp
+   jmp tmp, input-number-error
+   return input
 
-; calculate result based on the operator.
-calculate-result(n1, n2, op)
-   jmptable op, '+', calculate-result-add, '-', calculate-result-sub, '*', calculate-result-mul, '/', calculate-result-div, '%', calculate-result-mod, '^', calculate-result-pow
+; calculate result based on the operator. we have a table where a character is tied to a function.
+; think of it like a map. if the op is in the map, call the function on n1 and n2, if not, throw
+; an error
+calculate-result(n1, n2, op) let fn, tmp, result
+   valtable op, fn, '+', add, '-', sub, '*', mul, '/', div, '%', mod, '^', pow
+   is-null fn, tmp
+   jmpn tmp, valid-op
    printn "Invalid operator."
    return 0.0
-
-calculate-result-add:
-   add, n1, n2, $5
-   return $5
-calculate-result-sub:
-   sub, n1, n2, $5
-   return $5
-calculate-result-mul:
-   mul, n1, n2, $5
-   return $5
-calculate-result-div:
-   div, n1, n2, $5
-   return $5
-calculate-result-mod:
-   mod, n1, n2, $5
-   return $5
-calculate-result-pow:
-   pow, n1, n2, $5
-   return $5
+valid-op:
+   func-call fn, n1, n2, result
+   return result
 
 ; program.
-main()
-   call $0, input-number, "Input first number: "
-   call $1, input-number, "Input second number: "
+main() let n1, n2, op
+   call n1, input-number, "Input first number: "
+   call n2, input-number, "Input second number: "
    print "Input operator (+,-,*,/,%,^): "
-   readchar $2
-   calculate-result $0, $1, $2
-   printfn "{} {} {} = {}", $0, $2, $1, R$0
+   readchar op
+   calculate-result n1, n2, op
+   printfn "{} {} {} = {}", n1, op, n2, R$0

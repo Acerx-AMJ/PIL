@@ -72,8 +72,9 @@ void builtinNot(const Command &command, Executor &executor);
 void builtinGoto(const Command &command, Executor &executor);
 void builtinJmp(const Command &command, Executor &executor);
 void builtinJmpn(const Command &command, Executor &executor);
-void builtinCall(const Command &command, Executor &executor);
 void builtinJmptable(const Command &command, Executor &executor);
+void builtinCall(const Command &command, Executor &executor);
+void builtinFunccall(const Command &command, Executor &executor);
 void builtinReturn(const Command &command, Executor &executor);
 
 // types
@@ -107,3 +108,4 @@ void builtinRandiRange(const Command &command, Executor &executor);
 // variables/registers
 void builtinSwap(const Command &command, Executor &executor);
 void builtinSet(const Command &command, Executor &executor);
+void builtinValTable(const Command &command, Executor &executor);
