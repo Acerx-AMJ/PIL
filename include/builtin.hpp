@@ -1,12 +1,6 @@
 #pragma once
 #include "values.hpp"
 
-// helpers
-void deallocate(Executor &executor, Value &value);
-void copyValue(Executor &executor, Value &target, Value &copy);
-void moveValue(Executor &executor, Value &target, Value &move);
-Value resolveVariable(Executor &executor, Value value);
-
 // i/o
 void builtinPrint(const Command &command, Executor &executor);
 void builtinPrintn(const Command &command, Executor &executor);
