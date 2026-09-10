@@ -1,18 +1,17 @@
-jmp $0, digits-safe
-digits(n)
-   neq n, 0, $0
-   jmp $0, digits-check-two
-   return 1
-digits-check-two:
-   gr n, 0, $0
-   jmp $0, digits-safe
-   neg n, n
-digits-safe:
-   log10 n, n
-   incr n
-   return n
+add2(a, b)
+   add a, b, $1
+   return $1
 
-main() let n
-   set 1234567890, n
-   digits n
-   printn R$0
+func(reg, label, f)
+   typeof reg, $0
+   printfn "reg: {}", $0
+   typeof label, $0
+   printfn "label: {}", $0
+   typeof f, $0
+   printfn "function: {}", $0
+   call $1, f 20, 30
+
+main()
+main-label:
+   func $0, main-label, add2
+   printn $1

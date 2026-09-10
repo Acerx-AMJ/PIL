@@ -260,6 +260,8 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
 
    // real parsing
    size_t returnLexeme = cacheLexeme(executor.cache, "return");
+   size_t returnId = executor.constants[returnLexeme].function;
+
    size_t defineLexeme = cacheLexeme(executor.cache, "let");
    size_t callLexeme = cacheLexeme(executor.cache, "call");
    size_t constLexeme = cacheLexeme(executor.cache, "const");
@@ -285,7 +287,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
       else if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_L_PAREN) {
          size_t functionId = executor.constants[tokens[i].lexeme].function;
          if (!firstFunction && (executor.code.empty() || executor.code.back().lexeme != returnLexeme)) {
-            executor.code.emplace_back(returnLexeme, tokens[i-1].file, tokens[i-1].line, 0, 0, functionId);
+            executor.code.emplace_back(returnLexeme, tokens[i-1].file, tokens[i-1].line, 0, 0, returnId);
          }
          size_t start = i;
          Function &function = executor.functions[functionId];
@@ -418,6 +420,6 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
       }
    }
    if (!tokens.empty()) {
-      executor.code.emplace_back(returnLexeme, tokens.back().file, tokens.back().line, 0, 0, executor.constants[returnLexeme].function);
+      executor.code.emplace_back(returnLexeme, tokens.back().file, tokens.back().line, 0, 0, returnId);
    }
 }

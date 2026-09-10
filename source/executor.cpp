@@ -3,9 +3,11 @@
 
 void call(Executor &executor, const Command &command, Function &function, size_t functionPos, size_t returnCount, size_t args) {
    if (function.native) {
+      // printf("called native %s. Stack trace: %zu.\n", getLexeme(executor.cache, command.lexeme).c_str(), executor.stackTrace.size());
       function.nativeFunction(command, executor);
    }
    else if (!function.isLabel) {
+      // printf("called %s @ %s:%zu. Stack trace: %zu.\n", getLexeme(executor.cache, function.lexeme).c_str(), getLexeme(executor.cache, executor.code[function.position].file).c_str(), executor.code[function.position].line, executor.stackTrace.size());
       Trace trace (executor.pointer, command.lexeme, command.argStart, returnCount);
       trace.localStart = executor.locals.size();
       trace.localCount = function.localCount;
@@ -66,6 +68,7 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
    executor.exitCalled = false;
 
    while (true) {
+      // printf("Pointer @ %zu.\n", executor.pointer);
       Command &command = executor.code[executor.pointer];
       Function &function = executor.functions[command.functionId];
       call(executor, command, function, -1, std::string::npos, command.argCount);
@@ -75,4 +78,5 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
       executor.pointer += 1;
    }
    executor.locals.resize(0);
+   executor.stackTrace.pop();
 }

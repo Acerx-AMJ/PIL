@@ -584,7 +584,7 @@ void builtinCall(const Command &command, Executor &executor) {
 }
 
 void builtinReturn(const Command &command, Executor &executor) {
-   if (executor.stackTrace.empty()) {
+   if (executor.stackTrace.size() <= 1) {
       executor.exitCalled = true;
       return;
    }

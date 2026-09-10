@@ -152,7 +152,7 @@ std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILF
          std::string identifier;
          size_t end = i;
 
-         for (++end; end < size && (file.code[end] == '_' || file.code[end] == '-' || std::isalnum(file.code[end])); ++end);
+         for (++end; end < size && (file.code[end] == '_' || file.code[end] == '-' || file.code[end] == '.' || std::isalnum(file.code[end])); ++end);
          identifier = file.code.substr(i, end - i);
          std::transform(identifier.begin(), identifier.end(), identifier.begin(), tolower);
          tokens.emplace_back(TOKEN_IDENTIFIER, cacheLexeme(cache, identifier), file.lexeme, line);
