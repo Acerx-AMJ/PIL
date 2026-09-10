@@ -15,18 +15,7 @@ input-number-start:
 
 ; calculate result based on the operator.
 calculate-result(n1, n2, op)
-   eq op, '+', $6
-   jmp $6, calculate-result-add
-   eq op, '-', $6
-   jmp $6, calculate-result-sub
-   eq op, '*', $6
-   jmp $6, calculate-result-mul
-   eq op, '/', $6
-   jmp $6, calculate-result-div
-   eq op, '%', $6
-   jmp $6, calculate-result-mod
-   eq op, '^', $6
-   jmp $6, calculate-result-pow
+   jmptable op, '+', calculate-result-add, '-', calculate-result-sub, '*', calculate-result-mul, '/', calculate-result-div, '%', calculate-result-mod, '^', calculate-result-pow
    printn "Invalid operator."
    return 0.0
 

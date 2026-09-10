@@ -193,6 +193,23 @@ inline void comparisonBuiltin(Executor &executor, const Command &command, const 
    storeBoolean(executor, command, (result == expected) != reverse, function);
 }
 
+inline bool valuesEqual(Executor &executor, const Command &command, Value a, Value b) {
+   if ((a.type == VALUE_INTEGER || a.type == VALUE_FLOATING) && (b.type == VALUE_INTEGER || b.type == VALUE_INTEGER)) {
+      double x = (a.type == VALUE_INTEGER) ? (double)a.integer : a.floating;
+      double y = (b.type == VALUE_INTEGER) ? (double)b.integer : b.floating;
+      return x == y;
+   }
+   else if (a.type == VALUE_CHARACTER && b.type == VALUE_CHARACTER) {
+      return a.character == b.character;
+   }
+   else if ((a.type == VALUE_STRING || a.type == VALUE_CSTRING) && (b.type == VALUE_STRING || b.type == VALUE_CSTRING)) {
+      const std::string &as = (a.type == VALUE_STRING ? getString(executor, a.string, command.file, command.line) : getLexeme(executor.cache, a.string));
+      const std::string &bs = (b.type == VALUE_STRING ? getString(executor, b.string, command.file, command.line) : getLexeme(executor.cache, b.string));
+      return as == bs;
+   }
+   return false;
+}
+
 inline bool getBool(Executor &executor, const Command &command, size_t i) {
    Value v = resolveVariable(executor, arg(executor, command, i));
    switch (v.type) {

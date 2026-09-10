@@ -1,17 +1,16 @@
-add2(a, b)
-   add a, b, $1
-   return $1
+r4()
+   return 1, 2, 3, 4
 
-func(reg, label, f)
-   typeof reg, $0
-   printfn "reg: {}", $0
-   typeof label, $0
-   printfn "label: {}", $0
-   typeof f, $0
-   printfn "function: {}", $0
-   call $1, f 20, 30
+r5()
+   return 1, 2, 3, 4, 5
+
+r6()
+   return 1, 2, 3, 4, 5, 6
+
+r7()
+   return 1, 2, 3, 4, 5, 6, 7
 
 main()
-main-label:
-   func $0, main-label, add2
-   printn $1
+   printn "Hello, World!"
+   r7
+   printn r$0, r$1, r$2, r$3, r$4, r$5, r$6

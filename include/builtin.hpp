@@ -73,6 +73,7 @@ void builtinGoto(const Command &command, Executor &executor);
 void builtinJmp(const Command &command, Executor &executor);
 void builtinJmpn(const Command &command, Executor &executor);
 void builtinCall(const Command &command, Executor &executor);
+void builtinJmptable(const Command &command, Executor &executor);
 void builtinReturn(const Command &command, Executor &executor);
 
 // types

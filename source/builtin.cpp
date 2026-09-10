@@ -337,6 +337,19 @@ void builtinJmpn(const Command &command, Executor &executor) {
    jumpToLabel(executor, arg(executor, command, 1), "jmpn", "2nd", command.file, command.line, !getBool(executor, command, 0));
 }
 
+void builtinJmptable(const Command &command, Executor &executor) {
+   // jmptable value, result1, label1, result2, label2, ...
+   if (command.argCount % 2 != 1) {
+      error(executor.diagnostics, command.file, command.line, "jmptable: Expected odd number of arguments");
+      return;
+   }
+   Value value = resolveVariable(executor, arg(executor, command, 0));
+   for (size_t i = 1; i < command.argCount; i += 2) {
+      Value result = resolveVariable(executor, arg(executor, command, i));
+      jumpToLabel(executor, arg(executor, command, i + 1), "jmptable", "destination", command.file, command.line, valuesEqual(executor, command, value, result));
+   }
+}
+
 void builtinCall(const Command &command, Executor &executor) {
    Function &function = executor.functions[arg(executor, command, command.callee).function];
    call(executor, command, function, command.callee, command.callee, command.argCount - command.callee - 1);
@@ -354,12 +367,6 @@ void builtinReturn(const Command &command, Executor &executor) {
    size_t localCount = trace.localCount;
    executor.pointer = trace.position;
    executor.returnCount = command.argCount;
-
-   if (executor.returnCount > executor.returnRegisters.size()) {
-      error(executor.diagnostics, command.file, command.line, "return: Can return at maximum %zu values. Define 'return-register-count %zu' directive to mitigate. Error", executor.returnRegisters.size(), executor.returnCount);
-      executor.stackTrace.pop();
-      return;
-   }
 
    for (size_t i = localStart; i < localStart + localCount; ++i) {
       deallocate(executor, executor.locals[i]);
@@ -388,21 +395,21 @@ void builtinReturn(const Command &command, Executor &executor) {
 
 // types
 void builtinTypeof(const Command &command, Executor &executor) {
-   Value value {VALUE_STRING};
    ValueType type = resolveVariable(executor, arg(executor, command, 0)).type;
+   const char *string;
    switch (type) {
-   case VALUE_INTEGER: value.string = allocateString(executor, "int"); break;
-   case VALUE_FLOATING: value.string = allocateString(executor, "float"); break;
-   case VALUE_CHARACTER: value.string = allocateString(executor, "char"); break;
-   case VALUE_STRING: case VALUE_CSTRING: value.string = allocateString(executor, "string"); break;
-   case VALUE_FUNCTION: value.string = allocateString(executor, "function"); break;
-   case VALUE_LABEL: value.string = allocateString(executor, "label"); break;
-   case VALUE_COUNT: value.string = allocateString(executor, "null"); break;
+   case VALUE_INTEGER: string = "int"; break;
+   case VALUE_FLOATING: string = "float"; break;
+   case VALUE_CHARACTER: string = "char"; break;
+   case VALUE_STRING: case VALUE_CSTRING: string = "string"; break;
+   case VALUE_FUNCTION: string = "function"; break;
+   case VALUE_LABEL: string = "label"; break;
+   case VALUE_COUNT: string = "null"; break;
    default:
       printf("PIL::builtinTypeof: Cannot get the type of value %s.\n", getValueName(type));
       exit(EXIT_FAILURE);
    }
-   storeInRegister(executor, command, value, "typeof");
+   storeString(executor, command, string, "typeof");
 }
 
 void builtinSizeof(const Command &command, Executor &executor) {
@@ -534,8 +541,7 @@ void builtinDate(const Command &command, Executor &executor) {
    tm lt = *std::localtime(&t);
    std::ostringstream stream;
    stream << std::put_time(&lt, str.c_str());
-   std::string result = stream.str();
-   storeString(executor, command, str.c_str(), "date");
+   storeString(executor, command, stream.str().c_str(), "date");
 }
 
 void builtinSleep(const Command &command, Executor &executor) {

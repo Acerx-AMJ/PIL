@@ -110,6 +110,7 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "goto", builtinGoto, 1, false);
    pushBuiltin(executor, "jmp", builtinJmp, 2, false);
    pushBuiltin(executor, "jmpn", builtinJmpn, 2, false);
+   pushBuiltin(executor, "jmptable", builtinJmptable, 3, true);
 
    // types
    pushBuiltin(executor, "typeof", builtinTypeof, 2, false);
@@ -261,6 +262,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
    // real parsing
    size_t returnLexeme = cacheLexeme(executor.cache, "return");
    size_t returnId = executor.constants[returnLexeme].function;
+   size_t returnRegisterCount = (executor.returnRegisters.empty() ? DEFAULT_RETURN_REGISTER_COUNT : executor.returnRegisters.size());
 
    size_t defineLexeme = cacheLexeme(executor.cache, "let");
    size_t callLexeme = cacheLexeme(executor.cache, "call");
@@ -380,6 +382,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
          executor.code.emplace_back(tokens[i].lexeme, tokens[i].file, tokens[i].line, executor.arguments.size(), 0, it->second.function);
          Command &command = executor.code.back();
          bool isCall = (tokens[i].lexeme == callLexeme);
+         bool isReturn = (tokens[i].lexeme == returnLexeme);
          size_t start = i + 1;
 
          for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
@@ -416,6 +419,9 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
             if ((!variadic && args != params) || (variadic && args < params)) {
                error(executor.diagnostics, command.file, command.line, "call: Function '%s' expected %s%zu parameters, but received %zu arguments", getLexeme(executor.cache, function.lexeme).c_str(), (variadic ? ">" : ""), params, args);
             }
+         }
+         else if (isReturn && args > returnRegisterCount) {
+            error(executor.diagnostics, command.file, command.line, "return: Can return at maximum %zu values. Define 'return-register-count %zu' directive to mitigate. Error", returnRegisterCount, args);
          }
       }
    }
