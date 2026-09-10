@@ -1,3 +1,4 @@
+jmp $0, digits-safe
 digits(n)
    neq n, 0, $0
    jmp $0, digits-check-two
@@ -11,6 +12,7 @@ digits-safe:
    incr n
    return n
 
-main()
-   digits 24343.23
+main() let n
+   set 1234567890, n
+   digits n
    printn R$0

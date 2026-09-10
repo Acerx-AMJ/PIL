@@ -13,7 +13,7 @@ void call(Executor &executor, const Command &command, Function &function, size_t
 
       for (size_t i = functionPos + 1; i < functionPos + 1 + function.params.size(); ++i) {
          Value value = resolveVariable(executor, executor.arguments[i + command.argStart]);
-         moveValue(executor, executor.locals[trace.localStart + (i - functionPos - 1)], value);
+         executor.locals[trace.localStart + (i - functionPos - 1)] = value;
       }
       executor.stackTrace.push(trace);
       executor.pointer = function.position - 1;
@@ -55,7 +55,12 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
       executor.returnRegisters.resize(DEFAULT_RETURN_REGISTER_COUNT, Value{VALUE_COUNT});
    }
    executor.locals.reserve(DEFAULT_LOCAL_RESERVE);
+   executor.locals.resize(main.localCount, Value{VALUE_COUNT});
    executor.stackTrace = {};
+   executor.stackTrace.push(Trace(0, main.lexeme, std::string::npos, std::string::npos));
+   executor.stackTrace.top().localStart = 0;
+   executor.stackTrace.top().localCount = main.localCount;
+
    executor.pointer = main.position;
    executor.returnCount = 0;
    executor.exitCalled = false;
@@ -69,4 +74,5 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
       }
       executor.pointer += 1;
    }
+   executor.locals.resize(0);
 }
