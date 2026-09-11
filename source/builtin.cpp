@@ -49,7 +49,7 @@ void builtinSetecho(const Command &command, Executor &executor) {
    setEcho(getBool(executor, command, 0));
 }
 
-// string
+// string ops
 void builtinStringNew(const Command &command, Executor &executor) {
    std::string result;
    for (size_t i = 0; i < command.argCount - 1; ++i) {
@@ -60,6 +60,21 @@ void builtinStringNew(const Command &command, Executor &executor) {
 
 void builtinStringFmt(const Command &command, Executor &executor) {
    storeString(executor, command, format(command, executor, "string-fmt", 1), "string-fmt");
+}
+
+// array ops
+void builtinArrayNew(const Command &command, Executor &executor) {
+   std::vector<Value> values (command.argCount - 1);
+   for (size_t i = 0; i < command.argCount - 1; ++i) {
+      values[i] = resolveVariable(executor, arg(executor, command, i));
+   }
+   storeArray(executor, command, values, "array-new");
+}
+
+void builtinArrayFill(const Command &command, Executor &executor) {
+   size_t count = getNum(executor, command, 0, "array-fill");
+   std::vector<Value> values (count, resolveVariable(executor, arg(executor, command, 1)));
+   storeArray(executor, command, values, "array-fill");
 }
 
 // math

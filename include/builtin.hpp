@@ -11,9 +11,13 @@ void builtinReadline(const Command &command, Executor &executor);
 void builtinReadchar(const Command &command, Executor &executor);
 void builtinSetecho(const Command &command, Executor &executor);
 
-// string
+// string ops
 void builtinStringNew(const Command &command, Executor &executor);
 void builtinStringFmt(const Command &command, Executor &executor);
+
+// array ops
+void builtinArrayNew(const Command &command, Executor &executor);
+void builtinArrayFill(const Command &command, Executor &executor);
 
 // math
 void builtinIncr(const Command &command, Executor &executor);

@@ -7,7 +7,7 @@ move-to-zero(n) let cond, tmp
    jmp cond, move-to-zero-negative
    return 0   
 move-to-zero-positive:
-   add n, -1, tmp
+   sub n, 1, tmp
    return tmp
 move-to-zero-negative:
    add n, 1, tmp
@@ -36,9 +36,9 @@ imul-end:
 main()
    imul 9, 8
    printn R$0
-   imul -2, 4
+   imul [-2], 4
    printn R$0
-   imul -4, -5
+   imul [-4], [-5]
    printn R$0
-   imul 4, -2
+   imul 4, [-2]
    printn R$0

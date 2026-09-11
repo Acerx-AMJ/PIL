@@ -49,9 +49,13 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "readchar", builtinReadchar, 1, false);
    pushBuiltin(executor, "setecho", builtinSetecho, 1, false);
 
-   // string
+   // string ops
    pushBuiltin(executor, "string-new", builtinStringNew, 1, true);
    pushBuiltin(executor, "string-fmt", builtinStringFmt, 2, true);
+
+   // array ops
+   pushBuiltin(executor, "array-new", builtinArrayNew, 1, true);
+   pushBuiltin(executor, "array-fill", builtinArrayFill, 3, false);
 
    // math
    pushBuiltin(executor, "incr", builtinIncr, 1, false);

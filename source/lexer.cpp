@@ -145,18 +145,13 @@ std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILF
          }
          tokens.emplace_back(TOKEN_STRING, pushLexeme(cache, string), file.lexeme, originalLine);
       }
-      else if ((ch == '-' && i + 1 < size && std::isdigit(file.code[i + 1])) || std::isdigit(ch)) {
+      else if (std::isdigit(ch)) {
          std::string number;
-         size_t end = file.code.find_first_not_of(".1234567890", i + 1);
+         size_t end = file.code.find_first_not_of(".1234567890", i);
          if (end == std::string::npos) {
             end = size;
          }
          number.reserve(end - i - 1);
-
-         if (ch == '-') {
-            number.push_back(ch);
-            i += 1;
-         }
          bool dot = false;
 
          for (; i < size && (file.code[i] == '.' || std::isdigit(file.code[i])); ++i) {

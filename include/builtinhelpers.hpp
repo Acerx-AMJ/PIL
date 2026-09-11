@@ -16,6 +16,14 @@ inline void deallocate(Executor &executor, Value &value) {
          value = Value{VALUE_COUNT};
       }
    }
+   else if (value.type == VALUE_ARRAY) {
+      PILArray &array = executor.arrays[value.array];
+      array.allocations -= 1;
+      if (array.allocations <= 0) {
+         executor.arrays.erase(value.array);
+         value = Value{VALUE_COUNT};
+      }
+   }
 }
 
 inline void copyValue(Executor &executor, Value &target, Value &copy) {
@@ -23,6 +31,9 @@ inline void copyValue(Executor &executor, Value &target, Value &copy) {
    target = copy;
    if (target.type == VALUE_STRING) {
       executor.strings[target.string].allocations += 1;
+   }
+   else if (target.type == VALUE_ARRAY) {
+      executor.arrays[target.array].allocations += 1;
    }
 }
 
@@ -128,6 +139,16 @@ inline std::string toString(Executor &executor, Value value, const char *functio
    case VALUE_STRING: return getString(executor, value.string, file, line);
    case VALUE_FUNCTION: return getLexeme(executor.cache, executor.functions[value.function].lexeme) + "()";
    case VALUE_LABEL: return getLexeme(executor.cache, executor.functions[value.label].lexeme) + ":";
+   case VALUE_ARRAY: {
+      std::string result;
+      std::vector<Value> &array = getArray(executor, value.array, file, line);
+      result.reserve(3 + 4 * array.size());
+      result += "[ ";
+      for (Value &arv: array) {
+         result += toString(executor, arv, function, file, line) + ", ";
+      }
+      result += "]";
+   }
    default: return "(null)";
    }
 }
@@ -148,19 +169,33 @@ inline std::string format(const Command &command, Executor &executor, const char
    return result;
 }
 
+inline void printValue(Executor &executor, Value a, size_t file, size_t line) {
+   switch (a.type) {
+   case VALUE_INTEGER: printf("%ld", a.integer); break;
+   case VALUE_FLOATING: printf("%.3F", a.floating); break;
+   case VALUE_CHARACTER: printf("%c", a.character); break;
+   case VALUE_CSTRING: printf("%s", getLexeme(executor.cache, a.string).c_str()); break;
+   case VALUE_STRING: printf("%s", getString(executor, a.string, file, line).c_str()); break;
+   case VALUE_FUNCTION: printf("%s()", getLexeme(executor.cache, executor.functions[a.function].lexeme).c_str()); break;
+   case VALUE_LABEL: printf("%s:", getLexeme(executor.cache, executor.functions[a.label].lexeme).c_str()); break;
+   case VALUE_ARRAY: {
+      printf("[ ");
+      std::vector<Value> &array = getArray(executor, a.array, file, line);
+      for (Value &arv: array) {
+         printValue(executor, arv, file, line);
+         printf(", ");
+      }
+      putchar(']');
+      break;
+   }
+   default: printf("(null)");
+   }
+}
+
 inline void print(const Command &command, Executor &executor, const char *function, size_t file, size_t line) {
    for (size_t i = 0; i < command.argCount; ++i) {
       Value a = resolveVariable(executor, arg(executor, command, i));
-      switch (a.type) {
-      case VALUE_INTEGER: printf("%ld", a.integer); break;
-      case VALUE_FLOATING: printf("%.3F", a.floating); break;
-      case VALUE_CHARACTER: printf("%c", a.character); break;
-      case VALUE_CSTRING: printf("%s", getLexeme(executor.cache, a.string).c_str()); break;
-      case VALUE_STRING: printf("%s", getString(executor, a.string, command.file, command.line).c_str()); break;
-      case VALUE_FUNCTION: printf("%s()", getLexeme(executor.cache, executor.functions[a.function].lexeme).c_str()); break;
-      case VALUE_LABEL: printf("%s:", getLexeme(executor.cache, executor.functions[a.label].lexeme).c_str()); break;
-      default: printf("(null)");
-      }
+      printValue(executor, a, file, line);
    }
 }
 
@@ -218,6 +253,7 @@ inline bool getBool(Executor &executor, const Command &command, size_t i) {
    case VALUE_CHARACTER: return v.character != 0;
    case VALUE_CSTRING: return !getLexeme(executor.cache, v.string).empty();
    case VALUE_STRING: return !getString(executor, v.string, command.file, command.line).empty();
+   case VALUE_ARRAY: return !getArray(executor, v.array, command.file, command.line).empty();
    case VALUE_FUNCTION: return true;
    case VALUE_LABEL: return true;
    case VALUE_COUNT: return false;
@@ -230,6 +266,12 @@ inline bool getBool(Executor &executor, const Command &command, size_t i) {
 inline void storeString(Executor &executor, const Command &command, const std::string &string, const char *function) {
    Value value {VALUE_STRING};
    value.string = allocateString(executor, string);
+   storeInRegister(executor, command, value, function);
+}
+
+inline void storeArray(Executor &executor, const Command &command, const std::vector<Value> &array, const char *function) {
+   Value value {VALUE_ARRAY};
+   value.array = allocateArray(executor, array);
    storeInRegister(executor, command, value, function);
 }
 

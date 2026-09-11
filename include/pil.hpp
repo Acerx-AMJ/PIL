@@ -45,6 +45,11 @@ struct PILString {
    int allocations = 0;
 };
 
+struct PILArray {
+   std::vector<Value> array;
+   int allocations = 0;
+};
+
 struct Executor {
    Executor(Diagnostics &diagnostics, LexemeCache &cache)
       : diagnostics(diagnostics), cache(cache) {}
@@ -58,6 +63,7 @@ struct Executor {
 
    std::unordered_map<size_t, Value> constants;
    std::unordered_map<size_t, PILString> strings;
+   std::unordered_map<size_t, PILArray> arrays;
 
    std::vector<Function> functions;
    std::vector<Value> locals;
@@ -90,6 +96,9 @@ Value evaluateMath(Executor &executor, const std::unordered_map<size_t, Value> &
 // allocation
 std::string &getString(Executor &executor, size_t ID, size_t file, size_t line);
 size_t allocateString(Executor &executor, const std::string &string);
+
+std::vector<Value> &getArray(Executor &executor, size_t ID, size_t file, size_t line);
+size_t allocateArray(Executor &executor, const std::vector<Value> &array);
 
 // debug
 void measure();

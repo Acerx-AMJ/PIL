@@ -1,0 +1,45 @@
+; contains snippets of common code structures such as
+; different kinds of loops. examples do not use registers
+; and can be called without disturbing any state
+for-loop(i, n) let tmp
+   greq i, n, tmp
+   jmp tmp, for-loop-end
+for-loop-start:
+   ; your code here vvv
+   printn i
+   ; your code here ^^^
+   incr i
+   le i, n, tmp
+   jmp tmp, for-loop-start
+for-loop-end:
+
+for-loop-reverse(i, n) let tmp
+   leeq i, n, tmp
+   jmp tmp, for-loop-reverse-end
+for-loop-reverse-start:
+   ; your code here vvv
+   printn i
+   ; your code here ^^^
+   decr i
+   gr i, n, tmp
+   jmp tmp, for-loop-reverse-start
+for-loop-reverse-end:
+
+while-loop() let tmp, i
+   ; purely for example vvv
+   set 0, i
+   ; purely for example ^^^
+   greq i, 5, tmp ; write your own condition
+   jmp tmp, while-loop-end
+while-loop-start:
+   ; your code here vvv
+   printn i
+   incr i
+   ; your code here ^^^
+   greq i, 5, tmp ; write your own condition
+   jmpn tmp, while-loop-start
+while-loop-end:
+
+; test snippets here
+main()
+   for-loop-reverse 10, 0

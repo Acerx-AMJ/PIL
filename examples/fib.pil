@@ -4,8 +4,8 @@ fib(n) let minus1, minus2, fib1, fib2, result
    leeq n, 1, $0
    jmp $0, fib-end
 
-   add n, -1, minus1
-   add n, -2, minus2
+   sub n, 1, minus1
+   sub n, 2, minus2
 
    call fib1, fib, minus1
    call fib2, fib, minus2
@@ -18,10 +18,10 @@ fib-less(n) let r1
    leeq n, 1, $0
    jmp $0, fib-less-end
 
-   add n, -1, $1
+   sub n, 1, $1
    fib, $1
    set R$0, r1
-   add n, -2, $1
+   sub n, 2, $1
    fib, $1
    add r1, R$0, $1
    return $1
