@@ -77,6 +77,17 @@ void builtinCall(const Command &command, Executor &executor);
 void builtinFunccall(const Command &command, Executor &executor);
 void builtinReturn(const Command &command, Executor &executor);
 
+// error handling
+void builtinAssert(const Command &command, Executor &executor);
+void builtinWarn(const Command &command, Executor &executor);
+void builtinError(const Command &command, Executor &executor);
+void builtinExit(const Command &command, Executor &executor);
+void builtinStackdepth(const Command &command, Executor &executor);
+void builtinStackname(const Command &command, Executor &executor);
+void builtinStackline(const Command &command, Executor &executor);
+void builtinStackfile(const Command &command, Executor &executor);
+void builtinStacktrace(const Command &command, Executor &executor);
+
 // types
 void builtinTypeof(const Command &command, Executor &executor);
 void builtinSizeof(const Command &command, Executor &executor);

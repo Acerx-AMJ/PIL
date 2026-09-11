@@ -411,6 +411,64 @@ void builtinReturn(const Command &command, Executor &executor) {
    }
 }
 
+// error handling
+void builtinAssert(const Command &command, Executor &executor) {
+   if (!getBool(executor, command, 0)) {
+      Value value = resolveVariable(executor, arg(executor, command, 1));
+      if (value.type != VALUE_STRING && value.type != VALUE_CSTRING) {
+         error(executor.diagnostics, command.file, command.line, "assert: Expected String as the 2nd argument, got %s instead", getValueName(value.type));
+         return;
+      }
+      const char *msg = (value.type == VALUE_STRING ? getString(executor, value.string, command.file, command.line) : getLexeme(executor.cache, value.string)).c_str();
+      error(executor.diagnostics, 0, 0, msg);
+   }
+}
+
+void builtinWarn(const Command &command, Executor &executor) {
+   Value value = resolveVariable(executor, arg(executor, command, 0));
+   if (value.type != VALUE_STRING && value.type != VALUE_CSTRING) {
+      error(executor.diagnostics, command.file, command.line, "warn: Expected String as the 1st argument, got %s instead", getValueName(value.type));
+      return;
+   }
+   const char *msg = (value.type == VALUE_STRING ? getString(executor, value.string, command.file, command.line) : getLexeme(executor.cache, value.string)).c_str();
+   warn(executor.diagnostics, 0, 0, msg);
+}
+
+void builtinError(const Command &command, Executor &executor) {
+   Value value = resolveVariable(executor, arg(executor, command, 0));
+   if (value.type != VALUE_STRING && value.type != VALUE_CSTRING) {
+      error(executor.diagnostics, command.file, command.line, "error: Expected String as the 1st argument, got %s instead", getValueName(value.type));
+      return;
+   }
+   const char *msg = (value.type == VALUE_STRING ? getString(executor, value.string, command.file, command.line) : getLexeme(executor.cache, value.string)).c_str();
+   error(executor.diagnostics, 0, 0, msg);
+}
+
+void builtinExit(const Command &command, Executor &executor) {
+   double code = getNum(executor, command, 0, "exit");
+   exit(code);
+}
+
+void builtinStackdepth(const Command &command, Executor &executor) {
+   storeNumber(executor, command, executor.stackTrace.size(), false, "stack-depth");
+}
+
+void builtinStackname(const Command &command, Executor &executor) {
+   storeString(executor, command, getLexeme(executor.cache, executor.code[executor.stackTrace.top().position].lexeme), "stack-name");
+}
+
+void builtinStackline(const Command &command, Executor &executor) {
+   storeNumber(executor, command, executor.code[executor.stackTrace.top().position].line, false, "stack-line");
+}
+
+void builtinStackfile(const Command &command, Executor &executor) {
+   storeString(executor, command, getLexeme(executor.cache, executor.code[executor.stackTrace.top().position].file), "stack-line");
+}
+
+void builtinStacktrace(const Command &command, Executor &executor) {
+   logStackTrace(executor, SEVERITY_NONE);
+}
+
 // types
 void builtinTypeof(const Command &command, Executor &executor) {
    ValueType type = resolveVariable(executor, arg(executor, command, 0)).type;

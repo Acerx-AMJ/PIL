@@ -113,6 +113,17 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "jmptable", builtinJmptable, 3, true);
    pushBuiltin(executor, "func-call", builtinFunccall, 1, true);
 
+   // error handling
+   pushBuiltin(executor, "error", builtinError, 1, false);
+   pushBuiltin(executor, "warn", builtinWarn, 1, false);
+   pushBuiltin(executor, "assert", builtinAssert, 2, false);
+   pushBuiltin(executor, "exit", builtinExit, 1, false);
+   pushBuiltin(executor, "stack-depth", builtinStackdepth, 1, false);
+   pushBuiltin(executor, "stack-name", builtinStackname, 1, false);
+   pushBuiltin(executor, "stack-line", builtinStackline, 1, false);
+   pushBuiltin(executor, "stack-file", builtinStackfile, 1, false);
+   pushBuiltin(executor, "stack-trace", builtinStacktrace, 0, false);
+
    // types
    pushBuiltin(executor, "typeof", builtinTypeof, 2, false);
    pushBuiltin(executor, "sizeof", builtinSizeof, 2, false);
