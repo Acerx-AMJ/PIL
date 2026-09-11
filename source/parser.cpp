@@ -51,7 +51,7 @@ void defineStandardBuiltins(Executor &executor) {
 
    // string
    pushBuiltin(executor, "string-new", builtinStringNew, 1, true);
-   pushBuiltin(executor, "format", builtinFormat, 2, true);
+   pushBuiltin(executor, "string-fmt", builtinStringFmt, 2, true);
 
    // math
    pushBuiltin(executor, "incr", builtinIncr, 1, false);
@@ -145,6 +145,9 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "swap", builtinSwap, 2, false);
    pushBuiltin(executor, "set", builtinSet, 2, false);
    pushBuiltin(executor, "valtable", builtinValTable, 4, true);
+   pushBuiltin(executor, "table-contains", builtinTableContains, 3, true);
+   pushBuiltin(executor, "variadic-count", builtinVariadicCount, 1, false);
+   pushBuiltin(executor, "variadic-idx", builtinVariadicIdx, 2, false);
 
    // reserved built-ins. must always be there.
    pushReservedBuiltin(executor, "return", builtinReturn, 0, true);
@@ -300,25 +303,25 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
          functionParamMap.clear();
 
          for (i += 2; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_R_PAREN; ++i) {
-            if (tokens[i + 1].type == TOKEN_VARIADIC) {
+            if (tokens[i].type == TOKEN_VARIADIC) {
                variadic = true;
-               i += 2;
+               i += 1;
                break;
             }
 
             if (tokens[i].type != TOKEN_IDENTIFIER) {
-               error(executor.diagnostics, tokens[i].file, tokens[i].line, "Function parameters: expected Identifier, got %s instead", getTokenName(tokens[i].type));
+               error(executor.diagnostics, tokens[i].file, tokens[i].line, "Expected Identifier, got %s instead", getTokenName(tokens[i].type));
             }
 
             if (functionParamMap.find(tokens[i].lexeme) != functionParamMap.end() || executor.constants.find(tokens[i].lexeme) != executor.constants.end()) {
-               error(executor.diagnostics, tokens[i].file, tokens[i].line, "Function parameters: redefined parameter '%s'", getLexeme(executor.cache, tokens[i].lexeme).c_str());
+               error(executor.diagnostics, tokens[i].file, tokens[i].line, "Redefined function parameter '%s'", getLexeme(executor.cache, tokens[i].lexeme).c_str());
             }
             function.params.push_back(tokens[i].lexeme);
             functionParamMap[tokens[i].lexeme] = functionParamMap.size();
          }
 
          if (variadic && tokens[i].type != TOKEN_R_PAREN) {
-            error(executor.diagnostics, tokens[i].file, tokens[i].line, "Function parameters: variadic parameter should be at the end of the parameter list");
+            error(executor.diagnostics, tokens[i].file, tokens[i].line, "Variadic parameter (...) should be at the end of the parameter list");
          }
          else if (!variadic && tokens[i].type != TOKEN_R_PAREN) {
             error(executor.diagnostics, tokens[start].file, tokens[start].line, "Unterminated function parameters");

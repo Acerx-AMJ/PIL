@@ -16,15 +16,15 @@ struct PILFile {
 };
 
 struct Trace {
-   Trace(size_t position, size_t lexeme, size_t callArgStart, size_t callArgCount)
-      : position(position), lexeme(lexeme), callArgStart(callArgStart), callArgCount(callArgCount) {}
+   Trace(size_t position, size_t callArgStart, size_t callArgCount)
+      : position(position), callArgStart(callArgStart), callArgCount(callArgCount) {}
 
    size_t position;
-   size_t lexeme;
    size_t callArgStart;
    size_t callArgCount;
    size_t localStart;
    size_t localCount;
+   size_t variadicCount;
 };
 
 struct Command {

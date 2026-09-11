@@ -58,8 +58,8 @@ void builtinStringNew(const Command &command, Executor &executor) {
    storeString(executor, command, result, "string-new");
 }
 
-void builtinFormat(const Command &command, Executor &executor) {
-   storeString(executor, command, format(command, executor, "format", 1), "format");
+void builtinStringFmt(const Command &command, Executor &executor) {
+   storeString(executor, command, format(command, executor, "string-fmt", 1), "string-fmt");
 }
 
 // math
@@ -326,29 +326,28 @@ void builtinNot(const Command &command, Executor &executor) {
 
 // control flow
 void builtinGoto(const Command &command, Executor &executor) {
-   jumpToLabel(executor, arg(executor, command, 0), "goto", "1st", command.file, command.line, true);
+   jumpToLabel(executor, resolveVariable(executor, arg(executor, command, 0)), "goto", "1st", command.file, command.line, true);
 }
 
 void builtinJmp(const Command &command, Executor &executor) {
-   jumpToLabel(executor, arg(executor, command, 1), "jmp", "2nd", command.file, command.line, getBool(executor, command, 0));
+   jumpToLabel(executor, resolveVariable(executor, arg(executor, command, 1)), "jmp", "2nd", command.file, command.line, getBool(executor, command, 0));
 }
 
 void builtinJmpn(const Command &command, Executor &executor) {
-   jumpToLabel(executor, arg(executor, command, 1), "jmpn", "2nd", command.file, command.line, !getBool(executor, command, 0));
+   jumpToLabel(executor, resolveVariable(executor, arg(executor, command, 1)), "jmpn", "2nd", command.file, command.line, !getBool(executor, command, 0));
 }
 
 void builtinJmptable(const Command &command, Executor &executor) {
-   if (command.argCount % 2 != 1) {
-      error(executor.diagnostics, command.file, command.line, "jmptable: Expected odd number of arguments");
-      return;
-   }
    Value value = resolveVariable(executor, arg(executor, command, 0));
    for (size_t i = 1; i < command.argCount; i += 2) {
       Value result = resolveVariable(executor, arg(executor, command, i));
       if (valuesEqual(executor, command, value, result)) {
-         jumpToLabel(executor, arg(executor, command, i + 1), "jmptable", "destination", command.file, command.line, true);
-         break;
+         jumpToLabel(executor, resolveVariable(executor, arg(executor, command, i + 1)), "jmptable", "destination", command.file, command.line, true);
+         return;
       }
+   }
+   if (command.argCount % 2 != 1) {
+      jumpToLabel(executor, resolveVariable(executor, back(executor, command)), "jmptable", "destination", command.file, command.line, true);
    }
 }
 
@@ -383,15 +382,11 @@ void builtinReturn(const Command &command, Executor &executor) {
       executor.exitCalled = true;
       return;
    }
-   Trace &trace = executor.stackTrace.top();
-   size_t callArgStart = trace.callArgStart;
-   size_t callArgCount = trace.callArgCount;
-   size_t localStart = trace.localStart;
-   size_t localCount = trace.localCount;
+   Trace trace = executor.stackTrace.top();
    executor.pointer = trace.position;
    executor.returnCount = command.argCount;
 
-   for (size_t i = localStart; i < localStart + localCount; ++i) {
+   for (size_t i = trace.localStart; i < trace.localStart + trace.localCount + trace.variadicCount; ++i) {
       deallocate(executor, executor.locals[i]);
    }
 
@@ -399,18 +394,18 @@ void builtinReturn(const Command &command, Executor &executor) {
       Value value = resolveVariable(executor, arg(executor, command, i));
       moveValue(executor, executor.returnRegisters[i], value);
    }
-   executor.locals.resize(localStart);
+   executor.locals.resize(trace.localStart);
    executor.stackTrace.pop();
 
    // call shenanigans
-   if (callArgCount != std::string::npos) {
-      if (executor.returnCount != callArgCount) {
-         warn(executor.diagnostics, command.file, command.line, "call: Expected %zu return values, but got %zu instead", callArgCount, executor.returnCount);
+   if (trace.callArgCount != std::string::npos) {
+      if (executor.returnCount != trace.callArgCount) {
+         warn(executor.diagnostics, command.file, command.line, "call: Expected %zu return values, but got %zu instead", trace.callArgCount, executor.returnCount);
       }
 
-      size_t count = std::min(executor.returnCount, callArgCount);
+      size_t count = std::min(executor.returnCount, trace.callArgCount);
       for (size_t i = 0; i < count; ++i) {
-         Value reg = executor.arguments[callArgStart + i];
+         Value reg = executor.arguments[trace.callArgStart + i];
          storeInRegister(executor, command, reg, executor.returnRegisters[i], "call");
       }
    }
@@ -508,8 +503,17 @@ void builtinToint(const Command &command, Executor &executor) {
    case VALUE_INTEGER: integer.integer = value.integer; break;
    case VALUE_FLOATING: integer.integer = value.floating; break;
    case VALUE_CHARACTER: integer.integer = value.character; break;
-   case VALUE_STRING: try { integer.integer = std::stol(getString(executor, value.string, command.file, command.line)); } catch (...) { integer.type = VALUE_COUNT; }; break;
-   case VALUE_CSTRING: try { integer.integer = std::stol(getLexeme(executor.cache, value.string)); } catch (...) { integer.type = VALUE_COUNT; }; break;
+   case VALUE_STRING: case VALUE_CSTRING: {
+      const std::string &str = (value.type == VALUE_STRING ? getString(executor, value.string, command.file, command.line) : getLexeme(executor.cache, value.string));
+      try {
+         size_t pos = 0;
+         long result = std::stol(str, &pos);
+         if (pos != str.size() || str.empty() || std::isspace(str.front())) integer.type = VALUE_COUNT;
+         else integer.integer = result;
+      }
+      catch (...) { integer.type = VALUE_COUNT; }
+      break;
+   }
    default: error(executor.diagnostics, command.file, command.line, "to-int: Cannot convert %s to Integer", getValueName(value.type));
    }
    storeInRegister(executor, command, integer, "to-int");
@@ -522,8 +526,17 @@ void builtinTofloat(const Command &command, Executor &executor) {
    case VALUE_INTEGER: floating.floating = value.integer; break;
    case VALUE_FLOATING: floating.floating = value.floating; break;
    case VALUE_CHARACTER: floating.floating = value.character; break;
-   case VALUE_STRING: try { floating.floating = std::stod(getString(executor, value.string, command.file, command.line)); } catch (...) { floating.type = VALUE_COUNT; }; break;
-   case VALUE_CSTRING: try { floating.floating = std::stod(getLexeme(executor.cache, value.string)); } catch (...) { floating.type = VALUE_COUNT; }; break;
+   case VALUE_STRING: case VALUE_CSTRING: {
+      const std::string &str = (value.type == VALUE_STRING ? getString(executor, value.string, command.file, command.line) : getLexeme(executor.cache, value.string));
+      try {
+         size_t pos = 0;
+         long result = std::stod(str, &pos);
+         if (pos != str.size() || str.empty() || std::isspace(str.front())) floating.type = VALUE_COUNT;
+         else floating.floating = result;
+      }
+      catch (...) { floating.type = VALUE_COUNT; }
+      break;
+   }
    default: error(executor.diagnostics, command.file, command.line, "to-float: Cannot convert %s to Floating", getValueName(value.type));
    }
    storeInRegister(executor, command, floating, "to-float");
@@ -554,7 +567,7 @@ void builtinUnixTime(const Command &command, Executor &executor) {
 }
 
 void builtinDate(const Command &command, Executor &executor) {
-   Value string = arg(executor, command, 0);
+   Value string = resolveVariable(executor, arg(executor, command, 0));
    if (string.type != VALUE_CSTRING && string.type != VALUE_STRING) {
       error(executor.diagnostics, command.file, command.line, "date: Expected String for the 1st argument, got %s instead", getValueName(string.type));
       return;
@@ -621,10 +634,6 @@ void builtinSet(const Command &command, Executor &executor) {
 }
 
 void builtinValTable(const Command &command, Executor &executor) {
-   if (command.argCount % 2 != 0) {
-      error(executor.diagnostics, command.file, command.line, "valtable: Expected even number of arguments");
-      return;
-   }
    Value value = resolveVariable(executor, arg(executor, command, 0));
    Value dest = arg(executor, command, 1);
    for (size_t i = 2; i < command.argCount; i += 2) {
@@ -634,5 +643,37 @@ void builtinValTable(const Command &command, Executor &executor) {
          return;
       }
    }
-   storeInRegister(executor, command, dest, Value{VALUE_COUNT}, "valtable");
+   Value defaultValue = (command.argCount % 2 != 0 ? resolveVariable(executor, back(executor, command)) : Value{VALUE_COUNT});
+   storeInRegister(executor, command, dest, defaultValue, "valtable");
+}
+
+void builtinTableContains(const Command &command, Executor &executor) {
+   Value value = resolveVariable(executor, arg(executor, command, 0));
+   Value dest = arg(executor, command, 1);
+   for (size_t i = 2; i < command.argCount; ++i) {
+      Value result = resolveVariable(executor, arg(executor, command, i));
+      if (valuesEqual(executor, command, value, result)) {
+         Value value {VALUE_INTEGER};
+         value.integer = 1;
+         storeInRegister(executor, command, dest, value, "table-contains");
+         return;
+      }
+   }
+   Value returnValue {VALUE_INTEGER};
+   returnValue.integer = 0;
+   storeInRegister(executor, command, dest, returnValue, "table-contains");
+}
+
+void builtinVariadicCount(const Command &command, Executor &executor) {
+   storeNumber(executor, command, executor.stackTrace.top().variadicCount, false, "variadic-count");
+}
+
+void builtinVariadicIdx(const Command &command, Executor &executor) {
+   size_t id = getNum(executor, command, 0, "vararg-idx");
+   Trace &trace = executor.stackTrace.top();
+   if (id < 0 || id >= trace.variadicCount) {
+      error(executor.diagnostics, command.file, command.line, "vararg-idx: Index %zu is out of bounds", id);
+      return;
+   }
+   storeInRegister(executor, command, executor.locals[trace.localStart + trace.localCount + id], "vararg-idx");
 }

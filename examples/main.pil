@@ -1,19 +1,19 @@
-advanced-math(a, b, r)
-   neg b, $0
-   mul a, $0, $0
-   add a, b, $0, $0
-   return $0
-
-math(a, b, f)
-   func-call f, a, b, r$0
-   return r$0
+list(a, ...) let count, i
+   variadic-count count
+   set 0, i
+   printfn "{} ({} elements): ", a, count
+   greq i, count, $0
+   jmpn $0, list-loop
+   return
+list-loop:
+   variadic-idx i, $0
+   printn "* ", $0
+   incr i
+   greq i, count, $0
+   jmpn $0, list-loop
+   return
 
 main()
-   math 10, 20, add
-   printn r$0
-
-   math 20, 7.5, sub
-   printn r$0
-
-   math 10, 5, advanced-math
-   printn r$0
+   list "my-list"
+   list "my-second-list", 1, 2, 3
+   list "my-third-list", 5, 3, 90, "hi", main, list-loop, 243.43, '\t'

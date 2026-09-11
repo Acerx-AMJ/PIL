@@ -13,7 +13,7 @@ void builtinSetecho(const Command &command, Executor &executor);
 
 // string
 void builtinStringNew(const Command &command, Executor &executor);
-void builtinFormat(const Command &command, Executor &executor);
+void builtinStringFmt(const Command &command, Executor &executor);
 
 // math
 void builtinIncr(const Command &command, Executor &executor);
@@ -105,7 +105,10 @@ void builtinRandom(const Command &command, Executor &executor);
 void builtinRandfRange(const Command &command, Executor &executor);
 void builtinRandiRange(const Command &command, Executor &executor);
 
-// variables/registers
+// variables/registers/values
 void builtinSwap(const Command &command, Executor &executor);
 void builtinSet(const Command &command, Executor &executor);
 void builtinValTable(const Command &command, Executor &executor);
+void builtinTableContains(const Command &command, Executor &executor);
+void builtinVariadicCount(const Command &command, Executor &executor);
+void builtinVariadicIdx(const Command &command, Executor &executor);

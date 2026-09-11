@@ -8,14 +8,25 @@ void call(Executor &executor, const Command &command, Function &function, size_t
    }
    else if (!function.isLabel) {
       // printf("called %s @ %s:%zu. Stack trace: %zu.\n", getLexeme(executor.cache, function.lexeme).c_str(), getLexeme(executor.cache, executor.code[function.position].file).c_str(), executor.code[function.position].line, executor.stackTrace.size());
-      Trace trace (executor.pointer, command.lexeme, command.argStart, returnCount);
+      size_t params = function.params.size();
+      size_t offset = command.argStart + functionPos + 1;
+
+      Trace trace (executor.pointer, command.argStart, returnCount);
       trace.localStart = executor.locals.size();
       trace.localCount = function.localCount;
-      executor.locals.resize(trace.localStart + trace.localCount, Value{VALUE_COUNT});
+      trace.variadicCount = command.argCount - params;
+      executor.locals.resize(trace.localStart + trace.localCount + trace.variadicCount, Value{VALUE_COUNT});
 
-      for (size_t i = functionPos + 1; i < functionPos + 1 + function.params.size(); ++i) {
-         Value value = resolveVariable(executor, executor.arguments[i + command.argStart]);
-         executor.locals[trace.localStart + (i - functionPos - 1)] = value;
+      for (size_t i = 0; i < params; ++i) {
+         Value value = resolveVariable(executor, executor.arguments[i + offset]);
+         executor.locals[trace.localStart + i] = value;
+      }
+      if (function.variadic) {
+         size_t defines = function.localCount - params;
+         for (size_t i = trace.localCount; i < trace.localCount + trace.variadicCount; ++i) {
+            Value value = resolveVariable(executor, executor.arguments[i + offset - defines]);
+            executor.locals[trace.localStart + i] = value;
+         }
       }
       executor.stackTrace.push(trace);
       executor.pointer = function.position - 1;
@@ -58,10 +69,12 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
    }
    executor.locals.reserve(DEFAULT_LOCAL_RESERVE);
    executor.locals.resize(main.localCount, Value{VALUE_COUNT});
+
    executor.stackTrace = {};
-   executor.stackTrace.push(Trace(0, main.lexeme, std::string::npos, std::string::npos));
+   executor.stackTrace.push(Trace(main.position, std::string::npos, std::string::npos));
    executor.stackTrace.top().localStart = 0;
    executor.stackTrace.top().localCount = main.localCount;
+   executor.stackTrace.top().variadicCount = 0;
 
    executor.pointer = main.position;
    executor.returnCount = 0;

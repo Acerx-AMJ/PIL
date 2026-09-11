@@ -85,7 +85,7 @@ void logStackTrace(Executor &executor, ErrorSeverity quitSeverity) {
       executor.stackTrace.pop();
    
       Command &command = executor.code[trace.position];
-      const char *functionLexeme = getLexeme(executor.cache, trace.lexeme).c_str();
+      const char *functionLexeme = getLexeme(executor.cache, executor.code[trace.position].lexeme).c_str();
       const char *fileLexeme = getLexeme(executor.cache, command.file).c_str();
       printf("%s:%zu @ %s:%zu.\n", functionLexeme, trace.position, fileLexeme, command.line);
    }
