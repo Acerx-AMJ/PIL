@@ -84,6 +84,9 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens);
 void call(Executor &executor, const Command &command, Function &function, size_t functionPos, size_t returnCount, size_t argCount);
 void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity stopSeverity);
 
+// mathematical expression evaluator
+Value evaluateMath(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i);
+
 // allocation
 std::string &getString(Executor &executor, size_t ID, size_t file, size_t line);
 size_t allocateString(Executor &executor, const std::string &string);

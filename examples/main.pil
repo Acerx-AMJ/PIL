@@ -1,13 +1,17 @@
-list(a, ...) let count, i
-   variadic-count count
+const a [2 * 1024]
+const b [a / 2]
+const c [30 - 20 + 10]
+
+list(str, ...) let count, i
+   variadic-size count
    set 0, i
-   printfn "{} ({} elements): ", a, count
+   printfn "{} ({} elements): ", str, count
    greq i, count, $0
    jmpn $0, list-loop
    return
 list-loop:
    variadic-idx i, $0
-   printn "* ", $0
+   print "* ", $0, '\n'
    incr i
    greq i, count, $0
    jmpn $0, list-loop
@@ -16,4 +20,5 @@ list-loop:
 main()
    list "my-list"
    list "my-second-list", 1, 2, 3
-   list "my-third-list", 5, 3, 90, "hi", main, list-loop, 243.43, '\t'
+   list "my-third-list", a, b, c, [2 ^ 16], "hi", main, list-loop, 243.43, '\t'
+   list "constant brackets", [5 % 2], [10 / 3.], [2 ^ 2 + 2], [2 ^ (2 + 2)], [10 / 0]

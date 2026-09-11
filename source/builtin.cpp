@@ -664,8 +664,8 @@ void builtinTableContains(const Command &command, Executor &executor) {
    storeInRegister(executor, command, dest, returnValue, "table-contains");
 }
 
-void builtinVariadicCount(const Command &command, Executor &executor) {
-   storeNumber(executor, command, executor.stackTrace.top().variadicCount, false, "variadic-count");
+void builtinVariadicSize(const Command &command, Executor &executor) {
+   storeNumber(executor, command, executor.stackTrace.top().variadicCount, false, "variadic-size");
 }
 
 void builtinVariadicIdx(const Command &command, Executor &executor) {

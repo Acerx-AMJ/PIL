@@ -146,7 +146,7 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "set", builtinSet, 2, false);
    pushBuiltin(executor, "valtable", builtinValTable, 4, true);
    pushBuiltin(executor, "table-contains", builtinTableContains, 3, true);
-   pushBuiltin(executor, "variadic-count", builtinVariadicCount, 1, false);
+   pushBuiltin(executor, "variadic-size", builtinVariadicSize, 1, false);
    pushBuiltin(executor, "variadic-idx", builtinVariadicIdx, 2, false);
 
    // reserved built-ins. must always be there.
@@ -365,8 +365,13 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
             error(executor.diagnostics, tokens[i].file, tokens[i].line, "Expected a constant value in the constant declaration, got %s instead", getTokenName(tokens[i].type));
             continue;
          }
-         Value value = parseToken(executor, tokens[i], {}, executor.constants); // functionParamMap handles runtime values, not constants
-         executor.constants[lexeme] = value;
+
+         if (type == TOKEN_L_BRACKET) {
+            executor.constants[lexeme] = evaluateMath(executor, executor.constants, tokens, i);
+         }
+         else {
+            executor.constants[lexeme] = parseToken(executor, tokens[i], {}, executor.constants); // functionParamMap handles runtime values, not constants;
+         }
       }
       // function calls
       else {
@@ -391,7 +396,14 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
          size_t start = i + 1;
 
          for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
-            Value value = parseToken(executor, tokens[i], functionParamMap, executor.constants);
+            Value value;
+            if (tokens[i].type == TOKEN_L_BRACKET) {
+               value = evaluateMath(executor, executor.constants, tokens, i);
+            }
+            else {
+               value = parseToken(executor, tokens[i], functionParamMap, executor.constants);
+            }
+
             if (isCall && value.type == VALUE_FUNCTION) {
                if (command.callee != std::string::npos) {
                   error(executor.diagnostics, command.file, command.line, "call: Cannot call multiple functions in a single call");

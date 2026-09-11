@@ -64,6 +64,30 @@ std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILF
       else if (ch == ':') {
          tokens.emplace_back(TOKEN_LABEL, cacheLexeme(cache, ":"), file.lexeme, line);
       }
+      else if (ch == '[') {
+         tokens.emplace_back(TOKEN_L_BRACKET, cacheLexeme(cache, "["), file.lexeme, line);
+      }
+      else if (ch == ']') {
+         tokens.emplace_back(TOKEN_R_BRACKET, cacheLexeme(cache, "]"), file.lexeme, line);
+      }
+      else if (ch == '+') {
+         tokens.emplace_back(TOKEN_PLUS, cacheLexeme(cache, "+"), file.lexeme, line);
+      }
+      else if (ch == '-') {
+         tokens.emplace_back(TOKEN_MINUS, cacheLexeme(cache, "-"), file.lexeme, line);
+      }
+      else if (ch == '*') {
+         tokens.emplace_back(TOKEN_STAR, cacheLexeme(cache, "*"), file.lexeme, line);
+      }
+      else if (ch == '/') {
+         tokens.emplace_back(TOKEN_SLASH, cacheLexeme(cache, "/"), file.lexeme, line);
+      }
+      else if (ch == '%') {
+         tokens.emplace_back(TOKEN_PERCENT, cacheLexeme(cache, "%"), file.lexeme, line);
+      }
+      else if (ch == '^') {
+         tokens.emplace_back(TOKEN_CARET, cacheLexeme(cache, "^"), file.lexeme, line);
+      }
       else if (i + 2 < size && ch == '.' && file.code[i+1] == '.' && file.code[i+2] == '.') {
          tokens.emplace_back(TOKEN_VARIADIC, cacheLexeme(cache, "..."), file.lexeme, line);
          i += 2;
@@ -173,8 +197,8 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
    size_t size = tokens.size();
 
    size_t includeLexeme = cacheLexeme(executor.cache, "include");
-   size_t registerLexeme = cacheLexeme(executor.cache, "register-count");
-   size_t returnRegisterLexeme = cacheLexeme(executor.cache, "return-register-count");
+   size_t registerLexeme = cacheLexeme(executor.cache, "register-size");
+   size_t returnRegisterLexeme = cacheLexeme(executor.cache, "return-register-size");
 
    for (size_t i = 0; i < size; ++i) {
       // handle includes

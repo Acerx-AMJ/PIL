@@ -110,5 +110,5 @@ void builtinSwap(const Command &command, Executor &executor);
 void builtinSet(const Command &command, Executor &executor);
 void builtinValTable(const Command &command, Executor &executor);
 void builtinTableContains(const Command &command, Executor &executor);
-void builtinVariadicCount(const Command &command, Executor &executor);
+void builtinVariadicSize(const Command &command, Executor &executor);
 void builtinVariadicIdx(const Command &command, Executor &executor);
