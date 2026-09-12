@@ -9,14 +9,16 @@ int main(int argc, char *argv[]) {
    LexemeCache cache;
    Diagnostics diagnostics;
    Executor executor (diagnostics, cache);
+   std::vector<Token> tokens;
+   PILFile file;
 
    measure();
-   PILFile file = readPIL(diagnostics, cache, argv[1]);
+   readPIL(diagnostics, cache, argv[1], file, 0, 0);
    log(cache, diagnostics, SEVERITY_ERROR);
    float readTime = measureEnd();
 
    measure();
-   std::vector<Token> tokens = lexPILFile(diagnostics, cache, file);
+   lexPILFile(diagnostics, cache, file, tokens);
    log(cache, diagnostics, SEVERITY_ERROR);
    file.code.clear(); // free up memory for the includes, which will read more files
    file.code.shrink_to_fit();

@@ -14,7 +14,7 @@ void call(Executor &executor, const Command &command, Function &function, size_t
       Trace trace (executor.pointer, command.argStart, returnCount);
       trace.localStart = executor.locals.size();
       trace.localCount = function.localCount;
-      trace.variadicCount = command.argCount - params;
+      trace.variadicCount = args - params;
       executor.locals.resize(trace.localStart + trace.localCount + trace.variadicCount, NULL_VALUE);
 
       for (size_t i = 0; i < params; ++i) {

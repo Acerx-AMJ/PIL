@@ -75,8 +75,8 @@ struct Executor {
    bool exitCalled;
 };
 
-PILFile readPIL(Diagnostics &diagnostics, LexemeCache &cache, const std::string &path);
-std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file);
+void readPIL(Diagnostics &diagnostics, LexemeCache &cache, const std::string &path, PILFile &file, size_t fileLexeme, size_t line);
+void lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, std::vector<Token> &tokens);
 void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens);
 
 void pushBuiltin(Executor &executor, const struct BuiltinDef &def);
@@ -92,7 +92,6 @@ Value evaluateMath(Executor &executor, const std::unordered_map<size_t, Value> &
 // allocation
 std::string &getString(Executor &executor, size_t ID, size_t file, size_t line);
 size_t allocateString(Executor &executor, const std::string &string);
-
 std::vector<Value> &getArray(Executor &executor, size_t ID, size_t file, size_t line);
 size_t allocateArray(Executor &executor, const std::vector<Value> &array);
 
