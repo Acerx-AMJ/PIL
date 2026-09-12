@@ -783,6 +783,7 @@ void builtinTypeof(const Command &command, Executor &executor) {
    case VALUE_FLOATING: string = "float"; break;
    case VALUE_CHARACTER: string = "char"; break;
    case VALUE_STRING: case VALUE_CSTRING: string = "string"; break;
+   case VALUE_ARRAY: string = "array"; break;
    case VALUE_FUNCTION: string = "function"; break;
    case VALUE_LABEL: string = "label"; break;
    case VALUE_COUNT: string = "null"; break;

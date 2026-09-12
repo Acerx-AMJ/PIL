@@ -79,11 +79,7 @@ PILFile readPIL(Diagnostics &diagnostics, LexemeCache &cache, const std::string 
 std::vector<Token> lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file);
 void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens);
 
-void pushBuiltin(Executor &executor, const std::string &lexeme, NativeFunction function, size_t paramCount, bool variadic);
-void pushReservedBuiltin(Executor &executor, const std::string &lexeme, NativeFunction function, size_t paramCount, bool variadic);
-void defineStandardBuiltins(Executor &executor);
-void defineReservedBuiltins(Executor &executor);
-
+void pushBuiltin(Executor &executor, const struct BuiltinDef &def);
 Value parseToken(Executor &executor, Token token, const std::unordered_map<size_t, size_t> &functionParamMap, const std::unordered_map<size_t, Value> &constants);
 void parsePIL(Executor &executor, std::vector<Token> &tokens);
 

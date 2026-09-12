@@ -1,204 +1,43 @@
 #include "builtin.hpp"
 #include "pil.hpp"
 
-// we only define built-in functions that actually get used. thanks, cache. return is a special built-in that is always pushed.
-void pushBuiltin(Executor &executor, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
-   if (auto it = executor.cache.lexemeCache.find(lexeme); it != executor.cache.lexemeCache.end()) {
+// we only define built-in functions that actually get used. thanks, cache. there are reserved built-ins that
+// always get pushed
+void pushBuiltin(Executor &executor, const BuiltinDef &def) {
+   if (def.reserved) {
+      size_t functionId = executor.functions.size();
+      size_t cached = cacheLexeme(executor.cache, def.name);
+
+      Function function;
+      function.init = true;
+      function.native = true;
+      function.variadic = def.variadic;
+      function.lexeme = cached;
+      function.params.resize(def.params);
+      function.nativeFunction = def.fn;
+
+      Value value {VALUE_FUNCTION};
+      value.function = functionId;
+      executor.functions.push_back(function);
+      executor.constants[cached] = value;
+      return;
+   }
+
+   if (auto it = executor.cache.lexemeCache.find(def.name); it != executor.cache.lexemeCache.end()) {
       size_t functionId = executor.functions.size();
       Function function;
       function.init = true;
       function.native = true;
-      function.variadic = variadic;
+      function.variadic = def.variadic;
       function.lexeme = it->second;
-      function.params.resize(paramCount);
-      function.nativeFunction = func;
+      function.params.resize(def.params);
+      function.nativeFunction = def.fn;
 
       Value value {VALUE_FUNCTION};
       value.function = functionId;
       executor.functions.push_back(function);
       executor.constants[it->second] = value;
    }
-}
-
-void pushReservedBuiltin(Executor &executor, const std::string &lexeme, NativeFunction func, size_t paramCount, bool variadic) {
-   size_t functionId = executor.functions.size();
-   size_t cached = cacheLexeme(executor.cache, lexeme);
-
-   Function function;
-   function.init = true;
-   function.native = true;
-   function.variadic = variadic;
-   function.lexeme = cached;
-   function.params.resize(paramCount);
-   function.nativeFunction = func;
-
-   Value value {VALUE_FUNCTION};
-   value.function = functionId;
-   executor.functions.push_back(function);
-   executor.constants[cached] = value;
-}
-
-void defineStandardBuiltins(Executor &executor) {
-   // output
-   pushBuiltin(executor, "print", builtinPrint, 1, true);
-   pushBuiltin(executor, "printn", builtinPrintn, 1, true);
-   pushBuiltin(executor, "printf", builtinPrintf, 1, true);
-   pushBuiltin(executor, "printfn", builtinPrintfn, 1, true);
-   pushBuiltin(executor, "read", builtinRead, 1, false);
-   pushBuiltin(executor, "readline", builtinReadline, 1, false);
-   pushBuiltin(executor, "readchar", builtinReadchar, 1, false);
-   pushBuiltin(executor, "setecho", builtinSetecho, 1, false);
-
-   // string ops
-   pushBuiltin(executor, "string-new", builtinStringNew, 1, true);
-   pushBuiltin(executor, "string-fmt", builtinStringFmt, 2, true);
-
-   // array ops
-   pushBuiltin(executor, "array-new", builtinArrayNew, 1, true);
-   pushBuiltin(executor, "array-fill", builtinArrayFill, 3, false);
-   pushBuiltin(executor, "array-iota", builtinArrayIota, 3, false);
-   pushBuiltin(executor, "array-clear", builtinArrayClear, 1, false);
-   pushBuiltin(executor, "array-memfree", builtinArrayMemFree, 1, false);
-   pushBuiltin(executor, "array-empty", builtinArrayEmpty, 2, false);
-   pushBuiltin(executor, "array-size", builtinArraySize, 2, false);
-   pushBuiltin(executor, "array-capacity", builtinArrayCapacity, 2, false);
-   pushBuiltin(executor, "array-reserve", builtinArrayReserve, 2, false);
-   pushBuiltin(executor, "array-resize", builtinArrayResize, 3, false);
-   pushBuiltin(executor, "array-set", builtinArraySet, 3, false);
-   pushBuiltin(executor, "array-idx", builtinArrayIdx, 3, false);
-   pushBuiltin(executor, "array-back", builtinArrayBack, 2, false);
-   pushBuiltin(executor, "array-front", builtinArrayFront, 2, false);
-   pushBuiltin(executor, "array-push", builtinArrayPush, 2, false);
-   pushBuiltin(executor, "array-insert", builtinArrayInsert, 3, false);
-   pushBuiltin(executor, "array-pop", builtinArrayPop, 1, false);
-   pushBuiltin(executor, "array-erase", builtinArrayErase, 2, false);
-   pushBuiltin(executor, "array-free", builtinArrayFree, 1, true);
-   pushBuiltin(executor, "array-deep-free", builtinArrayDeepFree, 1, true);
-   pushBuiltin(executor, "array-mark", builtinArrayMark, 2, false);
-   pushBuiltin(executor, "array-free-marked", builtinArrayFreeMarked, 1, false);
-   pushBuiltin(executor, "array-join", builtinArrayJoin, 3, false);
-   pushBuiltin(executor, "array-concat", builtinArrayConcat, 3, false);
-   pushBuiltin(executor, "array-slice", builtinArraySlice, 4, false);
-   pushBuiltin(executor, "array-shuffle", builtinArrayShuffle, 1, false);
-   pushBuiltin(executor, "array-sort", builtinArraySort, 2, false);
-   pushBuiltin(executor, "array-count", builtinArrayCount, 3, false);
-   pushBuiltin(executor, "array-reverse", builtinArrayReverse, 1, false);
-   pushBuiltin(executor, "array-find", builtinArrayFind, 3, false);
-   pushBuiltin(executor, "array-contains", builtinArrayContains, 3, false);
-   pushBuiltin(executor, "array-erase-all", builtinArrayEraseAll, 2, false);
-   pushBuiltin(executor, "array-shallow-copy", builtinArrayShallowCopy, 2, false);
-   pushBuiltin(executor, "array-deep-copy", builtinArrayDeepCopy, 2, false);
-
-   // math
-   pushBuiltin(executor, "incr", builtinIncr, 1, false);
-   pushBuiltin(executor, "decr", builtinDecr, 1, false);
-   pushBuiltin(executor, "add", builtinAdd, 3, true);
-   pushBuiltin(executor, "sub", builtinSub, 3, true);
-   pushBuiltin(executor, "mul", builtinMul, 3, true);
-   pushBuiltin(executor, "div", builtinDiv, 3, true);
-   pushBuiltin(executor, "mod", builtinMod, 3, false);
-   pushBuiltin(executor, "pow", builtinPow, 3, false);
-   pushBuiltin(executor, "neg", builtinNeg, 2, false);
-   pushBuiltin(executor, "sqrt", builtinSqrt, 2, false);
-   pushBuiltin(executor, "cbrt", builtinCbrt, 2, false);
-   pushBuiltin(executor, "sin", builtinSin, 2, false);
-   pushBuiltin(executor, "cos", builtinCos, 2, false);
-   pushBuiltin(executor, "tan", builtinTan, 2, false);
-   pushBuiltin(executor, "asin", builtinAsin, 2, false);
-   pushBuiltin(executor, "acos", builtinAcos, 2, false);
-   pushBuiltin(executor, "atan", builtinAtan, 2, false);
-   pushBuiltin(executor, "atan2", builtinAtan2, 2, false);
-   pushBuiltin(executor, "asinh", builtinAsinh, 2, false);
-   pushBuiltin(executor, "acosh", builtinAcosh, 2, false);
-   pushBuiltin(executor, "atanh", builtinAtanh, 2, false);
-   pushBuiltin(executor, "sinh", builtinSinh, 2, false);
-   pushBuiltin(executor, "cosh", builtinCosh, 2, false);
-   pushBuiltin(executor, "tanh", builtinTanh, 2, false);
-   pushBuiltin(executor, "abs", builtinAbs, 2, false);
-   pushBuiltin(executor, "min", builtinMin, 3, true);
-   pushBuiltin(executor, "max", builtinMax, 3, true);
-   pushBuiltin(executor, "clamp", builtinClamp, 4, false);
-   pushBuiltin(executor, "sign", builtinSign, 2, false);
-   pushBuiltin(executor, "trunc", builtinTrunc, 2, false);
-   pushBuiltin(executor, "ceil", builtinCeil, 2, false);
-   pushBuiltin(executor, "floor", builtinFloor, 2, false);
-   pushBuiltin(executor, "round", builtinRound, 2, false);
-   pushBuiltin(executor, "exp", builtinExp, 2, false);
-   pushBuiltin(executor, "ln", builtinLn, 2, false);
-   pushBuiltin(executor, "log", builtinLog, 3, false);
-   pushBuiltin(executor, "log2", builtinLog2, 2, false);
-   pushBuiltin(executor, "log10", builtinLog10, 2, false);
-   pushBuiltin(executor, "lerp", builtinLerp, 4, false);
-   pushBuiltin(executor, "step-towards", builtinStepTowards, 3, false);
-
-   // comparison
-   pushBuiltin(executor, "le", builtinLe, 3, false);
-   pushBuiltin(executor, "gr", builtinGr, 3, false);
-   pushBuiltin(executor, "leeq", builtinLeeq, 3, false);
-   pushBuiltin(executor, "greq", builtinGreq, 3, false);
-   pushBuiltin(executor, "eq", builtinEq, 3, false);
-   pushBuiltin(executor, "neq", builtinNeq, 3, false);
-   pushBuiltin(executor, "and", builtinAnd, 3, true);
-   pushBuiltin(executor, "or", builtinOr, 3, true);
-   pushBuiltin(executor, "not", builtinNot, 2, false);
-
-   // control flow
-   pushBuiltin(executor, "goto", builtinGoto, 1, false);
-   pushBuiltin(executor, "jmp", builtinJmp, 2, false);
-   pushBuiltin(executor, "jmpn", builtinJmpn, 2, false);
-   pushBuiltin(executor, "jmptable", builtinJmptable, 3, true);
-   pushBuiltin(executor, "func-call", builtinFunccall, 1, true);
-
-   // error handling
-   pushBuiltin(executor, "error", builtinError, 1, false);
-   pushBuiltin(executor, "warn", builtinWarn, 1, false);
-   pushBuiltin(executor, "assert", builtinAssert, 2, false);
-   pushBuiltin(executor, "exit", builtinExit, 1, false);
-   pushBuiltin(executor, "stack-depth", builtinStackdepth, 1, false);
-   pushBuiltin(executor, "stack-name", builtinStackname, 1, false);
-   pushBuiltin(executor, "stack-line", builtinStackline, 1, false);
-   pushBuiltin(executor, "stack-file", builtinStackfile, 1, false);
-   pushBuiltin(executor, "stack-trace", builtinStacktrace, 0, false);
-
-   // types
-   pushBuiltin(executor, "typeof", builtinTypeof, 2, false);
-   pushBuiltin(executor, "is-num", builtinIsnum, 2, false);
-   pushBuiltin(executor, "is-float", builtinIsfloat, 2, false);
-   pushBuiltin(executor, "is-int", builtinIsint, 2, false);
-   pushBuiltin(executor, "is-char", builtinIschar, 2, false);
-   pushBuiltin(executor, "is-string", builtinIsstring, 2, false);
-   pushBuiltin(executor, "is-array", builtinIsarray, 2, false);
-   pushBuiltin(executor, "is-reg", builtinIsreg, 2, false);
-   pushBuiltin(executor, "is-function", builtinIsfunction, 2, false);
-   pushBuiltin(executor, "is-label", builtinIslabel, 2, false);
-   pushBuiltin(executor, "is-null", builtinIsnull, 2, false);
-   pushBuiltin(executor, "is-inf", builtinIsinf, 2, false);
-   pushBuiltin(executor, "is-nan", builtinIsnan, 2, false);
-   pushBuiltin(executor, "to-int", builtinToint, 2, false);
-   pushBuiltin(executor, "to-float", builtinTofloat, 2, false);
-   pushBuiltin(executor, "to-char", builtinTochar, 2, false);
-
-   // misc. (time, random)
-   pushBuiltin(executor, "time", builtinTime, 1, false);
-   pushBuiltin(executor, "unix-time", builtinUnixTime, 1, false);
-   pushBuiltin(executor, "date", builtinDate, 2, false);
-   pushBuiltin(executor, "sleep", builtinSleep, 1, false);
-   pushBuiltin(executor, "seed-random", builtinSeedRandom, 1, false);
-   pushBuiltin(executor, "random", builtinRandom, 1, false);
-   pushBuiltin(executor, "randf-range", builtinRandfRange, 3, false);
-   pushBuiltin(executor, "randi-range", builtinRandiRange, 3, false);
-
-   // variables
-   pushBuiltin(executor, "swap", builtinSwap, 2, false);
-   pushBuiltin(executor, "set", builtinSet, 2, false);
-   pushBuiltin(executor, "valtable", builtinValTable, 4, true);
-   pushBuiltin(executor, "table-contains", builtinTableContains, 3, true);
-   pushBuiltin(executor, "variadic-size", builtinVariadicSize, 1, false);
-   pushBuiltin(executor, "variadic-idx", builtinVariadicIdx, 2, false);
-
-   // reserved built-ins. must always be there.
-   pushReservedBuiltin(executor, "return", builtinReturn, 0, true);
-   pushReservedBuiltin(executor, "call", builtinCall, 1, true);
 }
 
 Value parseToken(Executor &executor, Token token, const std::unordered_map<size_t, size_t> &functionParamMap, const std::unordered_map<size_t, Value> &constantMap) {
@@ -273,7 +112,9 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
 // take the tokens and turn them into executable function blocks and commands. we have 3 levels here: file -> functions ->
 // commands. there can be no commands in the file level and no functions in the command level.
 void parsePIL(Executor &executor, std::vector<Token> &tokens) {   
-   defineStandardBuiltins(executor);
+   for (const BuiltinDef &def: BUILTIN_DEFINITIONS) {
+      pushBuiltin(executor, def);
+   }
 
    // estimate code size. some rough estimates
    size_t size = tokens.size();
