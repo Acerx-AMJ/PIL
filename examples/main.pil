@@ -1,7 +1,20 @@
-main()
-   array-new 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, $0
-   printn $0
-   array-fill, 15, "!!!!", $1
-   printn $1
-   array-new $2
-   printn $2
+const n 20
+
+main() let a, b, i
+   set 0, i
+   array-new a
+   array-resize a, n, 0
+
+   greq i, n, $2
+   jmp $2, for-loop-end
+for-loop-start:
+   ; your code here vvv
+   array-set a, i, i
+   ; your code here ^^^
+   incr i
+   le i, n, $2
+   jmp $2, for-loop-start
+for-loop-end:
+   set a, b
+   array-free a
+   printn a, b ; use after free

@@ -42,12 +42,12 @@ struct Command {
 
 struct PILString {
    std::string string;
-   int allocations = 0;
+   int mark = 0;
 };
 
 struct PILArray {
    std::vector<Value> array;
-   int allocations = 0;
+   int mark = 0;
 };
 
 struct Executor {

@@ -7,41 +7,6 @@ enum Comparison: char {
 };
 
 // helper functions
-inline void deallocate(Executor &executor, Value &value) {
-   if (value.type == VALUE_STRING) {
-      PILString &string = executor.strings[value.string];
-      string.allocations -= 1;
-      if (string.allocations <= 0) {
-         executor.strings.erase(value.string);
-         value = Value{VALUE_COUNT};
-      }
-   }
-   else if (value.type == VALUE_ARRAY) {
-      PILArray &array = executor.arrays[value.array];
-      array.allocations -= 1;
-      if (array.allocations <= 0) {
-         executor.arrays.erase(value.array);
-         value = Value{VALUE_COUNT};
-      }
-   }
-}
-
-inline void copyValue(Executor &executor, Value &target, Value &copy) {
-   deallocate(executor, target);
-   target = copy;
-   if (target.type == VALUE_STRING) {
-      executor.strings[target.string].allocations += 1;
-   }
-   else if (target.type == VALUE_ARRAY) {
-      executor.arrays[target.array].allocations += 1;
-   }
-}
-
-inline void moveValue(Executor &executor, Value &target, Value &move) {
-   deallocate(executor, target);
-   target = move;
-}
-
 inline Value &resolveVariableByRef(Executor &executor, Value &value) {
    if (value.type == VALUE_LOCAL) {
       return executor.locals[executor.stackTrace.top().localStart + value.local];
@@ -69,11 +34,11 @@ inline Value back(const Executor &executor, const Command &command) {
 
 inline void storeInRegister(Executor &executor, const Command &command, Value reg, Value value, const char *function) {
    if (reg.type == VALUE_LOCAL) {
-      copyValue(executor, executor.locals[executor.stackTrace.top().localStart + reg.local], value);
+      executor.locals[executor.stackTrace.top().localStart + reg.local] = value;
    }
    else if (reg.type == VALUE_REGISTER || reg.type == VALUE_RETURN_REGISTER) {
       std::vector<Value> &registers = (reg.type == VALUE_RETURN_REGISTER ? executor.returnRegisters : executor.registers);
-      copyValue(executor, registers[reg.reg], value);
+      registers[reg.reg] = value;
    }
    else {
       error(executor.diagnostics, command.file, command.line, "%s: Expected Register/Variable for the destination argument, got %s instead", function, getValueName(reg.type));
@@ -273,6 +238,16 @@ inline void storeArray(Executor &executor, const Command &command, const std::ve
    Value value {VALUE_ARRAY};
    value.array = allocateArray(executor, array);
    storeInRegister(executor, command, value, function);
+}
+
+inline std::vector<Value> &arrayOrError(const Command &command, Executor &executor, const char *function) {
+   Value array = resolveVariable(executor, arg(executor, command, 0));
+   if (array.type != VALUE_ARRAY) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected array, got %s instead", function, getValueName(array.type));
+      static std::vector<Value> decoy;
+      return decoy;
+   }
+   return getArray(executor, array.array, command.file, command.line);
 }
 
 void setEcho(bool on);

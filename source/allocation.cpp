@@ -13,7 +13,6 @@ size_t allocateString(Executor &executor, const std::string &string) {
    static size_t stringID = 0;
    stringID += 1;
    executor.strings[stringID].string = string;
-   executor.strings[stringID].allocations = 0;
    return stringID;
 }
 
@@ -30,6 +29,5 @@ size_t allocateArray(Executor &executor, const std::vector<Value> &array) {
    static size_t arrayID = 0;
    arrayID += 1;
    executor.arrays[arrayID].array = array;
-   executor.arrays[arrayID].allocations = 0;
    return arrayID;
 }

@@ -18,6 +18,24 @@ void builtinStringFmt(const Command &command, Executor &executor);
 // array ops
 void builtinArrayNew(const Command &command, Executor &executor);
 void builtinArrayFill(const Command &command, Executor &executor);
+void builtinArrayClear(const Command &command, Executor &executor);
+void builtinArrayMemFree(const Command &command, Executor &executor);
+void builtinArrayEmpty(const Command &command, Executor &executor);
+void builtinArraySize(const Command &command, Executor &executor);
+void builtinArrayCapacity(const Command &command, Executor &executor);
+void builtinArrayReserve(const Command &command, Executor &executor);
+void builtinArrayResize(const Command &command, Executor &executor);
+void builtinArraySet(const Command &command, Executor &executor);
+void builtinArrayIdx(const Command &command, Executor &executor);
+void builtinArrayBack(const Command &command, Executor &executor);
+void builtinArrayFront(const Command &command, Executor &executor);
+void builtinArrayPush(const Command &command, Executor &executor);
+void builtinArrayInsert(const Command &command, Executor &executor);
+void builtinArrayPop(const Command &command, Executor &executor);
+void builtinArrayErase(const Command &command, Executor &executor);
+void builtinArrayFree(const Command &command, Executor &executor);
+void builtinArrayMark(const Command &command, Executor &executor);
+void builtinArrayFreeMarked(const Command &command, Executor &executor);
 
 // math
 void builtinIncr(const Command &command, Executor &executor);
@@ -94,12 +112,12 @@ void builtinStacktrace(const Command &command, Executor &executor);
 
 // types
 void builtinTypeof(const Command &command, Executor &executor);
-void builtinSizeof(const Command &command, Executor &executor);
 void builtinIsnum(const Command &command, Executor &executor);
 void builtinIsfloat(const Command &command, Executor &executor);
 void builtinIsint(const Command &command, Executor &executor);
 void builtinIschar(const Command &command, Executor &executor);
 void builtinIsstring(const Command &command, Executor &executor);
+void builtinIsarray(const Command &command, Executor &executor);
 void builtinIsreg(const Command &command, Executor &executor);
 void builtinIsfunction(const Command &command, Executor &executor);
 void builtinIslabel(const Command &command, Executor &executor);

@@ -56,6 +56,24 @@ void defineStandardBuiltins(Executor &executor) {
    // array ops
    pushBuiltin(executor, "array-new", builtinArrayNew, 1, true);
    pushBuiltin(executor, "array-fill", builtinArrayFill, 3, false);
+   pushBuiltin(executor, "array-clear", builtinArrayClear, 1, false);
+   pushBuiltin(executor, "array-memfree", builtinArrayMemFree, 1, false);
+   pushBuiltin(executor, "array-empty", builtinArrayEmpty, 2, false);
+   pushBuiltin(executor, "array-size", builtinArraySize, 2, false);
+   pushBuiltin(executor, "array-capacity", builtinArrayCapacity, 2, false);
+   pushBuiltin(executor, "array-reserve", builtinArrayReserve, 2, false);
+   pushBuiltin(executor, "array-resize", builtinArrayResize, 3, false);
+   pushBuiltin(executor, "array-set", builtinArraySet, 3, false);
+   pushBuiltin(executor, "array-idx", builtinArrayIdx, 3, false);
+   pushBuiltin(executor, "array-back", builtinArrayBack, 2, false);
+   pushBuiltin(executor, "array-front", builtinArrayFront, 2, false);
+   pushBuiltin(executor, "array-push", builtinArrayPush, 2, false);
+   pushBuiltin(executor, "array-insert", builtinArrayInsert, 3, false);
+   pushBuiltin(executor, "array-pop", builtinArrayPop, 1, false);
+   pushBuiltin(executor, "array-erase", builtinArrayErase, 2, false);
+   pushBuiltin(executor, "array-free", builtinArrayFree, 1, true);
+   pushBuiltin(executor, "array-mark", builtinArrayMark, 2, false);
+   pushBuiltin(executor, "array-free-marked", builtinArrayFreeMarked, 2, false);
 
    // math
    pushBuiltin(executor, "incr", builtinIncr, 1, false);
@@ -130,12 +148,12 @@ void defineStandardBuiltins(Executor &executor) {
 
    // types
    pushBuiltin(executor, "typeof", builtinTypeof, 2, false);
-   pushBuiltin(executor, "sizeof", builtinSizeof, 2, false);
    pushBuiltin(executor, "is-num", builtinIsnum, 2, false);
    pushBuiltin(executor, "is-float", builtinIsfloat, 2, false);
    pushBuiltin(executor, "is-int", builtinIsint, 2, false);
    pushBuiltin(executor, "is-char", builtinIschar, 2, false);
    pushBuiltin(executor, "is-string", builtinIsstring, 2, false);
+   pushBuiltin(executor, "is-array", builtinIsarray, 2, false);
    pushBuiltin(executor, "is-reg", builtinIsreg, 2, false);
    pushBuiltin(executor, "is-function", builtinIsfunction, 2, false);
    pushBuiltin(executor, "is-label", builtinIslabel, 2, false);

@@ -77,6 +77,165 @@ void builtinArrayFill(const Command &command, Executor &executor) {
    storeArray(executor, command, values, "array-fill");
 }
 
+void builtinArrayClear(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-clear");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   array.clear();
+}
+
+void builtinArrayMemFree(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-memfree");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   array.clear();
+   array.shrink_to_fit();
+}
+
+void builtinArrayEmpty(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-empty");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   storeBoolean(executor, command, array.empty(), "array-empty");
+}
+
+void builtinArraySize(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-size");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   storeNumber(executor, command, array.size(), false, "array-size");
+}
+
+void builtinArrayCapacity(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-capacity");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   storeNumber(executor, command, array.capacity(), false, "array-capacity");
+}
+
+void builtinArrayReserve(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-reserve");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   array.reserve(getNum(executor, command, 1, "array-reserve"));
+}
+
+void builtinArrayResize(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-resize");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   array.resize(getNum(executor, command, 1, "array-resize"), resolveVariable(executor, arg(executor, command, 2)));
+}
+
+void builtinArraySet(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-set");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   size_t id = getNum(executor, command, 1, "array-set");
+   if (id < 0 || id >= array.size()) {
+      error(executor.diagnostics, command.file, command.line, "array-set: Index %zu is out of bounds", id);
+      return;
+   }
+   array[id] = resolveVariable(executor, arg(executor, command, 2));
+}
+
+void builtinArrayIdx(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-idx");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   size_t id = getNum(executor, command, 1, "array-idx");
+   if (id < 0 || id >= array.size()) {
+      error(executor.diagnostics, command.file, command.line, "array-idx: Index %zu is out of bounds", id);
+      return;
+   }
+   storeInRegister(executor, command, array[id], "array-idx");
+}
+
+void builtinArrayBack(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-back");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   if (array.empty()) {
+      error(executor.diagnostics, command.file, command.line, "array-back: Cannot get the back element of array since the array is empty");
+      return;
+   }
+   storeInRegister(executor, command, array.back(), "array-back");
+}
+
+void builtinArrayFront(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-front");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   if (array.empty()) {
+      error(executor.diagnostics, command.file, command.line, "array-front: Cannot get the front element of array since the array is empty");
+      return;
+   }
+   storeInRegister(executor, command, array.front(), "array-front");
+}
+
+void builtinArrayPush(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-push");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   array.push_back(resolveVariable(executor, arg(executor, command, 1)));
+}
+
+void builtinArrayInsert(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-insert");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   size_t id = getNum(executor, command, 1, "array-insert");
+   if (id < 0 || id > array.size()) {
+      error(executor.diagnostics, command.file, command.line, "array-insert: Index %zu is out of bounds", id);
+      return;
+   }
+   array.insert(array.begin() + id, resolveVariable(executor, arg(executor, command, 2)));
+}
+
+void builtinArrayPop(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-pop");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   if (array.empty()) {
+      error(executor.diagnostics, command.file, command.line, "array-pop: Cannot pop from an empty array");
+      return;
+   }
+   array.pop_back();
+}
+
+void builtinArrayErase(const Command &command, Executor &executor) {
+   std::vector<Value> &array = arrayOrError(command, executor, "array-erase");
+   if (!executor.diagnostics.diagnostics.empty()) return;
+   size_t id = getNum(executor, command, 1, "array-erase");
+   if (id < 0 || id >= array.size()) {
+      error(executor.diagnostics, command.file, command.line, "array-erase: Index %zu is out of bounds", id);
+      return;
+   }
+   array.erase(array.begin() + id);
+}
+
+void builtinArrayFree(const Command &command, Executor &executor) {
+   for (size_t i = 0; i < command.argCount; ++i) {
+      Value a = arg(executor, command, i);
+      Value &array = resolveVariableByRef(executor, a);
+      if (array.type != VALUE_ARRAY) {
+         error(executor.diagnostics, command.file, command.line, "array-free: Expected array, got %s instead", getValueName(array.type));
+         return;
+      }
+      executor.arrays.erase(array.array);
+      array = Value{VALUE_COUNT};
+   }
+}
+
+void builtinArrayMark(const Command &command, Executor &executor) {
+   Value array = resolveVariable(executor, arg(executor, command, 0));
+   if (array.type != VALUE_ARRAY) {
+      error(executor.diagnostics, command.file, command.line, "array-mark: Expected array, got %s instead", getValueName(array.type));
+      return;
+   }
+   auto it = executor.arrays.find(array.array);
+   if (it == executor.arrays.end()) {
+      error(executor.diagnostics, command.file, command.line, "Invalid array ID %zu. Use after free", array.array);
+      return;
+   }
+   it->second.mark = getNum(executor, command, 1, "array-mark");
+}
+
+void builtinArrayFreeMarked(const Command &command, Executor &executor) {
+   int mark = getNum(executor, command, 0, "array-free-marked");
+   for (auto &[id, array]: executor.arrays) {
+      if (array.mark == mark) {
+         executor.arrays.erase(id);
+      }
+   }
+}
+
 // math
 void builtinIncr(const Command &command, Executor &executor) {
    bool floating = false;
@@ -401,13 +560,9 @@ void builtinReturn(const Command &command, Executor &executor) {
    executor.pointer = trace.position;
    executor.returnCount = command.argCount;
 
-   for (size_t i = trace.localStart; i < trace.localStart + trace.localCount + trace.variadicCount; ++i) {
-      deallocate(executor, executor.locals[i]);
-   }
-
    for (size_t i = 0; i < executor.returnCount; ++i) {
       Value value = resolveVariable(executor, arg(executor, command, i));
-      moveValue(executor, executor.returnRegisters[i], value);
+      executor.returnRegisters[i] = value;
    }
    executor.locals.resize(trace.localStart);
    executor.stackTrace.pop();
@@ -503,17 +658,6 @@ void builtinTypeof(const Command &command, Executor &executor) {
    storeString(executor, command, string, "typeof");
 }
 
-void builtinSizeof(const Command &command, Executor &executor) {
-   size_t size = 1;
-   Value value = resolveVariable(executor, arg(executor, command, 0));
-   switch (value.type) {
-   case VALUE_STRING: size = getString(executor, value.string, command.file, command.line).size(); break;
-   case VALUE_CSTRING: size = getLexeme(executor.cache, value.string).size(); break;
-   default: break;
-   }
-   storeNumber(executor, command, size, false, "sizeof");
-}
-
 void builtinIsnum(const Command &command, Executor &executor) {
    Value value = resolveVariable(executor, arg(executor, command, 0));
    storeBoolean(executor, command, value.type == VALUE_INTEGER || value.type == VALUE_FLOATING, "is-num");
@@ -537,6 +681,11 @@ void builtinIschar(const Command &command, Executor &executor) {
 void builtinIsstring(const Command &command, Executor &executor) {
    Value value = resolveVariable(executor, arg(executor, command, 0));
    storeBoolean(executor, command, value.type == VALUE_STRING || value.type == VALUE_CSTRING, "is-string");
+}
+
+void builtinIsarray(const Command &command, Executor &executor) {
+   Value value = resolveVariable(executor, arg(executor, command, 0));
+   storeBoolean(executor, command, value.type == VALUE_ARRAY, "is-array");
 }
 
 void builtinIsreg(const Command &command, Executor &executor) {
