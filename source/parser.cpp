@@ -4,38 +4,25 @@
 // we only define built-in functions that actually get used. thanks, cache. there are reserved built-ins that
 // always get pushed
 void pushBuiltin(Executor &executor, const BuiltinDef &def) {
+   size_t functionId = executor.functions.size();
+   Function function;
+   function.init = true;
+   function.native = true;
+   function.variadic = def.variadic;
+   function.params.resize(def.params);
+   function.nativeFunction = def.fn;
+
+   Value value {VALUE_FUNCTION};
+   value.function = functionId;
+   executor.functions.push_back(function);
+
    if (def.reserved) {
-      size_t functionId = executor.functions.size();
       size_t cached = cacheLexeme(executor.cache, def.name);
-
-      Function function;
-      function.init = true;
-      function.native = true;
-      function.variadic = def.variadic;
       function.lexeme = cached;
-      function.params.resize(def.params);
-      function.nativeFunction = def.fn;
-
-      Value value {VALUE_FUNCTION};
-      value.function = functionId;
-      executor.functions.push_back(function);
       executor.constants[cached] = value;
-      return;
    }
-
-   if (auto it = executor.cache.lexemeCache.find(def.name); it != executor.cache.lexemeCache.end()) {
-      size_t functionId = executor.functions.size();
-      Function function;
-      function.init = true;
-      function.native = true;
-      function.variadic = def.variadic;
+   else if (auto it = executor.cache.lexemeCache.find(def.name); it != executor.cache.lexemeCache.end()) {
       function.lexeme = it->second;
-      function.params.resize(def.params);
-      function.nativeFunction = def.fn;
-
-      Value value {VALUE_FUNCTION};
-      value.function = functionId;
-      executor.functions.push_back(function);
       executor.constants[it->second] = value;
    }
 }

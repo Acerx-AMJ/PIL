@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
    tokens.shrink_to_fit();
    float parseTime = measureEnd();
 
-   debugBytecode(executor);
+   // debugBytecode(executor);
 
    measure();
    callPILFunction(executor, "main", SEVERITY_ERROR);

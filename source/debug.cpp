@@ -31,9 +31,9 @@ void debugBytecode(Executor &executor) {
 
 void debugExecutionTime(float file, float lexer, float translator, float parser, float runtime) {
    printf("\nExecution time:\n");
-   printf("File read: %.3fms.\n", file);
+   printf("File Read: %.3fms.\n", file);
    printf("Lexer: %.3fms.\n", lexer);
-   printf("translator: %.3fms.\n", translator);
-   printf("parser: %.3fms.\n", parser);
-   printf("runtime: %.3fms.\n", runtime);
+   printf("Translator: %.3fms.\n", translator);
+   printf("Parser: %.3fms.\n", parser);
+   printf("Runtime: %.3fms.\n", runtime);
 }

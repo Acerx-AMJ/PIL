@@ -165,6 +165,29 @@ inline void print(const Command &command, Executor &executor, const char *functi
       printValue(executor, a, file, line);
    }
 }
+
+inline bool arraysEqual(Executor &executor, Value arr1, Value arr2, size_t file, size_t line) {
+   const std::vector<Value> &array1 = getArray(executor, arr1.array, file, line);
+   const std::vector<Value> &array2 = getArray(executor, arr2.array, file, line);
+   if (array1.size() != array2.size()) return false;
+
+   for (size_t i = 0; i < array1.size(); ++i) {
+      Value v1 = array1[i];
+      Value v2 = array2[i];
+      if ((v1.type == VALUE_STRING || v1.type == VALUE_CSTRING) && (v2.type == VALUE_STRING || v2.type == VALUE_CSTRING)) {
+         const std::string &s1 = (v1.type == VALUE_STRING ? getString(executor, v1.string, file, line) : getLexeme(executor.cache, v1.string));
+         const std::string &s2 = (v2.type == VALUE_STRING ? getString(executor, v2.string, file, line) : getLexeme(executor.cache, v2.string));
+         if (s1 != s2) return false;
+      }
+      else if ((v1.type != v2.type) || (v1.type == VALUE_INTEGER && v1.integer != v2.integer) || (v1.type == VALUE_FLOATING && v1.floating != v2.floating)
+            || (v1.type == VALUE_CHARACTER && v1.character != v2.character) || (v1.type == VALUE_FUNCTION && v1.function != v2.function)
+            || (v1.type == VALUE_LABEL && v1.label != v2.label) || (v1.type == VALUE_ARRAY && !arraysEqual(executor, v1, v2, file, line))) {
+         return false;
+      }
+   }
+   return true;
+}
+
 inline Comparison compareTwoValues(Executor &executor, Value a, Value b, size_t file, size_t line, bool softie, const char *function) {
    if ((a.type == VALUE_INTEGER || a.type == VALUE_FLOATING) && (b.type == VALUE_INTEGER || b.type == VALUE_FLOATING)) {
       double x = (a.type == VALUE_INTEGER) ? (double)a.integer : a.floating;
@@ -179,6 +202,10 @@ inline Comparison compareTwoValues(Executor &executor, Value a, Value b, size_t 
       const std::string &bs = (b.type == VALUE_STRING ? getString(executor, b.string, file, line) : getLexeme(executor.cache, b.string));
       int c = as.compare(bs);
       return (c < 0 ? COMPARISON_LESS : c > 0 ? COMPARISON_GREATER : COMPARISON_EQUAL);
+   }
+   // only check equality for arrays
+   else if (a.type == VALUE_ARRAY && b.type == VALUE_ARRAY && softie) {
+      return (arraysEqual(executor, a, b, file, line) ? COMPARISON_EQUAL : COMPARISON_NOT_EQUAL);
    }
    else if (!softie) {
       error(executor.diagnostics, file, line, "%s: Cannot compare %s to %s", function, getValueName(a.type), getValueName(b.type));
