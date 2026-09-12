@@ -31,4 +31,5 @@ void clear(Diagnostics &diagnostics);
 
 void log(LexemeCache &cache, Diagnostics &diagnostics, ErrorSeverity quitSeverity);
 void logStackTrace(Executor &executor, ErrorSeverity quitSeverity);
+void logMemoryLeaks(Executor &executor);
 void logDiagnostic(LexemeCache &cache, Diagnostic &diagnostic, ErrorSeverity quitSeverity);

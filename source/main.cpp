@@ -38,7 +38,9 @@ int main(int argc, char *argv[]) {
 
    measure();
    callPILFunction(executor, "main", SEVERITY_ERROR);
-   logStackTrace(executor, SEVERITY_ERROR);
    float runtime = measureEnd();
+
+   logStackTrace(executor, SEVERITY_ERROR);
+   logMemoryLeaks(executor);
    debugExecutionTime(readTime, lexTime, translatorTime, parseTime, runtime);
 }

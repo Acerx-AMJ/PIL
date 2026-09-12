@@ -6,6 +6,11 @@ constexpr const char *STACKTRACE_INFO = "\e[0;34mStack Trace\e[0m";
 constexpr const char *ERROR_TEXT = "\e[0;31mError\e[0m";
 constexpr const char *WARNING_TEXT = "\e[0;33mWarning\e[0m";
 
+constexpr const char *LEAKED_STRINGS = "\e[0;31mProgram leaked %zu strings.\e[0m\n";
+constexpr const char *LEAKED_ARRAYS = "\e[0;31mProgram leaked %zu arrays.\e[0m\n";
+constexpr const char *AND_N_OTHERS = "\e[0;34mAnd %zu others...\e[0m\n";
+constexpr size_t MAX_LEAK_TRACE = 5;
+
 bool shouldError(Diagnostics &diagnostics, ErrorSeverity errorSeverity) {
    return diagnostics.severity >= errorSeverity;
 }
@@ -91,6 +96,49 @@ void logStackTrace(Executor &executor, ErrorSeverity quitSeverity) {
    }
    errorIfSevereEnough(severity, quitSeverity);
    clear(executor.diagnostics);
+}
+
+void logMemoryLeaks(Executor &executor) {
+   size_t strings = executor.strings.size();
+   size_t arrays = executor.arrays.size();
+   if (strings == 0 && arrays == 0) {
+      return;
+   }
+
+   if (strings != 0) {
+      size_t size = std::min(strings, MAX_LEAK_TRACE);
+      size_t i = 0;
+
+      printf(LEAKED_STRINGS, strings);
+      for (const auto &[id, string]: executor.strings) {
+         printf("%zu: '%s', mark %d.\n", id, string.string.c_str(), string.mark);
+         i += 1;
+         if (i >= size) {
+            break;
+         }
+      }
+
+      if (size < strings) {
+         printf(AND_N_OTHERS, strings - size);
+      }
+   }
+   if (arrays != 0) {
+      size_t size = std::min(arrays, MAX_LEAK_TRACE);
+      size_t i = 0;
+
+      printf(LEAKED_ARRAYS, arrays);
+      for (const auto &[id, array]: executor.arrays) {
+         printf("%zu: Array with size %zu, mark %d.\n", id, array.array.size(), array.mark);
+         i += 1;
+         if (i >= size) {
+            break;
+         }
+      }
+
+      if (size < arrays) {
+         printf(AND_N_OTHERS, arrays - size);
+      }
+   }
 }
 
 void logDiagnostic(LexemeCache &cache, Diagnostic &diagnostic, ErrorSeverity quitSeverity) {

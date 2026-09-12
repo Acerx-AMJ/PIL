@@ -1,20 +1,12 @@
-const n 20
-
-main() let a, b, i
-   set 0, i
-   array-new a
-   array-resize a, n, 0
-
-   greq i, n, $2
-   jmp $2, for-loop-end
-for-loop-start:
-   ; your code here vvv
-   array-set a, i, i
-   ; your code here ^^^
-   incr i
-   le i, n, $2
-   jmp $2, for-loop-start
-for-loop-end:
-   set a, b
-   array-free a
-   printn a, b ; use after free
+main() let a, b, c
+   array-iota a, 20, 1
+   array-push a, 3
+   array-push a, 3
+   array-push a, 3
+   array-push a, 3
+   array-push a, 4
+   array-push a, 4
+   array-push a, 5
+   array-erase-all a, 3
+   printn a
+   array-free-marked 0

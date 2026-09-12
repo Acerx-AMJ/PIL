@@ -1,6 +1,8 @@
 #pragma once
 #include "pil.hpp"
 #include <string>
+#include <random>
+#include <unordered_set>
 
 enum Comparison: char {
    COMPARISON_LESS, COMPARISON_GREATER, COMPARISON_EQUAL, COMPARISON_NOT_EQUAL
@@ -163,33 +165,35 @@ inline void print(const Command &command, Executor &executor, const char *functi
       printValue(executor, a, file, line);
    }
 }
-
-inline void comparisonBuiltin(Executor &executor, const Command &command, const char *function, Comparison expected, bool reverse, bool softie) {
-   Comparison result;
-   Value a = resolveVariable(executor, arg(executor, command, 0));
-   Value b = resolveVariable(executor, arg(executor, command, 1));
-
+inline Comparison compareTwoValues(Executor &executor, Value a, Value b, size_t file, size_t line, bool softie, const char *function) {
    if ((a.type == VALUE_INTEGER || a.type == VALUE_FLOATING) && (b.type == VALUE_INTEGER || b.type == VALUE_FLOATING)) {
       double x = (a.type == VALUE_INTEGER) ? (double)a.integer : a.floating;
       double y = (b.type == VALUE_INTEGER) ? (double)b.integer : b.floating;
-      result = (x < y ? COMPARISON_LESS : x > y ? COMPARISON_GREATER : COMPARISON_EQUAL);
+      return (x < y ? COMPARISON_LESS : x > y ? COMPARISON_GREATER : COMPARISON_EQUAL);
    }
    else if (a.type == VALUE_CHARACTER && b.type == VALUE_CHARACTER) {
-      result = (a.character < b.character ? COMPARISON_LESS : a.character > b.character ? COMPARISON_GREATER : COMPARISON_EQUAL);
+      return (a.character < b.character ? COMPARISON_LESS : a.character > b.character ? COMPARISON_GREATER : COMPARISON_EQUAL);
    }
    else if ((a.type == VALUE_STRING || a.type == VALUE_CSTRING) && (b.type == VALUE_STRING || b.type == VALUE_CSTRING)) {
-      const std::string &as = (a.type == VALUE_STRING ? getString(executor, a.string, command.file, command.line) : getLexeme(executor.cache, a.string));
-      const std::string &bs = (b.type == VALUE_STRING ? getString(executor, b.string, command.file, command.line) : getLexeme(executor.cache, b.string));
+      const std::string &as = (a.type == VALUE_STRING ? getString(executor, a.string, file, line) : getLexeme(executor.cache, a.string));
+      const std::string &bs = (b.type == VALUE_STRING ? getString(executor, b.string, file, line) : getLexeme(executor.cache, b.string));
       int c = as.compare(bs);
-      result = (c < 0 ? COMPARISON_LESS : c > 0 ? COMPARISON_GREATER : COMPARISON_EQUAL);
+      return (c < 0 ? COMPARISON_LESS : c > 0 ? COMPARISON_GREATER : COMPARISON_EQUAL);
    }
    else if (!softie) {
-      error(executor.diagnostics, command.file, command.line, "%s: Cannot compare %s to %s", function, getValueName(a.type), getValueName(b.type));
-      return;
+      error(executor.diagnostics, file, line, "%s: Cannot compare %s to %s", function, getValueName(a.type), getValueName(b.type));
+      return COMPARISON_NOT_EQUAL;
    }
    else {
-      result = COMPARISON_NOT_EQUAL;
+      return COMPARISON_NOT_EQUAL;
    }
+   return COMPARISON_NOT_EQUAL;
+}
+
+inline void comparisonBuiltin(Executor &executor, const Command &command, const char *function, Comparison expected, bool reverse, bool softie) {
+   Value a = resolveVariable(executor, arg(executor, command, 0));
+   Value b = resolveVariable(executor, arg(executor, command, 1));
+   Comparison result = compareTwoValues(executor, a, b, command.file, command.line, softie, function);
    storeBoolean(executor, command, (result == expected) != reverse, function);
 }
 
@@ -234,20 +238,62 @@ inline void storeString(Executor &executor, const Command &command, const std::s
    storeInRegister(executor, command, value, function);
 }
 
-inline void storeArray(Executor &executor, const Command &command, const std::vector<Value> &array, const char *function) {
+inline void storeArray(Executor &executor, const Command &command, const std::vector<Value> &array, Value reg, const char *function) {
    Value value {VALUE_ARRAY};
    value.array = allocateArray(executor, array);
-   storeInRegister(executor, command, value, function);
+   storeInRegister(executor, command, reg, value, function);
 }
 
-inline std::vector<Value> &arrayOrError(const Command &command, Executor &executor, const char *function) {
-   Value array = resolveVariable(executor, arg(executor, command, 0));
+inline bool arrayOrError(const Command &command, Executor &executor, const char *function, std::vector<Value> *&out, size_t i = 0) {
+   Value array = resolveVariable(executor, arg(executor, command, i));
    if (array.type != VALUE_ARRAY) {
       error(executor.diagnostics, command.file, command.line, "%s: Expected array, got %s instead", function, getValueName(array.type));
-      static std::vector<Value> decoy;
-      return decoy;
+      return false;
    }
-   return getArray(executor, array.array, command.file, command.line);
+   if (auto it = executor.arrays.find(array.array); it != executor.arrays.end()) {
+      out = &it->second.array;
+      return true;
+   }
+   error(executor.diagnostics, command.file, command.line, "Invalid array ID %zu. Use after free", array.array);
+   return false;
+}
+
+inline std::vector<Value> deepCopy(const Command &command, Executor &executor, const std::vector<Value> &array) {
+   std::vector<Value> copy = array;
+   for (Value &value: copy) {
+      if (value.type == VALUE_ARRAY) {
+         const std::vector<Value> &originalArray = getArray(executor, value.array, command.file, command.line);
+         value.array = allocateArray(executor, deepCopy(command, executor, originalArray));
+      }
+      else if (value.type == VALUE_STRING) {
+         const std::string &originalString = getString(executor, value.string, command.file, command.line);
+         value.string = allocateString(executor, originalString);
+      }
+   }
+   return copy;
+}
+
+inline void deepFree(const Command &command, Executor &executor, Value &array, std::unordered_set<size_t> &visited) {
+   if (!visited.insert(array.array).second) return;
+   if (auto it = executor.arrays.find(array.array); it != executor.arrays.end()) {
+      std::vector<Value> &arr = it->second.array;
+      for (Value &value: arr) {
+         if (value.type == VALUE_ARRAY) {
+            deepFree(command, executor, value, visited);
+         }
+         else if (value.type == VALUE_STRING) {
+            executor.strings.erase(value.string);
+            value = NULL_VALUE;
+         }
+      }
+      executor.arrays.erase(it);
+      array = NULL_VALUE;
+   }
+}
+
+inline std::mt19937 &RNG() {
+   static std::mt19937 rng {std::random_device{}()};
+   return rng;
 }
 
 void setEcho(bool on);

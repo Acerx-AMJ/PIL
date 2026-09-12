@@ -56,6 +56,7 @@ void defineStandardBuiltins(Executor &executor) {
    // array ops
    pushBuiltin(executor, "array-new", builtinArrayNew, 1, true);
    pushBuiltin(executor, "array-fill", builtinArrayFill, 3, false);
+   pushBuiltin(executor, "array-iota", builtinArrayIota, 3, false);
    pushBuiltin(executor, "array-clear", builtinArrayClear, 1, false);
    pushBuiltin(executor, "array-memfree", builtinArrayMemFree, 1, false);
    pushBuiltin(executor, "array-empty", builtinArrayEmpty, 2, false);
@@ -72,8 +73,21 @@ void defineStandardBuiltins(Executor &executor) {
    pushBuiltin(executor, "array-pop", builtinArrayPop, 1, false);
    pushBuiltin(executor, "array-erase", builtinArrayErase, 2, false);
    pushBuiltin(executor, "array-free", builtinArrayFree, 1, true);
+   pushBuiltin(executor, "array-deep-free", builtinArrayDeepFree, 1, true);
    pushBuiltin(executor, "array-mark", builtinArrayMark, 2, false);
-   pushBuiltin(executor, "array-free-marked", builtinArrayFreeMarked, 2, false);
+   pushBuiltin(executor, "array-free-marked", builtinArrayFreeMarked, 1, false);
+   pushBuiltin(executor, "array-join", builtinArrayJoin, 3, false);
+   pushBuiltin(executor, "array-concat", builtinArrayConcat, 3, false);
+   pushBuiltin(executor, "array-slice", builtinArraySlice, 4, false);
+   pushBuiltin(executor, "array-shuffle", builtinArrayShuffle, 1, false);
+   pushBuiltin(executor, "array-sort", builtinArraySort, 2, false);
+   pushBuiltin(executor, "array-count", builtinArrayCount, 3, false);
+   pushBuiltin(executor, "array-reverse", builtinArrayReverse, 1, false);
+   pushBuiltin(executor, "array-find", builtinArrayFind, 3, false);
+   pushBuiltin(executor, "array-contains", builtinArrayContains, 3, false);
+   pushBuiltin(executor, "array-erase-all", builtinArrayEraseAll, 2, false);
+   pushBuiltin(executor, "array-shallow-copy", builtinArrayShallowCopy, 2, false);
+   pushBuiltin(executor, "array-deep-copy", builtinArrayDeepCopy, 2, false);
 
    // math
    pushBuiltin(executor, "incr", builtinIncr, 1, false);

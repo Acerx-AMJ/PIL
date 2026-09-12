@@ -18,6 +18,7 @@ void builtinStringFmt(const Command &command, Executor &executor);
 // array ops
 void builtinArrayNew(const Command &command, Executor &executor);
 void builtinArrayFill(const Command &command, Executor &executor);
+void builtinArrayIota(const Command &command, Executor &executor);
 void builtinArrayClear(const Command &command, Executor &executor);
 void builtinArrayMemFree(const Command &command, Executor &executor);
 void builtinArrayEmpty(const Command &command, Executor &executor);
@@ -34,8 +35,21 @@ void builtinArrayInsert(const Command &command, Executor &executor);
 void builtinArrayPop(const Command &command, Executor &executor);
 void builtinArrayErase(const Command &command, Executor &executor);
 void builtinArrayFree(const Command &command, Executor &executor);
+void builtinArrayDeepFree(const Command &command, Executor &executor);
 void builtinArrayMark(const Command &command, Executor &executor);
 void builtinArrayFreeMarked(const Command &command, Executor &executor);
+void builtinArrayJoin(const Command &command, Executor &executor);
+void builtinArrayConcat(const Command &command, Executor &executor);
+void builtinArraySlice(const Command &command, Executor &executor);
+void builtinArrayShuffle(const Command &command, Executor &executor);
+void builtinArraySort(const Command &command, Executor &executor);
+void builtinArrayCount(const Command &command, Executor &executor);
+void builtinArrayReverse(const Command &command, Executor &executor);
+void builtinArrayFind(const Command &command, Executor &executor);
+void builtinArrayContains(const Command &command, Executor &executor);
+void builtinArrayEraseAll(const Command &command, Executor &executor);
+void builtinArrayShallowCopy(const Command &command, Executor &executor);
+void builtinArrayDeepCopy(const Command &command, Executor &executor);
 
 // math
 void builtinIncr(const Command &command, Executor &executor);

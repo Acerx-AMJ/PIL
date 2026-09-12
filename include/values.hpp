@@ -35,6 +35,7 @@ struct Value {
    };
 };
 
+constexpr Value NULL_VALUE = {VALUE_COUNT};
 typedef void (*NativeFunction)(const struct Command&, struct Executor&);
 
 struct Function {

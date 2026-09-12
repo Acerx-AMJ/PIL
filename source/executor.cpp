@@ -15,7 +15,7 @@ void call(Executor &executor, const Command &command, Function &function, size_t
       trace.localStart = executor.locals.size();
       trace.localCount = function.localCount;
       trace.variadicCount = command.argCount - params;
-      executor.locals.resize(trace.localStart + trace.localCount + trace.variadicCount, Value{VALUE_COUNT});
+      executor.locals.resize(trace.localStart + trace.localCount + trace.variadicCount, NULL_VALUE);
 
       for (size_t i = 0; i < params; ++i) {
          Value value = resolveVariable(executor, executor.arguments[i + offset]);
@@ -61,14 +61,14 @@ void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity 
    }
 
    if (executor.registers.empty()) {
-      executor.registers.resize(DEFAULT_REGISTER_COUNT, Value{VALUE_COUNT});
+      executor.registers.resize(DEFAULT_REGISTER_COUNT, NULL_VALUE);
    }
 
    if (executor.returnRegisters.empty()) {
-      executor.returnRegisters.resize(DEFAULT_RETURN_REGISTER_COUNT, Value{VALUE_COUNT});
+      executor.returnRegisters.resize(DEFAULT_RETURN_REGISTER_COUNT, NULL_VALUE);
    }
    executor.locals.reserve(DEFAULT_LOCAL_RESERVE);
-   executor.locals.resize(main.localCount, Value{VALUE_COUNT});
+   executor.locals.resize(main.localCount, NULL_VALUE);
 
    executor.stackTrace = {};
    executor.stackTrace.push(Trace(main.position, std::string::npos, std::string::npos));
