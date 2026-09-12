@@ -7,10 +7,11 @@ size_t pushLexeme(LexemeCache &cache, const std::string &lexeme) {
    return id;
 }
 
-size_t cacheLexeme(LexemeCache &cache, const std::string &lexeme) {
-   if (auto it = cache.lexemeCache.find(lexeme); it != cache.lexemeCache.end()) {
+size_t cacheLexeme(LexemeCache &cache, std::string_view sv) {
+   if (auto it = cache.lexemeCache.find(sv); it != cache.lexemeCache.end()) {
       return it->second;
    }
+   std::string lexeme = std::string(sv);
    size_t id = cache.lexemes.size();
    cache.lexemes.push_back(lexeme);
    cache.lexemeCache[lexeme] = id;

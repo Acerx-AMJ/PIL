@@ -83,20 +83,18 @@ void lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, std
          line += 1;
       }
       else if ((ch == 'r' || ch == 'R') && i + 1 < size && file.code[i + 1] == '$') {
-         std::string reg;
-         for (i += 2; i < size && isDigit(file.code[i]); ++i) {
-            reg.push_back(file.code[i]);
-         }
-         tokens.emplace_back(TOKEN_RETURN_REGISTER, cacheLexeme(cache, reg), file.lexeme, line);
-         i -= 1;
+         i += 2;
+         size_t end = i;
+         for (; end < size && isDigit(file.code[end]); ++end);
+         tokens.emplace_back(TOKEN_RETURN_REGISTER, cacheLexeme(cache, std::string_view(&file.code[i], end - i)), file.lexeme, line);
+         i = end - 1;
       }
       else if (ch == '$') {
-         std::string reg;
-         for (++i; i < size && isDigit(file.code[i]); ++i) {
-            reg.push_back(file.code[i]);
-         }
-         tokens.emplace_back(TOKEN_REGISTER, cacheLexeme(cache, reg), file.lexeme, line);
-         i -= 1;
+         i += 1;
+         size_t end = i;
+         for (; end < size && isDigit(file.code[end]); ++end);
+         tokens.emplace_back(TOKEN_REGISTER, cacheLexeme(cache, std::string_view(&file.code[i], end - i)), file.lexeme, line);
+         i = end - 1;
       }
       else if (ch == '\'') {
          if (i + 1 >= size || file.code[i + 1] == '\n') {
@@ -131,30 +129,25 @@ void lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, std
          tokens.emplace_back(TOKEN_STRING, pushLexeme(cache, string), file.lexeme, originalLine);
       }
       else if (isDigit(ch)) {
-         std::string number;
+         size_t end = i;
          bool dot = false;
 
-         for (; i < size && (file.code[i] == '.' || isDigit(file.code[i])); ++i) {
-            number.push_back(file.code[i]);
-            if (file.code[i] == '.') {
+         for (++end; end < size && (file.code[end] == '.' || isDigit(file.code[end])); ++end) {
+            if (file.code[end] == '.') {
                if (dot) {
-                  error(diagnostics, file.lexeme, line, "Number '%s' contains multiple decimal points", number.c_str());
+                  error(diagnostics, file.lexeme, line, "Number '%s' contains multiple decimal points", std::string(&file.code[i], end - i).c_str());
                   break;
                }
                dot = true;
             }
          }
-         tokens.emplace_back(dot ? TOKEN_FLOATING : TOKEN_INTEGER, cacheLexeme(cache, number), file.lexeme, line);
-         i -= 1;
+         tokens.emplace_back(dot ? TOKEN_FLOATING : TOKEN_INTEGER, cacheLexeme(cache, std::string_view(&file.code[i], end - i)), file.lexeme, line);
+         i = end - 1;
       }
       else if (ch == '_' || isAlpha(ch)) {
-         std::string identifier;
          size_t end = i;
-
          for (++end; end < size && (file.code[end] == '_' || file.code[end] == '-' || file.code[end] == '.' || isAlnum(file.code[end])); ++end);
-         identifier = file.code.substr(i, end - i);
-         std::transform(identifier.begin(), identifier.end(), identifier.begin(), toLower);
-         tokens.emplace_back(TOKEN_IDENTIFIER, cacheLexeme(cache, identifier), file.lexeme, line);
+         tokens.emplace_back(TOKEN_IDENTIFIER, cacheLexeme(cache, std::string_view(&file.code[i], end - i)), file.lexeme, line);
          i = end - 1;
       }
       else if (!isSpace(ch) && ch != ',') {
