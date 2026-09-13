@@ -28,13 +28,13 @@ void builtinPrintfn(const Command &command, Executor &executor) {
 void builtinRead(const Command &command, Executor &executor) {
    std::string input;
    std::cin >> input;
-   storeString(executor, command, input, "read");
+   storeString(executor, command, input, back(executor, command), "read");
 }
 
 void builtinReadline(const Command &command, Executor &executor) {
    std::string input;
    std::getline(std::cin, input);
-   storeString(executor, command, input, "readline");
+   storeString(executor, command, input, back(executor, command), "readline");
 }
 
 void builtinReadchar(const Command &command, Executor &executor) {
@@ -51,14 +51,469 @@ void builtinSetecho(const Command &command, Executor &executor) {
 // string ops
 void builtinStringNew(const Command &command, Executor &executor) {
    std::string result;
-   for (size_t i = 0; i < command.argCount - 1; ++i) {
+   for (size_t i = 1; i < command.argCount; ++i) {
       result += toString(executor, arg(executor, command, i), "string-new", command.file, command.line);
    }
-   storeString(executor, command, result, "string-new");
+   storeString(executor, command, result, arg(executor, command, 0), "string-new");
 }
 
 void builtinStringFmt(const Command &command, Executor &executor) {
-   storeString(executor, command, format(command, executor, "string-fmt", 1), "string-fmt");
+   storeString(executor, command, format(command, executor, "string-fmt", 1), arg(executor, command, 0), "string-fmt");
+}
+
+void builtinStringRepeat(const Command &command, Executor &executor) {
+   std::string result;
+   size_t n = getNum(executor, command, 1, "string-repeat");
+   std::string fill = toString(executor, arg(executor, command, 2), "string-repeat", command.file, command.line);
+   result.reserve(n * fill.size());
+   for (size_t i = 0; i < n; ++i) {
+      result += fill;
+   }
+   storeString(executor, command, result, arg(executor, command, 0), "string-repeat");
+}
+
+void builtinStringClear(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-clear", string)) return;
+   string->clear();
+}
+
+void builtinStringMemFree(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-memfree", string)) return;
+   string->clear();
+   string->shrink_to_fit();
+}
+
+void builtinStringEmpty(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-empty", string)) return;
+   storeBoolean(executor, command, string->empty(), "string-empty");
+}
+
+void builtinStringSize(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-size", string)) return;
+   storeNumber(executor, command, string->size(), false, "string-size");
+}
+
+void builtinStringCapacity(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-capacity", string)) return;
+   storeNumber(executor, command, string->capacity(), false, "string-capacity");
+}
+
+void builtinStringReserve(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-reserve", string)) return;
+   string->reserve(getNum(executor, command, 1, "string-reserve"));
+}
+
+void builtinStringResize(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-resize", string)) return;
+   string->resize(getNum(executor, command, 1, "string-resize"), getChar(command, executor, "string-resize", 2));
+}
+
+void builtinStringSet(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-set", string)) return;
+   size_t id = getNum(executor, command, 1, "string-set");
+   if (id < 0 || id >= string->size()) {
+      error(executor.diagnostics, command.file, command.line, "string-set: Index %zu is out of bounds", id);
+      return;
+   }
+   (*string)[id] = getChar(command, executor, "string-set", 2);
+}
+
+void builtinStringIdx(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-idx", string)) return;
+   size_t id = getNum(executor, command, 1, "string-idx");
+   if (id < 0 || id >= string->size()) {
+      error(executor.diagnostics, command.file, command.line, "string-idx: Index %zu is out of bounds", id);
+      return;
+   }
+   Value value {VALUE_CHARACTER};
+   value.character = (*string)[id];
+   storeInRegister(executor, command, value, "string-idx");
+}
+
+void builtinStringBack(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-back", string)) return;
+   if (string->empty()) {
+      error(executor.diagnostics, command.file, command.line, "string-back: Cannot get the back character of string since the string is empty");
+      return;
+   }
+   Value value {VALUE_CHARACTER};
+   value.character = string->back();
+   storeInRegister(executor, command, value, "string-back");
+}
+
+void builtinStringFront(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-front", string)) return;
+   if (string->empty()) {
+      error(executor.diagnostics, command.file, command.line, "string-front: Cannot get the front character of string since the string is empty");
+      return;
+   }
+   Value value {VALUE_CHARACTER};
+   value.character = string->front();
+   storeInRegister(executor, command, value, "string-front");
+}
+
+void builtinStringPush(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-push", string)) return;
+   string->push_back(getChar(command, executor, "string-push", 1));
+}
+
+void builtinStringInsert(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-insert", string)) return;
+   size_t id = getNum(executor, command, 1, "string-insert");
+   if (id < 0 || id > string->size()) {
+      error(executor.diagnostics, command.file, command.line, "string-insert: Index %zu is out of bounds", id);
+      return;
+   }
+   string->insert(string->begin() + id, getChar(command, executor, "string-insert", 2));
+}
+
+void builtinStringPop(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-pop", string)) return;
+   if (string->empty()) {
+      error(executor.diagnostics, command.file, command.line, "string-pop: Cannot pop from an empty string");
+      return;
+   }
+   string->pop_back();
+}
+
+void builtinStringErase(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-erase", string)) return;
+   size_t id = getNum(executor, command, 1, "string-erase");
+   if (id < 0 || id >= string->size()) {
+      error(executor.diagnostics, command.file, command.line, "string-erase: Index %zu is out of bounds", id);
+      return;
+   }
+   string->erase(string->begin() + id);
+}
+
+void builtinStringFree(const Command &command, Executor &executor) {
+   for (size_t i = 0; i < command.argCount; ++i) {
+      Value a = arg(executor, command, i);
+      Value &string = resolveVariableByRef(executor, a);
+      if (string.type != VALUE_STRING) {
+         error(executor.diagnostics, command.file, command.line, "string-free: Expected string, got %s instead", getValueName(string.type));
+         return;
+      }
+      executor.strings.erase(string.string);
+      string = NULL_VALUE;
+   }
+}
+
+void builtinStringMark(const Command &command, Executor &executor) {
+   Value string = resolveVariable(executor, arg(executor, command, 0));
+   if (string.type != VALUE_STRING) {
+      error(executor.diagnostics, command.file, command.line, "string-mark: Expected string, got %s instead", getValueName(string.type));
+      return;
+   }
+   auto it = executor.strings.find(string.string);
+   if (it == executor.strings.end()) {
+      error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", string.string);
+      return;
+   }
+   it->second.mark = getNum(executor, command, 1, "string-mark");
+}
+
+void builtinStringFreeMarked(const Command &command, Executor &executor) {
+   int mark = getNum(executor, command, 0, "string-free-marked");
+   for (auto &[id, string]: executor.strings) {
+      if (string.mark == mark) {
+         executor.strings.erase(id);
+      }
+   }
+}
+
+void builtinStringSplit(const Command &command, Executor &executor) {
+   const std::string *string;
+   const std::string *sdelim = nullptr;
+   const char *cdelim = nullptr;
+   if (!constStringOrError(command, executor, "string-split", string) || !constStringOrCharOrError(command, executor, "string-split", sdelim, cdelim, 1)) return;
+   std::vector<Value> output;
+
+   if (sdelim) {
+      if (sdelim->empty()) {
+         error(executor.diagnostics, command.file, command.line, "string-split: Delimiter cannot be empty");
+         return;
+      }
+
+      size_t delimCount = 0;
+      size_t sdelimSize = sdelim->size();
+      for (size_t offset = string->find(*sdelim); offset != std::string::npos; offset = string->find(*sdelim, offset + sdelimSize)) {
+         delimCount += 1;
+      }
+      output.reserve(delimCount + 1);
+
+      size_t last = 0;
+      for (size_t pos = string->find(*sdelim); pos != std::string::npos; pos = string->find(*sdelim, last)) {
+         Value value {VALUE_STRING};
+         value.string = allocateString(executor, std::string(string->begin() + last, string->begin() + pos));
+         output.push_back(value);
+         last = pos + sdelimSize;
+      }
+
+      Value lastValue {VALUE_STRING};
+      if (last != string->size()) {
+         lastValue.string = allocateString(executor, std::string(string->begin() + last, string->end()));
+      }
+      else {
+         lastValue.string = allocateString(executor, "");
+      }
+      output.push_back(lastValue);
+   }
+   else if (cdelim) {
+      size_t delimCount = std::count(string->begin(), string->end(), *cdelim);
+      output.reserve(delimCount + 1);
+
+      std::stringstream stream (*string);
+      std::string piece;
+
+      while (std::getline(stream, piece, *cdelim)) {
+         Value value {VALUE_STRING};
+         value.string = allocateString(executor, piece);
+         output.push_back(value);
+      }
+
+      if (!string->empty() && string->back() == *cdelim) {
+         Value value {VALUE_STRING};
+         value.string = allocateString(executor, "");
+         output.push_back(value);
+      }
+   }
+   storeArray(executor, command, output, back(executor, command), "string-split");
+}
+
+void builtinStringConcat(const Command &command, Executor &executor) {
+   std::string *string1;
+   if (!stringOrError(command, executor, "string-concat", string1)) return;
+   std::string result = *string1;
+   for (size_t i = 1; i < command.argCount; ++i) {
+      result += toString(executor, arg(executor, command, i), "string-concat", command.file, command.line);
+   }
+   *string1 = std::move(result);
+}
+
+void builtinStringSubstr(const Command &command, Executor &executor) {
+   const std::string *string;
+   if (!constStringOrError(command, executor, "string-substr", string)) return;
+   size_t start = getNum(executor, command, 1, "string-substr");
+   size_t end = getNum(executor, command, 2, "string-substr");
+   if (start < 0 || start >= string->size() || end < 0 || end > string->size() || start >= end) {
+      error(executor.diagnostics, command.file, command.line, "string-substr: Invalid substring range %zu-%zu", start, end);
+      return;
+   }
+   std::string substring = string->substr(start, end - start);
+   storeString(executor, command, substring, back(executor, command), "string-substr");
+}
+
+void builtinStringCount(const Command &command, Executor &executor) {
+   const std::string *string, *scount = nullptr;
+   const char *ccount = nullptr;
+   if (!constStringOrError(command, executor, "string-count", string) || !constStringOrCharOrError(command, executor, "string-count", scount, ccount, 1)) return;
+
+   if (scount) {
+      // KMP algorithm
+      // https://www.geeksforgeeks.org/dsa/frequency-substring-string/#expected-approach-using-kmp-algorithm-os1-s2-time-and-os2-space
+      size_t m = scount->size();
+      size_t n = string->size();
+      if (n < m) {
+         storeNumber(executor, command, 0, false, "string-count");
+         return;
+      }
+
+      std::vector<int> lps (m, 0);
+      size_t length = 0;
+      size_t count = 0;
+
+      for (size_t i = 1; i < m; ++i) {
+         while (length > 0 && (*scount)[i] != (*scount)[length]) {
+            length = lps[length - 1];
+         }
+         if ((*scount)[i] == (*scount)[length]) length += 1;
+         lps[i] = length;
+      }
+
+      for (size_t i = 0, j = 0; i < n; ++i) {
+         while (j > 0 && (*string)[i] != (*scount)[j]) {
+            j = lps[j - 1];
+         }
+         if ((*string)[i] == (*scount)[j]) j += 1;
+         if (j == m) {
+            count += 1;
+            j = lps[j - 1];
+         }
+      }
+      storeNumber(executor, command, count, false, "string-count");
+   }
+   else if (ccount) {
+      storeNumber(executor, command, std::count(string->begin(), string->end(), *ccount), false, "string-count");
+   }
+}
+
+void builtinStringReverse(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-reverse", string)) return;
+   std::reverse(string->begin(), string->end());
+}
+
+void builtinStringFind(const Command &command, Executor &executor) {
+   const std::string *string, *sfind = nullptr;
+   const char *cfind = nullptr;
+   if (!constStringOrError(command, executor, "string-find", string) || !constStringOrCharOrError(command, executor, "string-find", sfind, cfind, 1)) return;
+   size_t start = getNum(executor, command, 2, "string-find");
+   if (start > string->size()) {
+      error(executor.diagnostics, command.file, command.line, "string-find: Start position %zu is out of bounds", start);
+      return;
+   }
+
+   size_t find = std::string::npos;
+   if (sfind) {
+      find = string->find(*sfind, start);
+   }
+   else if (cfind) {
+      find = string->find(*cfind, start);
+   }
+
+   if (find == std::string::npos) {
+      storeInRegister(executor, command, NULL_VALUE, "string-find");
+   }
+   else {
+      storeNumber(executor, command, find, false, "string-find");
+   }
+}
+
+void builtinStringReplace(const Command &command, Executor &executor) {
+   std::string *string;
+   const std::string *sfind = nullptr, *sreplace = nullptr;
+   const char *cfind = nullptr, *creplace = nullptr;
+   if (!stringOrError(command, executor, "string-replace", string) || !constStringOrCharOrError(command, executor, "string-replace", sfind, cfind, 1) || !constStringOrCharOrError(command, executor, "string-replace", sreplace, creplace, 2)) return;
+   size_t start = getNum(executor, command, 3, "string-replace");
+   if (start > string->size()) {
+      error(executor.diagnostics, command.file, command.line, "string-replace: Start position %zu is out of bounds", start);
+      return;
+   }
+
+   size_t findSize = sfind ? sfind->size() : 1;
+   size_t find = sfind ? string->find(*sfind, start) : string->find(*cfind, start);
+   if (find != std::string::npos) {
+      string->replace(find, findSize, sreplace ? *sreplace : std::string(1, *creplace));
+   }
+}
+
+void builtinStringReplaceAll(const Command &command, Executor &executor) {
+   std::string *string;
+   const std::string *sfind = nullptr, *sreplace = nullptr;
+   const char *cfind = nullptr, *creplace = nullptr;
+   if (!stringOrError(command, executor, "string-replace-all", string) || !constStringOrCharOrError(command, executor, "string-replace-all", sfind, cfind, 1) || !constStringOrCharOrError(command, executor, "string-replace-all", sreplace, creplace, 2)) return;
+
+   size_t findSize = sfind ? sfind->size() : 1;
+   if (findSize == 0) {
+      error(executor.diagnostics, command.file, command.line, "string-replace-all: Find pattern cannot be empty");
+      return;
+   }
+   std::string find = sfind ? *sfind : std::string(1, *cfind);
+   std::string replace = sreplace ? *sreplace : std::string(1, *creplace);
+   size_t pos = 0;
+   while ((pos = string->find(find, pos)) != std::string::npos) {
+      string->replace(pos, find.size(), replace);
+      pos += replace.size();
+   }
+}
+
+void builtinStringContains(const Command &command, Executor &executor) {
+   const std::string *string, *scontains = nullptr;
+   const char *ccontains = nullptr;
+   if (!constStringOrError(command, executor, "string-contains", string) || !constStringOrCharOrError(command, executor, "string-contains", scontains, ccontains, 1)) return;
+
+   size_t find = std::string::npos;
+   if (scontains) {
+      find = string->find(*scontains);
+   }
+   else if (ccontains) {
+      find = string->find(*ccontains);
+   }
+   storeBoolean(executor, command, find != std::string::npos, "string-contains");
+}
+
+void builtinStringEraseAll(const Command &command, Executor &executor) {
+   std::string *string;
+   const std::string *serase = nullptr;
+   const char *cerase = nullptr;
+   if (!stringOrError(command, executor, "string-erase-all", string) || !constStringOrCharOrError(command, executor, "string-erase-all", serase, cerase, 1)) return;
+
+   if (serase) {
+      size_t erasedCount = 0;
+      for (char ch: *serase) {
+         auto end = std::remove(string->begin(), string->end() - erasedCount, ch);
+         erasedCount = std::distance(end, string->end());
+      }
+      string->erase(string->begin() + (string->size() - erasedCount), string->end());
+   }
+   else if (cerase) {
+      string->erase(std::remove_if(string->begin(), string->end(), [cerase](char ch){ return ch == *cerase; }), string->end());
+   }
+}
+
+void builtinStringStartsWith(const Command &command, Executor &executor) {
+   const std::string *string, *ssubstr = nullptr;
+   const char *csubstr = nullptr;
+   if (!constStringOrError(command, executor, "string-starts-with", string) || !constStringOrCharOrError(command, executor, "string-starts-with", ssubstr, csubstr, 1)) return;
+   if (ssubstr) {
+      storeBoolean(executor, command, string->find(*ssubstr) == 0, "string-starts-with");
+   }
+   else if (csubstr) {
+      storeBoolean(executor, command, !string->empty() && string->front() == *csubstr, "string-starts-with");
+   }
+}
+
+void builtinStringEndsWith(const Command &command, Executor &executor) {
+   const std::string *string, *ssubstr = nullptr;
+   const char *csubstr = nullptr;
+   if (!constStringOrError(command, executor, "string-ends-with", string) || !constStringOrCharOrError(command, executor, "string-ends-with", ssubstr, csubstr, 1)) return;
+   if (ssubstr) {
+      storeBoolean(executor, command, ssubstr->size() <= string->size() && string->rfind(*ssubstr) == string->size() - ssubstr->size(), "string-ends-with");
+   }
+   else if (csubstr) {
+      storeBoolean(executor, command, !string->empty() && string->back() == *csubstr, "string-ends-with");
+   }
+}
+
+void builtinStringTrim(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-trim", string)) return;
+   string->erase(0, string->find_first_not_of(" \n\r\t\v\f"));
+   string->erase(string->find_last_not_of(" \n\r\t\v\f") + 1);
+}
+
+void builtinStringTolower(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-to-lower", string)) return;
+   std::transform(string->begin(), string->end(), string->begin(), toLower);
+}
+
+void builtinStringToupper(const Command &command, Executor &executor) {
+   std::string *string;
+   if (!stringOrError(command, executor, "string-to-upper", string)) return;
+   std::transform(string->begin(), string->end(), string->begin(), toUpper);
+}
+
+void builtinStringCopy(const Command &command, Executor &executor) {
+   const std::string *string;
+   if (!constStringOrError(command, executor, "string-copy", string)) return;
+   storeString(executor, command, *string, back(executor, command), "string-copy");
 }
 
 // array ops
@@ -271,7 +726,7 @@ void builtinArrayJoin(const Command &command, Executor &executor) {
       result += toString(executor, (*array)[i], "array-join", command.file, command.line);
       if (i + 1 < size) result += connector;
    }
-   storeString(executor, command, result, "array-join");
+   storeString(executor, command, result, back(executor, command), "array-join");
 }
 
 void builtinArrayConcat(const Command &command, Executor &executor) {
@@ -759,7 +1214,7 @@ void builtinStackdepth(const Command &command, Executor &executor) {
 }
 
 void builtinStackname(const Command &command, Executor &executor) {
-   storeString(executor, command, getLexeme(executor.cache, executor.code[executor.stackTrace.top().position].lexeme), "stack-name");
+   storeString(executor, command, getLexeme(executor.cache, executor.code[executor.stackTrace.top().position].lexeme), back(executor, command), "stack-name");
 }
 
 void builtinStackline(const Command &command, Executor &executor) {
@@ -767,7 +1222,7 @@ void builtinStackline(const Command &command, Executor &executor) {
 }
 
 void builtinStackfile(const Command &command, Executor &executor) {
-   storeString(executor, command, getLexeme(executor.cache, executor.code[executor.stackTrace.top().position].file), "stack-line");
+   storeString(executor, command, getLexeme(executor.cache, executor.code[executor.stackTrace.top().position].file), back(executor, command), "stack-line");
 }
 
 void builtinStacktrace(const Command &command, Executor &executor) {
@@ -791,7 +1246,7 @@ void builtinTypeof(const Command &command, Executor &executor) {
       printf("PIL::builtinTypeof: Cannot get the type of value %s.\n", getValueName(type));
       exit(EXIT_FAILURE);
    }
-   storeString(executor, command, string, "typeof");
+   storeString(executor, command, string, back(executor, command), "typeof");
 }
 
 void builtinIsnum(const Command &command, Executor &executor) {
@@ -888,7 +1343,7 @@ void builtinTofloat(const Command &command, Executor &executor) {
       const std::string &str = (value.type == VALUE_STRING ? getString(executor, value.string, command.file, command.line) : getLexeme(executor.cache, value.string));
       try {
          size_t pos = 0;
-         long result = std::stod(str, &pos);
+         double result = std::stod(str, &pos);
          if (pos != str.size() || str.empty() || std::isspace(str.front())) floating.type = VALUE_COUNT;
          else floating.floating = result;
       }
@@ -935,7 +1390,7 @@ void builtinDate(const Command &command, Executor &executor) {
    tm lt = *std::localtime(&t);
    std::ostringstream stream;
    stream << std::put_time(&lt, str.c_str());
-   storeString(executor, command, stream.str().c_str(), "date");
+   storeString(executor, command, stream.str().c_str(), back(executor, command), "date");
 }
 
 void builtinSleep(const Command &command, Executor &executor) {
@@ -977,8 +1432,17 @@ void builtinRandiRange(const Command &command, Executor &executor) {
 
 // variables, registers
 void builtinSwap(const Command &command, Executor &executor) {
-   Value &a = resolveVariableByRef(executor, executor.arguments[command.argStart + 0]);
-   Value &b = resolveVariableByRef(executor, executor.arguments[command.argStart + 1]);
+   Value &arg0 = executor.arguments[command.argStart + 0];
+   Value &arg1 = executor.arguments[command.argStart + 1];
+
+   bool arg0Valid = (arg0.type == VALUE_LOCAL || arg0.type == VALUE_REGISTER || arg0.type == VALUE_RETURN_REGISTER);
+   bool arg1Valid = (arg1.type == VALUE_LOCAL || arg1.type == VALUE_REGISTER || arg1.type == VALUE_RETURN_REGISTER);
+   if (!arg0Valid) error(executor.diagnostics, command.file, command.line, "swap: Expected 1st argument to be a Register/Variable, got %s instead", getValueName(arg0.type));
+   if (!arg1Valid) error(executor.diagnostics, command.file, command.line, "swap: Expected 2nd argument to be a Register/Variable, got %s instead", getValueName(arg1.type));
+   if (!arg0Valid || !arg1Valid) return;
+
+   Value &a = resolveVariableByRef(executor, arg0);
+   Value &b = resolveVariableByRef(executor, arg1);
    std::swap(a, b);
 }
 

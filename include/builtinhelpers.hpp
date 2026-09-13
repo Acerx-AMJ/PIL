@@ -9,6 +9,9 @@ enum Comparison: char {
 };
 
 // helper functions
+constexpr char toLower(char c) { return (c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c); }
+constexpr char toUpper(char c) { return (c >= 'a' && c <= 'z' ? c - ('a' - 'A') : c); }
+
 inline Value &resolveVariableByRef(Executor &executor, Value &value) {
    if (value.type == VALUE_LOCAL) {
       return executor.locals[executor.stackTrace.top().localStart + value.local];
@@ -121,7 +124,7 @@ inline std::string toString(Executor &executor, Value value, const char *functio
 }
 
 inline std::string format(const Command &command, Executor &executor, const char *function, size_t offset) {
-   Value string = arg(executor, command, 0);
+   Value string = resolveVariable(executor, arg(executor, command, offset));
    if (string.type != VALUE_CSTRING && string.type != VALUE_STRING) {
       error(executor.diagnostics, command.file, command.line, "%s: Expected String for the 1st argument, got %s instead", function, getValueName(string.type));
       return "";
@@ -129,7 +132,7 @@ inline std::string format(const Command &command, Executor &executor, const char
    std::string result = string.type == VALUE_CSTRING ? getLexeme(executor.cache, string.string) : getString(executor, string.string, command.file, command.line);
    size_t pos = 0;
 
-   for (size_t i = 1; i < command.argCount - offset; ++i) {
+   for (size_t i = offset + 1; i < command.argCount; ++i) {
       pos = result.find("{}", pos);
       result = (pos != std::string::npos ? result.replace(pos, 2, toString(executor, arg(executor, command, i), function, command.file, command.line)) : result);
    }
@@ -259,16 +262,84 @@ inline bool getBool(Executor &executor, const Command &command, size_t i) {
    }
 }
 
-inline void storeString(Executor &executor, const Command &command, const std::string &string, const char *function) {
+inline char getChar(const Command &command, Executor &executor, const char *function, size_t i) {
+   Value value = resolveVariable(executor, arg(executor, command, i));
+   if (value.type != VALUE_CHARACTER) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected Character, got %s instead", function, getValueName(value.type));
+      return char{};
+   }
+   return value.character;
+}
+
+inline void storeString(Executor &executor, const Command &command, const std::string &string, Value reg, const char *function) {
    Value value {VALUE_STRING};
    value.string = allocateString(executor, string);
-   storeInRegister(executor, command, value, function);
+   storeInRegister(executor, command, reg, value, function);
 }
 
 inline void storeArray(Executor &executor, const Command &command, const std::vector<Value> &array, Value reg, const char *function) {
    Value value {VALUE_ARRAY};
    value.array = allocateArray(executor, array);
    storeInRegister(executor, command, reg, value, function);
+}
+
+inline bool stringOrError(const Command &command, Executor &executor, const char *function, std::string *&out, size_t i = 0) {
+   Value string = resolveVariable(executor, arg(executor, command, i));
+   if (string.type != VALUE_STRING) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected string, got %s instead", function, getValueName(string.type));
+      return false;
+   }
+   if (auto it = executor.strings.find(string.string); it != executor.strings.end()) {
+      out = &it->second.string;
+      return true;
+   }
+   error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", string.string);
+   return false;
+}
+
+inline bool constStringOrError(const Command &command, Executor &executor, const char *function, const std::string *&stringOut, size_t i = 0) {
+   Value value = resolveVariable(executor, arg(executor, command, i));
+   if (value.type == VALUE_CSTRING) {
+      stringOut = &getLexeme(executor.cache, value.string);
+      return true;
+   }
+
+   if (value.type != VALUE_STRING) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected string or character, got %s instead", function, getValueName(value.type));
+      return false;
+   }
+
+   if (auto it = executor.strings.find(value.string); it != executor.strings.end()) {
+      stringOut = &it->second.string;
+      return true;
+   }
+   error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", value.string);
+   return false;
+}
+
+inline bool constStringOrCharOrError(const Command &command, Executor &executor, const char *function, const std::string *&stringOut, const char *&charOut, size_t i = 0) {
+   Value &value = resolveVariableByRef(executor, executor.arguments[command.argStart + i]); // need that ref here for charOut
+   if (value.type == VALUE_CHARACTER) {
+      charOut = &value.character;
+      return true;
+   }
+
+   if (value.type == VALUE_CSTRING) {
+      stringOut = &getLexeme(executor.cache, value.string);
+      return true;
+   }
+
+   if (value.type != VALUE_STRING) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected string or character, got %s instead", function, getValueName(value.type));
+      return false;
+   }
+
+   if (auto it = executor.strings.find(value.string); it != executor.strings.end()) {
+      stringOut = &it->second.string;
+      return true;
+   }
+   error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", value.string);
+   return false;
 }
 
 inline bool arrayOrError(const Command &command, Executor &executor, const char *function, std::vector<Value> *&out, size_t i = 0) {

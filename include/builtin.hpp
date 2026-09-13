@@ -14,6 +14,41 @@ void builtinSetecho(const Command &command, Executor &executor);
 // string ops
 void builtinStringNew(const Command &command, Executor &executor);
 void builtinStringFmt(const Command &command, Executor &executor);
+void builtinStringRepeat(const Command &command, Executor &executor);
+void builtinStringClear(const Command &command, Executor &executor);
+void builtinStringMemFree(const Command &command, Executor &executor);
+void builtinStringEmpty(const Command &command, Executor &executor);
+void builtinStringSize(const Command &command, Executor &executor);
+void builtinStringCapacity(const Command &command, Executor &executor);
+void builtinStringReserve(const Command &command, Executor &executor);
+void builtinStringResize(const Command &command, Executor &executor);
+void builtinStringSet(const Command &command, Executor &executor);
+void builtinStringIdx(const Command &command, Executor &executor);
+void builtinStringBack(const Command &command, Executor &executor);
+void builtinStringFront(const Command &command, Executor &executor);
+void builtinStringPush(const Command &command, Executor &executor);
+void builtinStringInsert(const Command &command, Executor &executor);
+void builtinStringPop(const Command &command, Executor &executor);
+void builtinStringErase(const Command &command, Executor &executor);
+void builtinStringFree(const Command &command, Executor &executor);
+void builtinStringMark(const Command &command, Executor &executor);
+void builtinStringFreeMarked(const Command &command, Executor &executor);
+void builtinStringSplit(const Command &command, Executor &executor);
+void builtinStringConcat(const Command &command, Executor &executor);
+void builtinStringSubstr(const Command &command, Executor &executor);
+void builtinStringCount(const Command &command, Executor &executor);
+void builtinStringReverse(const Command &command, Executor &executor);
+void builtinStringFind(const Command &command, Executor &executor);
+void builtinStringReplace(const Command &command, Executor &executor);
+void builtinStringReplaceAll(const Command &command, Executor &executor);
+void builtinStringContains(const Command &command, Executor &executor);
+void builtinStringEraseAll(const Command &command, Executor &executor);
+void builtinStringStartsWith(const Command &command, Executor &executor);
+void builtinStringEndsWith(const Command &command, Executor &executor);
+void builtinStringTrim(const Command &command, Executor &executor);
+void builtinStringTolower(const Command &command, Executor &executor);
+void builtinStringToupper(const Command &command, Executor &executor);
+void builtinStringCopy(const Command &command, Executor &executor);
 
 // array ops
 void builtinArrayNew(const Command &command, Executor &executor);
@@ -185,6 +220,41 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    // string ops
    {"string-new", builtinStringNew, 1, VARIADIC},
    {"string-fmt", builtinStringFmt, 2, VARIADIC},
+   {"string-repeat", builtinStringRepeat, 3},
+   {"string-clear", builtinStringClear, 1},
+   {"string-memfree", builtinStringMemFree, 1},
+   {"string-empty", builtinStringEmpty, 2},
+   {"string-size", builtinStringSize, 2},
+   {"string-capacity", builtinStringCapacity, 2},
+   {"string-reserve", builtinStringReserve, 2},
+   {"string-resize", builtinStringResize, 3},
+   {"string-set", builtinStringSet, 3},
+   {"string-idx", builtinStringIdx, 3},
+   {"string-back", builtinStringBack, 2},
+   {"string-front", builtinStringFront, 2},
+   {"string-push", builtinStringPush, 2},
+   {"string-insert", builtinStringInsert, 3},
+   {"string-pop", builtinStringPop, 1},
+   {"string-erase", builtinStringErase, 2},
+   {"string-free", builtinStringFree, 1, VARIADIC},
+   {"string-mark", builtinStringMark, 2},
+   {"string-free-marked", builtinStringFreeMarked, 1},
+   {"string-split", builtinStringSplit, 3},
+   {"string-concat", builtinStringConcat, 2, VARIADIC},
+   {"string-substr", builtinStringSubstr, 4},
+   {"string-count", builtinStringCount, 3},
+   {"string-reverse", builtinStringReverse, 1},
+   {"string-find", builtinStringFind, 4},
+   {"string-replace", builtinStringReplace, 4},
+   {"string-replace-all", builtinStringReplaceAll, 3},
+   {"string-contains", builtinStringContains, 3},
+   {"string-erase-all", builtinStringEraseAll, 2},
+   {"string-starts-with", builtinStringStartsWith, 3},
+   {"string-ends-with", builtinStringEndsWith, 3},
+   {"string-trim", builtinStringTrim, 1},
+   {"string-to-lower", builtinStringTolower, 1},
+   {"string-to-upper", builtinStringToupper, 1},
+   {"string-copy", builtinStringCopy, 2},
 
    // array ops
    {"array-new", builtinArrayNew, 1, VARIADIC},

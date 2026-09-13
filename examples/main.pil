@@ -1,12 +1,20 @@
-main() let a, b, c
-   array-iota a, 20, 1
-   array-push a, 3
-   array-push a, 3
-   array-push a, 3
-   array-push a, 3
-   array-push a, 4
-   array-push a, 4
-   array-push a, 5
-   array-erase-all a, 3
+print-array(arr) let i, n
+   array-size arr, n
+   printfn "Array size {}:", n
+   set 0, i
+   le i, n, $0
+   jmp $0, print-array-loop
+   return
+print-array-loop:
+   array-idx arr, i, $0
+   printn '\'', $0, '\''
+   incr i
+   le i, n, $0
+   jmp $0, print-array-loop
+
+main() let a, b, c, d, n, i
+   string-new a, "aaa"
+   string-replace-all a, 'a', "bbb"
    printn a
    array-free-marked 0
+   string-free-marked 0

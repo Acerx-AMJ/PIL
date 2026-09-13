@@ -9,20 +9,22 @@ void pushBuiltin(Executor &executor, const BuiltinDef &def) {
    function.init = true;
    function.native = true;
    function.variadic = def.variadic;
-   function.params.resize(def.params);
    function.nativeFunction = def.fn;
 
    Value value {VALUE_FUNCTION};
    value.function = functionId;
-   executor.functions.push_back(function);
 
    if (def.reserved) {
       size_t cached = cacheLexeme(executor.cache, def.name);
       function.lexeme = cached;
+      function.params.resize(def.params);
+      executor.functions.push_back(function);
       executor.constants[cached] = value;
    }
    else if (auto it = executor.cache.lexemeCache.find(def.name); it != executor.cache.lexemeCache.end()) {
       function.lexeme = it->second;
+      function.params.resize(def.params);
+      executor.functions.push_back(function);
       executor.constants[it->second] = value;
    }
 }
@@ -99,15 +101,15 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
 // take the tokens and turn them into executable function blocks and commands. we have 3 levels here: file -> functions ->
 // commands. there can be no commands in the file level and no functions in the command level.
 void parsePIL(Executor &executor, std::vector<Token> &tokens) {   
-   for (const BuiltinDef &def: BUILTIN_DEFINITIONS) {
-      pushBuiltin(executor, def);
-   }
-
    // estimate code size. some rough estimates
    size_t size = tokens.size();
    executor.code.reserve(size / 3);
    executor.arguments.reserve(size / 4);
-   executor.functions.reserve(size / 16 + 4);
+   executor.functions.reserve(size / 16 + 4); // I don't remember why I put it as this anymore
+
+   for (const BuiltinDef &def: BUILTIN_DEFINITIONS) {
+      pushBuiltin(executor, def);
+   }
 
    // function name and label prepass
    std::unordered_map<size_t, size_t> functionParamMap;
@@ -151,7 +153,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
 
    for (size_t i = 0; i < size && tokens[i].type != TOKEN_EOF; ++i) {
       // skip extraneous newlines
-      while (i < tokens.size() && tokens[i].type == TOKEN_NEWLINE) ++i;
+      while (i < size && tokens[i].type == TOKEN_NEWLINE) ++i;
       if (tokens[i].type == TOKEN_EOF) break;
 
       // labels

@@ -1,4 +1,5 @@
-# PIL
+<img src="assets/pil.png"/>
+
 ## About
 PIL is a primitive interpreted esoteric programming language based off COBOL and assembly. It contains built-in instructions that the user can use to create their own, more complex instructions. Here's a factorial example:
 ```txt
