@@ -158,6 +158,7 @@ void builtinFunccall(const Command &command, Executor &executor);
 void builtinReturn(const Command &command, Executor &executor);
 
 // error handling
+void builtinCatch(const Command &command, Executor &executor);
 void builtinAssert(const Command &command, Executor &executor);
 void builtinWarn(const Command &command, Executor &executor);
 void builtinError(const Command &command, Executor &executor);
@@ -367,9 +368,10 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"return", builtinReturn, 0, VARIADIC, RESERVED},
 
    // error handling
-   {"error", builtinError, 1},
-   {"warn", builtinWarn, 1},
-   {"assert", builtinAssert, 2},
+   {"catch", builtinCatch, 2, VARIADIC},
+   {"assert", builtinAssert, 2, VARIADIC},
+   {"warn", builtinWarn, 1, VARIADIC},
+   {"error", builtinError, 1, VARIADIC},
    {"exit", builtinExit, 1},
    {"stack-depth", builtinStackdepth, 1},
    {"stack-name", builtinStackname, 1},

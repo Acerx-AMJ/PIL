@@ -173,6 +173,41 @@ void builtinReturn(const Command &command, Executor &executor) {
 }
 
 // error handling
+void builtinCatch(const Command &command, Executor &executor) {
+   Value f = resolveVariable(executor, arg(executor, command, 1));
+   if (f.type != VALUE_FUNCTION) {
+      error(executor.diagnostics, command.file, command.line, "catch: Expected function to call for the 2nd argument, got %s instead", getValueName(f.type));
+      return;
+   }
+   Function &function = executor.functions[f.function];
+   size_t params = function.params.size();
+   size_t args = command.argCount - 2;
+   bool variadic = function.variadic;
+
+   if ((!variadic && args != params) || (variadic && args < params)) {
+      error(executor.diagnostics, command.file, command.line, "catch: Called function expected %s%zu parameters, but received %zu arguments", (variadic ? ">" : ""), params, args);
+      return;
+   }
+   Command copy = command;
+   copy.argStart += 2;
+   copy.argCount -= 2;
+   call(executor, copy, function, -1, std::string::npos, args);
+
+   size_t size = executor.diagnostics.diagnostics.size();
+   if (size == 0) {
+      storeInRegister(executor, command, arg(executor, command, 0), NULL_VALUE, "catch");
+   }
+   else {
+      std::vector<Value> errors (size);
+      for (size_t i = 0; i < size; ++i) {
+         errors[i].type = VALUE_STRING;
+         errors[i].string = allocateString(executor, executor.diagnostics.diagnostics[i].message);
+      }
+      storeArray(executor, command, errors, arg(executor, command, 0), "catch");
+   }
+   clear(executor.diagnostics);
+}
+
 void builtinAssert(const Command &command, Executor &executor) {
    if (!getBool(executor, command, 0)) {
       Value value = resolveVariable(executor, arg(executor, command, 1));
@@ -180,8 +215,7 @@ void builtinAssert(const Command &command, Executor &executor) {
          error(executor.diagnostics, command.file, command.line, "assert: Expected String as the 2nd argument, got %s instead", getValueName(value.type));
          return;
       }
-      const char *msg = (value.type == VALUE_STRING ? getString(executor, value.string, command.file, command.line) : getLexeme(executor.cache, value.string)).c_str();
-      error(executor.diagnostics, 0, 0, msg);
+      error(executor.diagnostics, 0, 0, format(command, executor, "assert", 1).c_str());
    }
 }
 
@@ -191,8 +225,7 @@ void builtinWarn(const Command &command, Executor &executor) {
       error(executor.diagnostics, command.file, command.line, "warn: Expected String as the 1st argument, got %s instead", getValueName(value.type));
       return;
    }
-   const char *msg = (value.type == VALUE_STRING ? getString(executor, value.string, command.file, command.line) : getLexeme(executor.cache, value.string)).c_str();
-   warn(executor.diagnostics, 0, 0, msg);
+   warn(executor.diagnostics, 0, 0, format(command, executor, "warn", 0).c_str());
 }
 
 void builtinError(const Command &command, Executor &executor) {
@@ -201,8 +234,7 @@ void builtinError(const Command &command, Executor &executor) {
       error(executor.diagnostics, command.file, command.line, "error: Expected String as the 1st argument, got %s instead", getValueName(value.type));
       return;
    }
-   const char *msg = (value.type == VALUE_STRING ? getString(executor, value.string, command.file, command.line) : getLexeme(executor.cache, value.string)).c_str();
-   error(executor.diagnostics, 0, 0, msg);
+   error(executor.diagnostics, 0, 0, format(command, executor, "error", 0).c_str());
 }
 
 void builtinExit(const Command &command, Executor &executor) {

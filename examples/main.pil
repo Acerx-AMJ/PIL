@@ -13,6 +13,11 @@ print-array-loop:
    jmp $0, print-array-loop
 
 main() let a, b, c, d, n, i
+   catch $0, to-float, main, to-int
+   print-array $0
+   catch $0, to-float, "12.34", $1
+   printn $0, $1
+
    array-new a, 1
    array-set a, 0, a ; beware, the infinite array
    array-deep-copy a, b
