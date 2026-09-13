@@ -394,4 +394,28 @@ inline std::mt19937 &RNG() {
    return rng;
 }
 
+template<size_t(std::string::*Find)(const std::string&, size_t) const, size_t Default>
+inline void stringFind(const Command &command, Executor &executor, const char *function) {
+   const std::string *string, *find = nullptr;
+   if (!constStringOrError(command, executor, function, string) || !constStringOrError(command, executor, function, find, 1)) return;
+   size_t pos = (string->*Find)(*find, Default);
+   if (pos == std::string::npos) storeInRegister(executor, command, NULL_VALUE, function);
+   else storeNumber(executor, command, pos, false, function);
+}
+
+template<size_t(std::string::*SFind)(const std::string&, size_t) const, size_t(std::string::*CFind)(char, size_t) const>
+inline void stringCharFind(const Command &command, Executor &executor, const char *function) {
+   const std::string *string, *sfind = nullptr;
+   const char *cfind = nullptr;
+   if (!constStringOrError(command, executor, function, string) || !constStringOrCharOrError(command, executor, function, sfind, cfind, 1)) return;
+   size_t start = getNum(executor, command, 2, function);
+   if (start > string->size()) {
+      error(executor.diagnostics, command.file, command.line, "%s: Start position %zu is out of bounds", function, start);
+      return;
+   }
+   size_t find = (sfind ? (string->*SFind)(*sfind, start) : (string->*CFind)(*cfind, start));
+   if (find == std::string::npos) storeInRegister(executor, command, NULL_VALUE, function);
+   else storeNumber(executor, command, find, false, function);
+}
+
 void setEcho(bool on);

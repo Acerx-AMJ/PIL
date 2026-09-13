@@ -370,29 +370,27 @@ void builtinStringReverse(const Command &command, Executor &executor) {
 }
 
 void builtinStringFind(const Command &command, Executor &executor) {
-   const std::string *string, *sfind = nullptr;
-   const char *cfind = nullptr;
-   if (!constStringOrError(command, executor, "string-find", string) || !constStringOrCharOrError(command, executor, "string-find", sfind, cfind, 1)) return;
-   size_t start = getNum(executor, command, 2, "string-find");
-   if (start > string->size()) {
-      error(executor.diagnostics, command.file, command.line, "string-find: Start position %zu is out of bounds", start);
-      return;
-   }
+   stringCharFind<&std::string::find, &std::string::find>(command, executor, "string-find");
+}
 
-   size_t find = std::string::npos;
-   if (sfind) {
-      find = string->find(*sfind, start);
-   }
-   else if (cfind) {
-      find = string->find(*cfind, start);
-   }
+void builtinStringRfind(const Command &command, Executor &executor) {
+   stringCharFind<&std::string::rfind, &std::string::rfind>(command, executor, "string-rfind");
+}
 
-   if (find == std::string::npos) {
-      storeInRegister(executor, command, NULL_VALUE, "string-find");
-   }
-   else {
-      storeNumber(executor, command, find, false, "string-find");
-   }
+void builtinStringFindFirstOf(const Command &command, Executor &executor) {
+   stringFind<&std::string::find_first_of, 0>(command, executor, "string-find-first-of");
+}
+
+void builtinStringFindFirstNotOf(const Command &command, Executor &executor) {
+   stringFind<&std::string::find_first_not_of, 0>(command, executor, "string-find-first-not-of");
+}
+
+void builtinStringFindLastOf(const Command &command, Executor &executor) {
+   stringFind<&std::string::find_last_of, std::string::npos>(command, executor, "string-find-last-of");
+}
+
+void builtinStringFindLastNotOf(const Command &command, Executor &executor) {
+   stringFind<&std::string::find_last_not_of, std::string::npos>(command, executor, "string-find-last-not-of");
 }
 
 void builtinStringReplace(const Command &command, Executor &executor) {
@@ -437,14 +435,7 @@ void builtinStringContains(const Command &command, Executor &executor) {
    const std::string *string, *scontains = nullptr;
    const char *ccontains = nullptr;
    if (!constStringOrError(command, executor, "string-contains", string) || !constStringOrCharOrError(command, executor, "string-contains", scontains, ccontains, 1)) return;
-
-   size_t find = std::string::npos;
-   if (scontains) {
-      find = string->find(*scontains);
-   }
-   else if (ccontains) {
-      find = string->find(*ccontains);
-   }
+   size_t find = (scontains ? string->find(*scontains) : string->find(*ccontains));
    storeBoolean(executor, command, find != std::string::npos, "string-contains");
 }
 

@@ -39,6 +39,11 @@ void builtinStringSubstr(const Command &command, Executor &executor);
 void builtinStringCount(const Command &command, Executor &executor);
 void builtinStringReverse(const Command &command, Executor &executor);
 void builtinStringFind(const Command &command, Executor &executor);
+void builtinStringRfind(const Command &command, Executor &executor);
+void builtinStringFindFirstOf(const Command &command, Executor &executor);
+void builtinStringFindFirstNotOf(const Command &command, Executor &executor);
+void builtinStringFindLastOf(const Command &command, Executor &executor);
+void builtinStringFindLastNotOf(const Command &command, Executor &executor);
 void builtinStringReplace(const Command &command, Executor &executor);
 void builtinStringReplaceAll(const Command &command, Executor &executor);
 void builtinStringContains(const Command &command, Executor &executor);
@@ -245,6 +250,11 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"string-count", builtinStringCount, 3},
    {"string-reverse", builtinStringReverse, 1},
    {"string-find", builtinStringFind, 4},
+   {"string-rfind", builtinStringRfind, 4},
+   {"string-find-first-of", builtinStringFindFirstOf, 3},
+   {"string-find-first-not-of", builtinStringFindFirstNotOf, 3},
+   {"string-find-last-of", builtinStringFindLastOf, 3},
+   {"string-find-last-not-of", builtinStringFindLastNotOf, 3},
    {"string-replace", builtinStringReplace, 4},
    {"string-replace-all", builtinStringReplaceAll, 3},
    {"string-contains", builtinStringContains, 3},

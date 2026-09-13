@@ -13,8 +13,9 @@ print-array-loop:
    jmp $0, print-array-loop
 
 main() let a, b, c, d, n, i
-   string-new a, "aaa"
-   string-replace-all a, 'a', "bbb"
-   printn a
+   string-new a, "12312312312312312312this is my hidden message3123123123123123123123123123123123"
+   string-find-last-not-of a, "123", b
+   string-idx a, b, c
+   printn b, c
    array-free-marked 0
    string-free-marked 0
