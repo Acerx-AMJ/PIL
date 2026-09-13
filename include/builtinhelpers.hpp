@@ -1,5 +1,7 @@
 #pragma once
 #include "pil.hpp"
+#include <algorithm>
+#include <set>
 #include <string>
 #include <random>
 #include <unordered_set>
@@ -99,7 +101,7 @@ inline void binaryBuiltin(Executor &executor, const Command &command, double(*fn
    storeNumber(executor, command, fn(getNum(executor, command, 0, function), getNum(executor, command, 1, function)), true, function);
 }
 
-inline std::string toString(Executor &executor, Value value, const char *function, size_t file, size_t line) {
+inline std::string toStringImpl(Executor &executor, Value value, const char *function, size_t file, size_t line, std::unordered_set<size_t> &active) {
    value = resolveVariable(executor, value);
    switch (value.type) {
    case VALUE_INTEGER: return std::to_string(value.integer);
@@ -110,17 +112,29 @@ inline std::string toString(Executor &executor, Value value, const char *functio
    case VALUE_FUNCTION: return getLexeme(executor.cache, executor.functions[value.function].lexeme) + "()";
    case VALUE_LABEL: return getLexeme(executor.cache, executor.functions[value.label].lexeme) + ":";
    case VALUE_ARRAY: {
+      if (!active.insert(value.array).second) {
+         return "...";
+      }
       std::string result;
       std::vector<Value> &array = getArray(executor, value.array, file, line);
-      result.reserve(3 + 4 * array.size());
-      result += "[ ";
-      for (Value &arv: array) {
-         result += toString(executor, arv, function, file, line) + ", ";
+      size_t size = array.size();
+      result.reserve(2 + 4 * array.size());
+      result += '[';
+      for (size_t i = 0; i < size; ++i) {
+         result += toStringImpl(executor, array[i], function, file, line, active);
+         if (i + 1 < size) result += ',';
       }
-      result += "]";
+      result += ']';
+      active.erase(value.array);
+      return result;
    }
    default: return "(null)";
    }
+}
+
+inline std::string toString(Executor &executor, Value value, const char *function, size_t file, size_t line) {
+   std::unordered_set<size_t> active;
+   return toStringImpl(executor, value, function, file, line, active);
 }
 
 inline std::string format(const Command &command, Executor &executor, const char *function, size_t offset) {
@@ -139,7 +153,7 @@ inline std::string format(const Command &command, Executor &executor, const char
    return result;
 }
 
-inline void printValue(Executor &executor, Value a, size_t file, size_t line) {
+inline void printValue(Executor &executor, Value a, size_t file, size_t line, std::unordered_set<size_t> &active) {
    switch (a.type) {
    case VALUE_INTEGER: printf("%ld", a.integer); break;
    case VALUE_FLOATING: printf("%.3F", a.floating); break;
@@ -149,13 +163,19 @@ inline void printValue(Executor &executor, Value a, size_t file, size_t line) {
    case VALUE_FUNCTION: printf("%s()", getLexeme(executor.cache, executor.functions[a.function].lexeme).c_str()); break;
    case VALUE_LABEL: printf("%s:", getLexeme(executor.cache, executor.functions[a.label].lexeme).c_str()); break;
    case VALUE_ARRAY: {
-      printf("[ ");
+      if (!active.insert(a.array).second) {
+         printf("...");
+         break;
+      }
+      putchar('[');
       std::vector<Value> &array = getArray(executor, a.array, file, line);
-      for (Value &arv: array) {
-         printValue(executor, arv, file, line);
-         printf(", ");
+      size_t size = array.size();
+      for (size_t i = 0; i < size; ++i) {
+         printValue(executor, array[i], file, line, active);
+         if (i + 1 < size) putchar(',');
       }
       putchar(']');
+      active.erase(a.array);
       break;
    }
    default: printf("(null)");
@@ -163,13 +183,18 @@ inline void printValue(Executor &executor, Value a, size_t file, size_t line) {
 }
 
 inline void print(const Command &command, Executor &executor, const char *function, size_t file, size_t line) {
+   std::unordered_set<size_t> active;
    for (size_t i = 0; i < command.argCount; ++i) {
       Value a = resolveVariable(executor, arg(executor, command, i));
-      printValue(executor, a, file, line);
+      active.clear();
+      printValue(executor, a, file, line, active);
    }
 }
 
-inline bool arraysEqual(Executor &executor, Value arr1, Value arr2, size_t file, size_t line) {
+inline bool arraysEqual(Executor &executor, Value arr1, Value arr2, size_t file, size_t line, std::set<std::pair<size_t, size_t>> &active) {
+   auto key = std::minmax(arr1.array, arr2.array);
+   if (!active.insert(key).second) return true;
+
    const std::vector<Value> &array1 = getArray(executor, arr1.array, file, line);
    const std::vector<Value> &array2 = getArray(executor, arr2.array, file, line);
    if (array1.size() != array2.size()) return false;
@@ -184,7 +209,7 @@ inline bool arraysEqual(Executor &executor, Value arr1, Value arr2, size_t file,
       }
       else if ((v1.type != v2.type) || (v1.type == VALUE_INTEGER && v1.integer != v2.integer) || (v1.type == VALUE_FLOATING && v1.floating != v2.floating)
             || (v1.type == VALUE_CHARACTER && v1.character != v2.character) || (v1.type == VALUE_FUNCTION && v1.function != v2.function)
-            || (v1.type == VALUE_LABEL && v1.label != v2.label) || (v1.type == VALUE_ARRAY && !arraysEqual(executor, v1, v2, file, line))) {
+            || (v1.type == VALUE_LABEL && v1.label != v2.label) || (v1.type == VALUE_ARRAY && !arraysEqual(executor, v1, v2, file, line, active))) {
          return false;
       }
    }
@@ -208,7 +233,8 @@ inline Comparison compareTwoValues(Executor &executor, Value a, Value b, size_t 
    }
    // only check equality for arrays
    else if (a.type == VALUE_ARRAY && b.type == VALUE_ARRAY && softie) {
-      return (arraysEqual(executor, a, b, file, line) ? COMPARISON_EQUAL : COMPARISON_NOT_EQUAL);
+      std::set<std::pair<size_t, size_t>> active;
+      return (arraysEqual(executor, a, b, file, line, active) ? COMPARISON_EQUAL : COMPARISON_NOT_EQUAL);
    }
    else if (!softie) {
       error(executor.diagnostics, file, line, "%s: Cannot compare %s to %s", function, getValueName(a.type), getValueName(b.type));
@@ -356,19 +382,25 @@ inline bool arrayOrError(const Command &command, Executor &executor, const char 
    return false;
 }
 
-inline std::vector<Value> deepCopy(const Command &command, Executor &executor, const std::vector<Value> &array) {
-   std::vector<Value> copy = array;
+inline size_t deepCopy(const Command &command, Executor &executor, size_t originalId, std::unordered_map<size_t, size_t> &copied) {
+   if (auto it = copied.find(originalId); it != copied.end()) {
+      return it->second;
+   }
+
+   size_t newId = allocateArray(executor, {});
+   copied[originalId] = newId;
+
+   std::vector<Value> copy = getArray(executor, originalId, command.file, command.line);
    for (Value &value: copy) {
       if (value.type == VALUE_ARRAY) {
-         const std::vector<Value> &originalArray = getArray(executor, value.array, command.file, command.line);
-         value.array = allocateArray(executor, deepCopy(command, executor, originalArray));
+         value.array = deepCopy(command, executor, value.array, copied);
       }
       else if (value.type == VALUE_STRING) {
-         const std::string &originalString = getString(executor, value.string, command.file, command.line);
-         value.string = allocateString(executor, originalString);
+         value.string = allocateString(executor, getString(executor, value.string, command.file, command.line));
       }
    }
-   return copy;
+   getArray(executor, newId, command.file, command.line) = std::move(copy);
+   return newId;
 }
 
 inline void deepFree(const Command &command, Executor &executor, Value &array, std::unordered_set<size_t> &visited) {

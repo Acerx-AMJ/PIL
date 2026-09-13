@@ -812,9 +812,19 @@ void builtinArrayShallowCopy(const Command &command, Executor &executor) {
 }
 
 void builtinArrayDeepCopy(const Command &command, Executor &executor) {
-   std::vector<Value> *array;
-   if (!arrayOrError(command, executor, "array-deep-copy", array)) return;
-   storeArray(executor, command, deepCopy(command, executor, *array), back(executor, command), "array-deep-copy");
+   Value array = resolveVariable(executor, arg(executor, command, 0));
+   if (array.type != VALUE_ARRAY) {
+      error(executor.diagnostics, command.file, command.line, "array-deep-copy: Expected array, got %s instead", getValueName(array.type));
+      return;
+   }
+   if (auto it = executor.arrays.find(array.array); it == executor.arrays.end()) {
+      error(executor.diagnostics, command.file, command.line, "Invalid array ID %zu. Use after free", array.array);
+      return;
+   }
+   std::unordered_map<size_t, size_t> copied;
+   Value result {VALUE_ARRAY};
+   result.array = deepCopy(command, executor, array.array, copied);
+   storeInRegister(executor, command, back(executor, command), result, "array-deep-copy");
 }
 
 // math

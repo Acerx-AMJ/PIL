@@ -13,9 +13,14 @@ print-array-loop:
    jmp $0, print-array-loop
 
 main() let a, b, c, d, n, i
-   string-new a, "12312312312312312312this is my hidden message3123123123123123123123123123123123"
-   string-find-last-not-of a, "123", b
-   string-idx a, b, c
-   printn b, c
+   array-new a, 1
+   array-set a, 0, a ; beware, the infinite array
+   array-deep-copy a, b
+   array-push a, 20
+   array-push a, "hello"
+
+   eq a, b, $0
+   printfn "{} == {}? {}", a, b, $0
+
    array-free-marked 0
    string-free-marked 0
