@@ -1,16 +1,6 @@
 #pragma once
 #include "values.hpp"
 
-// i/o
-void builtinPrint(const Command &command, Executor &executor);
-void builtinPrintn(const Command &command, Executor &executor);
-void builtinPrintf(const Command &command, Executor &executor);
-void builtinPrintfn(const Command &command, Executor &executor);
-void builtinRead(const Command &command, Executor &executor);
-void builtinReadline(const Command &command, Executor &executor);
-void builtinReadchar(const Command &command, Executor &executor);
-void builtinSetecho(const Command &command, Executor &executor);
-
 // string ops
 void builtinStringNew(const Command &command, Executor &executor);
 void builtinStringFmt(const Command &command, Executor &executor);
@@ -132,6 +122,20 @@ void builtinLog2(const Command &command, Executor &executor);
 void builtinLog10(const Command &command, Executor &executor);
 void builtinLerp(const Command &command, Executor &executor);
 void builtinStepTowards(const Command &command, Executor &executor);
+void builtinSeedRandom(const Command &command, Executor &executor);
+void builtinRandom(const Command &command, Executor &executor);
+void builtinRandfRange(const Command &command, Executor &executor);
+void builtinRandiRange(const Command &command, Executor &executor);
+
+// input/output
+void builtinPrint(const Command &command, Executor &executor);
+void builtinPrintn(const Command &command, Executor &executor);
+void builtinPrintf(const Command &command, Executor &executor);
+void builtinPrintfn(const Command &command, Executor &executor);
+void builtinRead(const Command &command, Executor &executor);
+void builtinReadline(const Command &command, Executor &executor);
+void builtinReadchar(const Command &command, Executor &executor);
+void builtinSetecho(const Command &command, Executor &executor);
 
 // comparison
 void builtinLe(const Command &command, Executor &executor);
@@ -182,17 +186,11 @@ void builtinToint(const Command &command, Executor &executor);
 void builtinTofloat(const Command &command, Executor &executor);
 void builtinTochar(const Command &command, Executor &executor);
 
-// misc. (time, random)
+// misc.
 void builtinTime(const Command &command, Executor &executor);
 void builtinUnixTime(const Command &command, Executor &executor);
 void builtinDate(const Command &command, Executor &executor);
 void builtinSleep(const Command &command, Executor &executor);
-void builtinSeedRandom(const Command &command, Executor &executor);
-void builtinRandom(const Command &command, Executor &executor);
-void builtinRandfRange(const Command &command, Executor &executor);
-void builtinRandiRange(const Command &command, Executor &executor);
-
-// variables/registers/values
 void builtinSwap(const Command &command, Executor &executor);
 void builtinSet(const Command &command, Executor &executor);
 void builtinValTable(const Command &command, Executor &executor);
@@ -212,16 +210,6 @@ struct BuiltinDef {
 constexpr bool VARIADIC = true;
 constexpr bool RESERVED = true;
 constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
-   // output
-   {"print", builtinPrint, 1, VARIADIC},
-   {"printn", builtinPrintn, 1, VARIADIC},
-   {"printf", builtinPrintf, 1, VARIADIC},
-   {"printfn", builtinPrintfn, 1, VARIADIC},
-   {"read", builtinRead, 1},
-   {"readline", builtinReadline, 1},
-   {"readchar", builtinReadchar, 1},
-   {"setecho", builtinSetecho, 1},
-
    // string ops
    {"string-new", builtinStringNew, 1, VARIADIC},
    {"string-fmt", builtinStringFmt, 2, VARIADIC},
@@ -343,6 +331,20 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"log10", builtinLog10, 2},
    {"lerp", builtinLerp, 4},
    {"step-towards", builtinStepTowards, 3},
+   {"seed-random", builtinSeedRandom, 1},
+   {"random", builtinRandom, 1},
+   {"randf-range", builtinRandfRange, 3},
+   {"randi-range", builtinRandiRange, 3},
+
+   // input/output
+   {"print", builtinPrint, 1, VARIADIC},
+   {"printn", builtinPrintn, 1, VARIADIC},
+   {"printf", builtinPrintf, 1, VARIADIC},
+   {"printfn", builtinPrintfn, 1, VARIADIC},
+   {"read", builtinRead, 1},
+   {"readline", builtinReadline, 1},
+   {"readchar", builtinReadchar, 1},
+   {"setecho", builtinSetecho, 1},
 
    // comparison
    {"le", builtinLe, 3},
@@ -393,17 +395,11 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"to-float", builtinTofloat, 2},
    {"to-char", builtinTochar, 2},
 
-   // misc. (time, random)
+   // misc.
    {"time", builtinTime, 1},
    {"unix-time", builtinUnixTime, 1},
    {"date", builtinDate, 2},
    {"sleep", builtinSleep, 1},
-   {"seed-random", builtinSeedRandom, 1},
-   {"random", builtinRandom, 1},
-   {"randf-range", builtinRandfRange, 3},
-   {"randi-range", builtinRandiRange, 3},
-
-   // variables
    {"swap", builtinSwap, 2},
    {"set", builtinSet, 2},
    {"valtable", builtinValTable, 4, VARIADIC},

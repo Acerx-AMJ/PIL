@@ -11,11 +11,14 @@ main-input-age-error:
 main-input-age:
    print "Input your age: "
    readline $1
-   to-int $1, $1
-   is-null $1, $2
-   leeq $1, 0, $3
-   greq $1, 120, $4
-   or $2, $3, $4, $5
-   jmp $5, main-input-age-error
+   to-int $1, $2
+   string-free $1
+   is-null $2, $3
+   jmp $3 main-input-age-error
+   leeq $2, 0, $4
+   greq $2, 120, $5
+   or $4, $5, $6
+   jmp $6, main-input-age-error
 
-   printfn "Hello, {}! You are {} years old.", $0, $1
+   printfn "Hello, {}! You are {} years old.", $0, $2
+   string-free $0

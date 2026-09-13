@@ -144,9 +144,16 @@ void lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, std
          tokens.emplace_back(dot ? TOKEN_FLOATING : TOKEN_INTEGER, cacheLexeme(cache, std::string_view(&file.code[i], end - i)), file.lexeme, line);
          i = end - 1;
       }
+      else if (ch == '@') {
+         i += 1;
+         size_t end = i;
+         for (; end < size && (file.code[end] == '_' || file.code[end] == '-' || isAlnum(file.code[end])); ++end);
+         tokens.emplace_back(TOKEN_DIRECTIVE, cacheLexeme(cache, std::string_view(&file.code[i], end - i)), file.lexeme, line);
+         i = end - 1;
+      }
       else if (ch == '_' || isAlpha(ch)) {
          size_t end = i;
-         for (++end; end < size && (file.code[end] == '_' || file.code[end] == '-' || file.code[end] == '.' || isAlnum(file.code[end])); ++end);
+         for (++end; end < size && (file.code[end] == '_' || file.code[end] == '-' || isAlnum(file.code[end])); ++end);
          tokens.emplace_back(TOKEN_IDENTIFIER, cacheLexeme(cache, std::string_view(&file.code[i], end - i)), file.lexeme, line);
          i = end - 1;
       }
@@ -168,7 +175,7 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
    size_t returnRegisterLexeme = cacheLexeme(executor.cache, "return-register-size");
 
    for (size_t i = 0; i < size; ++i) {
-      if (tokens[i].type != TOKEN_IDENTIFIER) continue;
+      if (tokens[i].type != TOKEN_DIRECTIVE) continue;
       
       // handle includes
       if (tokens[i].lexeme == includeLexeme && i + 1 < size && tokens[i + 1].type == TOKEN_STRING) {
@@ -214,6 +221,10 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
             executor.returnRegisters.resize(value.integer);
          }
          i += 2;
+      }
+      // unknown directive
+      else {
+         error(executor.diagnostics, tokens[i].file, tokens[i].line, "Invalid directive '@%s'", getLexeme(executor.cache, tokens[i].lexeme).c_str());
       }
    }
    // erase all includes and EOFs

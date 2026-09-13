@@ -7,8 +7,9 @@ input-number-error:
    print "Invalid input, try again."
 input-number-start:
    print msg
-   readline input
-   to-float input, input
+   readline tmp
+   to-float tmp, input
+   string-free tmp
    is-null input, tmp
    jmp tmp, input-number-error
    return input

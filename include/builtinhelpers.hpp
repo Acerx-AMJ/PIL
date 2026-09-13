@@ -10,10 +10,7 @@ enum Comparison: char {
    COMPARISON_LESS, COMPARISON_GREATER, COMPARISON_EQUAL, COMPARISON_NOT_EQUAL
 };
 
-// helper functions
-constexpr char toLower(char c) { return (c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c); }
-constexpr char toUpper(char c) { return (c >= 'a' && c <= 'z' ? c - ('a' - 'A') : c); }
-
+// generic helpers
 inline Value &resolveVariableByRef(Executor &executor, Value &value) {
    if (value.type == VALUE_LOCAL) {
       return executor.locals[executor.stackTrace.top().localStart + value.local];
@@ -56,16 +53,7 @@ inline void storeInRegister(Executor &executor, const Command &command, Value va
    storeInRegister(executor, command, back(executor, command), value, function);
 }
 
-inline void jumpToLabel(Executor &executor, Value value, const char *function, const char *argument, size_t file, size_t line, bool condition) {
-   if (value.type != VALUE_LABEL) {
-      error(executor.diagnostics, file, line, "%s: Expected Label for the %s argument, got %s instead", function, argument, getValueName(value.type));
-      return;
-   }
-   if (condition) {
-      executor.pointer = executor.functions[value.label].position - 1;
-   }
-}
-
+// getters
 inline double getNum(Executor &executor, const Command &command, size_t i, const char *function, bool *floating = nullptr) {
    Value value = resolveVariable(executor, arg(executor, command, i));
    if (value.type != VALUE_INTEGER && value.type != VALUE_FLOATING) {
@@ -76,14 +64,111 @@ inline double getNum(Executor &executor, const Command &command, size_t i, const
    return (value.type == VALUE_INTEGER ? (double)value.integer : value.floating);
 }
 
+inline bool getBool(Executor &executor, const Command &command, size_t i) {
+   Value v = resolveVariable(executor, arg(executor, command, i));
+   switch (v.type) {
+   case VALUE_INTEGER: return v.integer != 0;
+   case VALUE_FLOATING: return v.floating != 0.0;
+   case VALUE_CHARACTER: return v.character != 0;
+   case VALUE_CSTRING: return !getLexeme(executor.cache, v.string).empty();
+   case VALUE_STRING: return !getString(executor, v.string, command.file, command.line).empty();
+   case VALUE_ARRAY: return !getArray(executor, v.array, command.file, command.line).empty();
+   case VALUE_FUNCTION: return true;
+   case VALUE_LABEL: return true;
+   case VALUE_COUNT: return false;
+   default: // should not happen
+      printf("PIL::isThruthy: Value %s cannot be checked for thruthiness.\n", getValueName(v.type));
+      exit(EXIT_FAILURE);
+   }
+}
+
+inline char getChar(const Command &command, Executor &executor, const char *function, size_t i) {
+   Value value = resolveVariable(executor, arg(executor, command, i));
+   if (value.type != VALUE_CHARACTER) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected Character, got %s instead", function, getValueName(value.type));
+      return char{};
+   }
+   return value.character;
+}
+
+inline bool stringOrError(const Command &command, Executor &executor, const char *function, std::string *&out, size_t i = 0) {
+   Value string = resolveVariable(executor, arg(executor, command, i));
+   if (string.type != VALUE_STRING) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected string, got %s instead", function, getValueName(string.type));
+      return false;
+   }
+   if (auto it = executor.strings.find(string.string); it != executor.strings.end()) {
+      out = &it->second.string;
+      return true;
+   }
+   error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", string.string);
+   return false;
+}
+
+inline bool constStringOrError(const Command &command, Executor &executor, const char *function, const std::string *&stringOut, size_t i = 0) {
+   Value value = resolveVariable(executor, arg(executor, command, i));
+   if (value.type == VALUE_CSTRING) {
+      stringOut = &getLexeme(executor.cache, value.string);
+      return true;
+   }
+
+   if (value.type != VALUE_STRING) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected string or character, got %s instead", function, getValueName(value.type));
+      return false;
+   }
+
+   if (auto it = executor.strings.find(value.string); it != executor.strings.end()) {
+      stringOut = &it->second.string;
+      return true;
+   }
+   error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", value.string);
+   return false;
+}
+
+inline bool constStringOrCharOrError(const Command &command, Executor &executor, const char *function, const std::string *&stringOut, const char *&charOut, size_t i = 0) {
+   Value &value = resolveVariableByRef(executor, executor.arguments[command.argStart + i]); // need that ref here for charOut
+   if (value.type == VALUE_CHARACTER) {
+      charOut = &value.character;
+      return true;
+   }
+
+   if (value.type == VALUE_CSTRING) {
+      stringOut = &getLexeme(executor.cache, value.string);
+      return true;
+   }
+
+   if (value.type != VALUE_STRING) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected string or character, got %s instead", function, getValueName(value.type));
+      return false;
+   }
+
+   if (auto it = executor.strings.find(value.string); it != executor.strings.end()) {
+      stringOut = &it->second.string;
+      return true;
+   }
+   error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", value.string);
+   return false;
+}
+
+inline bool arrayOrError(const Command &command, Executor &executor, const char *function, std::vector<Value> *&out, size_t i = 0) {
+   Value array = resolveVariable(executor, arg(executor, command, i));
+   if (array.type != VALUE_ARRAY) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected array, got %s instead", function, getValueName(array.type));
+      return false;
+   }
+   if (auto it = executor.arrays.find(array.array); it != executor.arrays.end()) {
+      out = &it->second.array;
+      return true;
+   }
+   error(executor.diagnostics, command.file, command.line, "Invalid array ID %zu. Use after free", array.array);
+   return false;
+}
+
+// setters
 inline void storeNumber(Executor &executor, const Command &command, double number, bool floating, const char *function) {
    Value value {floating ? VALUE_FLOATING : VALUE_INTEGER};
-   if (floating) {
-      value.floating = number;
-   }
-   else {
-      value.integer = number;
-   }
+   if (floating) value.floating = number;
+   else value.integer = number;
    storeInRegister(executor, command, value, function);
 }
 
@@ -93,12 +178,107 @@ inline void storeBoolean(Executor &executor, const Command &command, bool result
    storeInRegister(executor, command, value, function);
 }
 
-inline void unaryBuiltin(Executor &executor, const Command &command, double(*fn)(double), const char *function) {
-   storeNumber(executor, command, fn(getNum(executor, command, 0, function)), true, function);
+inline void storeString(Executor &executor, const Command &command, const std::string &string, Value reg, const char *function) {
+   Value value {VALUE_STRING};
+   value.string = allocateString(executor, string);
+   storeInRegister(executor, command, reg, value, function);
 }
 
-inline void binaryBuiltin(Executor &executor, const Command &command, double(*fn)(double, double), const char *function) {
-   storeNumber(executor, command, fn(getNum(executor, command, 0, function), getNum(executor, command, 1, function)), true, function);
+inline void storeArray(Executor &executor, const Command &command, const std::vector<Value> &array, Value reg, const char *function) {
+   Value value {VALUE_ARRAY};
+   value.array = allocateArray(executor, array);
+   storeInRegister(executor, command, reg, value, function);
+}
+
+// comparison
+inline bool arraysEqual(Executor &executor, Value arr1, Value arr2, size_t file, size_t line, std::set<std::pair<size_t, size_t>> &active) {
+   auto key = std::minmax(arr1.array, arr2.array);
+   if (!active.insert(key).second) return true;
+
+   const std::vector<Value> &array1 = getArray(executor, arr1.array, file, line);
+   const std::vector<Value> &array2 = getArray(executor, arr2.array, file, line);
+   if (array1.size() != array2.size()) return false;
+
+   for (size_t i = 0; i < array1.size(); ++i) {
+      Value v1 = array1[i];
+      Value v2 = array2[i];
+      if ((v1.type == VALUE_STRING || v1.type == VALUE_CSTRING) && (v2.type == VALUE_STRING || v2.type == VALUE_CSTRING)) {
+         const std::string &s1 = (v1.type == VALUE_STRING ? getString(executor, v1.string, file, line) : getLexeme(executor.cache, v1.string));
+         const std::string &s2 = (v2.type == VALUE_STRING ? getString(executor, v2.string, file, line) : getLexeme(executor.cache, v2.string));
+         if (s1 != s2) return false;
+      }
+      else if ((v1.type != v2.type) || (v1.type == VALUE_INTEGER && v1.integer != v2.integer) || (v1.type == VALUE_FLOATING && v1.floating != v2.floating)
+            || (v1.type == VALUE_CHARACTER && v1.character != v2.character) || (v1.type == VALUE_FUNCTION && v1.function != v2.function)
+            || (v1.type == VALUE_LABEL && v1.label != v2.label) || (v1.type == VALUE_ARRAY && !arraysEqual(executor, v1, v2, file, line, active))) {
+         return false;
+      }
+   }
+   return true;
+}
+
+inline Comparison compareTwoValues(Executor &executor, Value a, Value b, size_t file, size_t line, bool softie, const char *function) {
+   if ((a.type == VALUE_INTEGER || a.type == VALUE_FLOATING) && (b.type == VALUE_INTEGER || b.type == VALUE_FLOATING)) {
+      double x = (a.type == VALUE_INTEGER) ? (double)a.integer : a.floating;
+      double y = (b.type == VALUE_INTEGER) ? (double)b.integer : b.floating;
+      return (x < y ? COMPARISON_LESS : x > y ? COMPARISON_GREATER : COMPARISON_EQUAL);
+   }
+   else if (a.type == VALUE_CHARACTER && b.type == VALUE_CHARACTER) {
+      return (a.character < b.character ? COMPARISON_LESS : a.character > b.character ? COMPARISON_GREATER : COMPARISON_EQUAL);
+   }
+   else if ((a.type == VALUE_STRING || a.type == VALUE_CSTRING) && (b.type == VALUE_STRING || b.type == VALUE_CSTRING)) {
+      const std::string &as = (a.type == VALUE_STRING ? getString(executor, a.string, file, line) : getLexeme(executor.cache, a.string));
+      const std::string &bs = (b.type == VALUE_STRING ? getString(executor, b.string, file, line) : getLexeme(executor.cache, b.string));
+      int c = as.compare(bs);
+      return (c < 0 ? COMPARISON_LESS : c > 0 ? COMPARISON_GREATER : COMPARISON_EQUAL);
+   }
+   // only check equality for arrays
+   else if (a.type == VALUE_ARRAY && b.type == VALUE_ARRAY && softie) {
+      std::set<std::pair<size_t, size_t>> active;
+      return (arraysEqual(executor, a, b, file, line, active) ? COMPARISON_EQUAL : COMPARISON_NOT_EQUAL);
+   }
+   else if (!softie) {
+      error(executor.diagnostics, file, line, "%s: Cannot compare %s to %s", function, getValueName(a.type), getValueName(b.type));
+      return COMPARISON_NOT_EQUAL;
+   }
+   else {
+      return COMPARISON_NOT_EQUAL;
+   }
+   return COMPARISON_NOT_EQUAL;
+}
+
+inline void comparisonBuiltin(Executor &executor, const Command &command, const char *function, Comparison expected, bool reverse, bool softie) {
+   Value a = resolveVariable(executor, arg(executor, command, 0));
+   Value b = resolveVariable(executor, arg(executor, command, 1));
+   Comparison result = compareTwoValues(executor, a, b, command.file, command.line, softie, function);
+   storeBoolean(executor, command, (result == expected) != reverse, function);
+}
+
+inline bool valuesEqual(Executor &executor, const Command &command, Value a, Value b) {
+   if ((a.type == VALUE_INTEGER || a.type == VALUE_FLOATING) && (b.type == VALUE_INTEGER || b.type == VALUE_INTEGER)) {
+      double x = (a.type == VALUE_INTEGER) ? (double)a.integer : a.floating;
+      double y = (b.type == VALUE_INTEGER) ? (double)b.integer : b.floating;
+      return x == y;
+   }
+   else if (a.type == VALUE_CHARACTER && b.type == VALUE_CHARACTER) {
+      return a.character == b.character;
+   }
+   else if ((a.type == VALUE_STRING || a.type == VALUE_CSTRING) && (b.type == VALUE_STRING || b.type == VALUE_CSTRING)) {
+      const std::string &as = (a.type == VALUE_STRING ? getString(executor, a.string, command.file, command.line) : getLexeme(executor.cache, a.string));
+      const std::string &bs = (b.type == VALUE_STRING ? getString(executor, b.string, command.file, command.line) : getLexeme(executor.cache, b.string));
+      return as == bs;
+   }
+   return false;
+}
+
+// domain specific helpers
+inline void jumpToLabel(Executor &executor, Value value, const char *function, const char *argument, size_t file, size_t line, bool condition) {
+   if (value.type != VALUE_LABEL) {
+      error(executor.diagnostics, file, line, "%s: Expected Label for the %s argument, got %s instead", function, argument, getValueName(value.type));
+      return;
+   }
+   if (condition) {
+      executor.pointer = executor.functions[value.label].position - 1;
+   }
 }
 
 inline std::string toStringImpl(Executor &executor, Value value, const char *function, size_t file, size_t line, std::unordered_set<size_t> &active) {
@@ -191,197 +371,6 @@ inline void print(const Command &command, Executor &executor, const char *functi
    }
 }
 
-inline bool arraysEqual(Executor &executor, Value arr1, Value arr2, size_t file, size_t line, std::set<std::pair<size_t, size_t>> &active) {
-   auto key = std::minmax(arr1.array, arr2.array);
-   if (!active.insert(key).second) return true;
-
-   const std::vector<Value> &array1 = getArray(executor, arr1.array, file, line);
-   const std::vector<Value> &array2 = getArray(executor, arr2.array, file, line);
-   if (array1.size() != array2.size()) return false;
-
-   for (size_t i = 0; i < array1.size(); ++i) {
-      Value v1 = array1[i];
-      Value v2 = array2[i];
-      if ((v1.type == VALUE_STRING || v1.type == VALUE_CSTRING) && (v2.type == VALUE_STRING || v2.type == VALUE_CSTRING)) {
-         const std::string &s1 = (v1.type == VALUE_STRING ? getString(executor, v1.string, file, line) : getLexeme(executor.cache, v1.string));
-         const std::string &s2 = (v2.type == VALUE_STRING ? getString(executor, v2.string, file, line) : getLexeme(executor.cache, v2.string));
-         if (s1 != s2) return false;
-      }
-      else if ((v1.type != v2.type) || (v1.type == VALUE_INTEGER && v1.integer != v2.integer) || (v1.type == VALUE_FLOATING && v1.floating != v2.floating)
-            || (v1.type == VALUE_CHARACTER && v1.character != v2.character) || (v1.type == VALUE_FUNCTION && v1.function != v2.function)
-            || (v1.type == VALUE_LABEL && v1.label != v2.label) || (v1.type == VALUE_ARRAY && !arraysEqual(executor, v1, v2, file, line, active))) {
-         return false;
-      }
-   }
-   return true;
-}
-
-inline Comparison compareTwoValues(Executor &executor, Value a, Value b, size_t file, size_t line, bool softie, const char *function) {
-   if ((a.type == VALUE_INTEGER || a.type == VALUE_FLOATING) && (b.type == VALUE_INTEGER || b.type == VALUE_FLOATING)) {
-      double x = (a.type == VALUE_INTEGER) ? (double)a.integer : a.floating;
-      double y = (b.type == VALUE_INTEGER) ? (double)b.integer : b.floating;
-      return (x < y ? COMPARISON_LESS : x > y ? COMPARISON_GREATER : COMPARISON_EQUAL);
-   }
-   else if (a.type == VALUE_CHARACTER && b.type == VALUE_CHARACTER) {
-      return (a.character < b.character ? COMPARISON_LESS : a.character > b.character ? COMPARISON_GREATER : COMPARISON_EQUAL);
-   }
-   else if ((a.type == VALUE_STRING || a.type == VALUE_CSTRING) && (b.type == VALUE_STRING || b.type == VALUE_CSTRING)) {
-      const std::string &as = (a.type == VALUE_STRING ? getString(executor, a.string, file, line) : getLexeme(executor.cache, a.string));
-      const std::string &bs = (b.type == VALUE_STRING ? getString(executor, b.string, file, line) : getLexeme(executor.cache, b.string));
-      int c = as.compare(bs);
-      return (c < 0 ? COMPARISON_LESS : c > 0 ? COMPARISON_GREATER : COMPARISON_EQUAL);
-   }
-   // only check equality for arrays
-   else if (a.type == VALUE_ARRAY && b.type == VALUE_ARRAY && softie) {
-      std::set<std::pair<size_t, size_t>> active;
-      return (arraysEqual(executor, a, b, file, line, active) ? COMPARISON_EQUAL : COMPARISON_NOT_EQUAL);
-   }
-   else if (!softie) {
-      error(executor.diagnostics, file, line, "%s: Cannot compare %s to %s", function, getValueName(a.type), getValueName(b.type));
-      return COMPARISON_NOT_EQUAL;
-   }
-   else {
-      return COMPARISON_NOT_EQUAL;
-   }
-   return COMPARISON_NOT_EQUAL;
-}
-
-inline void comparisonBuiltin(Executor &executor, const Command &command, const char *function, Comparison expected, bool reverse, bool softie) {
-   Value a = resolveVariable(executor, arg(executor, command, 0));
-   Value b = resolveVariable(executor, arg(executor, command, 1));
-   Comparison result = compareTwoValues(executor, a, b, command.file, command.line, softie, function);
-   storeBoolean(executor, command, (result == expected) != reverse, function);
-}
-
-inline bool valuesEqual(Executor &executor, const Command &command, Value a, Value b) {
-   if ((a.type == VALUE_INTEGER || a.type == VALUE_FLOATING) && (b.type == VALUE_INTEGER || b.type == VALUE_INTEGER)) {
-      double x = (a.type == VALUE_INTEGER) ? (double)a.integer : a.floating;
-      double y = (b.type == VALUE_INTEGER) ? (double)b.integer : b.floating;
-      return x == y;
-   }
-   else if (a.type == VALUE_CHARACTER && b.type == VALUE_CHARACTER) {
-      return a.character == b.character;
-   }
-   else if ((a.type == VALUE_STRING || a.type == VALUE_CSTRING) && (b.type == VALUE_STRING || b.type == VALUE_CSTRING)) {
-      const std::string &as = (a.type == VALUE_STRING ? getString(executor, a.string, command.file, command.line) : getLexeme(executor.cache, a.string));
-      const std::string &bs = (b.type == VALUE_STRING ? getString(executor, b.string, command.file, command.line) : getLexeme(executor.cache, b.string));
-      return as == bs;
-   }
-   return false;
-}
-
-inline bool getBool(Executor &executor, const Command &command, size_t i) {
-   Value v = resolveVariable(executor, arg(executor, command, i));
-   switch (v.type) {
-   case VALUE_INTEGER: return v.integer != 0;
-   case VALUE_FLOATING: return v.floating != 0.0;
-   case VALUE_CHARACTER: return v.character != 0;
-   case VALUE_CSTRING: return !getLexeme(executor.cache, v.string).empty();
-   case VALUE_STRING: return !getString(executor, v.string, command.file, command.line).empty();
-   case VALUE_ARRAY: return !getArray(executor, v.array, command.file, command.line).empty();
-   case VALUE_FUNCTION: return true;
-   case VALUE_LABEL: return true;
-   case VALUE_COUNT: return false;
-   default: // should not happen
-      printf("PIL::isThruthy: Value %s cannot be checked for thruthiness.\n", getValueName(v.type));
-      exit(EXIT_FAILURE);
-   }
-}
-
-inline char getChar(const Command &command, Executor &executor, const char *function, size_t i) {
-   Value value = resolveVariable(executor, arg(executor, command, i));
-   if (value.type != VALUE_CHARACTER) {
-      error(executor.diagnostics, command.file, command.line, "%s: Expected Character, got %s instead", function, getValueName(value.type));
-      return char{};
-   }
-   return value.character;
-}
-
-inline void storeString(Executor &executor, const Command &command, const std::string &string, Value reg, const char *function) {
-   Value value {VALUE_STRING};
-   value.string = allocateString(executor, string);
-   storeInRegister(executor, command, reg, value, function);
-}
-
-inline void storeArray(Executor &executor, const Command &command, const std::vector<Value> &array, Value reg, const char *function) {
-   Value value {VALUE_ARRAY};
-   value.array = allocateArray(executor, array);
-   storeInRegister(executor, command, reg, value, function);
-}
-
-inline bool stringOrError(const Command &command, Executor &executor, const char *function, std::string *&out, size_t i = 0) {
-   Value string = resolveVariable(executor, arg(executor, command, i));
-   if (string.type != VALUE_STRING) {
-      error(executor.diagnostics, command.file, command.line, "%s: Expected string, got %s instead", function, getValueName(string.type));
-      return false;
-   }
-   if (auto it = executor.strings.find(string.string); it != executor.strings.end()) {
-      out = &it->second.string;
-      return true;
-   }
-   error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", string.string);
-   return false;
-}
-
-inline bool constStringOrError(const Command &command, Executor &executor, const char *function, const std::string *&stringOut, size_t i = 0) {
-   Value value = resolveVariable(executor, arg(executor, command, i));
-   if (value.type == VALUE_CSTRING) {
-      stringOut = &getLexeme(executor.cache, value.string);
-      return true;
-   }
-
-   if (value.type != VALUE_STRING) {
-      error(executor.diagnostics, command.file, command.line, "%s: Expected string or character, got %s instead", function, getValueName(value.type));
-      return false;
-   }
-
-   if (auto it = executor.strings.find(value.string); it != executor.strings.end()) {
-      stringOut = &it->second.string;
-      return true;
-   }
-   error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", value.string);
-   return false;
-}
-
-inline bool constStringOrCharOrError(const Command &command, Executor &executor, const char *function, const std::string *&stringOut, const char *&charOut, size_t i = 0) {
-   Value &value = resolveVariableByRef(executor, executor.arguments[command.argStart + i]); // need that ref here for charOut
-   if (value.type == VALUE_CHARACTER) {
-      charOut = &value.character;
-      return true;
-   }
-
-   if (value.type == VALUE_CSTRING) {
-      stringOut = &getLexeme(executor.cache, value.string);
-      return true;
-   }
-
-   if (value.type != VALUE_STRING) {
-      error(executor.diagnostics, command.file, command.line, "%s: Expected string or character, got %s instead", function, getValueName(value.type));
-      return false;
-   }
-
-   if (auto it = executor.strings.find(value.string); it != executor.strings.end()) {
-      stringOut = &it->second.string;
-      return true;
-   }
-   error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", value.string);
-   return false;
-}
-
-inline bool arrayOrError(const Command &command, Executor &executor, const char *function, std::vector<Value> *&out, size_t i = 0) {
-   Value array = resolveVariable(executor, arg(executor, command, i));
-   if (array.type != VALUE_ARRAY) {
-      error(executor.diagnostics, command.file, command.line, "%s: Expected array, got %s instead", function, getValueName(array.type));
-      return false;
-   }
-   if (auto it = executor.arrays.find(array.array); it != executor.arrays.end()) {
-      out = &it->second.array;
-      return true;
-   }
-   error(executor.diagnostics, command.file, command.line, "Invalid array ID %zu. Use after free", array.array);
-   return false;
-}
-
 inline size_t deepCopy(const Command &command, Executor &executor, size_t originalId, std::unordered_map<size_t, size_t> &copied) {
    if (auto it = copied.find(originalId); it != copied.end()) {
       return it->second;
@@ -424,30 +413,6 @@ inline void deepFree(const Command &command, Executor &executor, Value &array, s
 inline std::mt19937 &RNG() {
    static std::mt19937 rng {std::random_device{}()};
    return rng;
-}
-
-template<size_t(std::string::*Find)(const std::string&, size_t) const, size_t Default>
-inline void stringFind(const Command &command, Executor &executor, const char *function) {
-   const std::string *string, *find = nullptr;
-   if (!constStringOrError(command, executor, function, string) || !constStringOrError(command, executor, function, find, 1)) return;
-   size_t pos = (string->*Find)(*find, Default);
-   if (pos == std::string::npos) storeInRegister(executor, command, NULL_VALUE, function);
-   else storeNumber(executor, command, pos, false, function);
-}
-
-template<size_t(std::string::*SFind)(const std::string&, size_t) const, size_t(std::string::*CFind)(char, size_t) const>
-inline void stringCharFind(const Command &command, Executor &executor, const char *function) {
-   const std::string *string, *sfind = nullptr;
-   const char *cfind = nullptr;
-   if (!constStringOrError(command, executor, function, string) || !constStringOrCharOrError(command, executor, function, sfind, cfind, 1)) return;
-   size_t start = getNum(executor, command, 2, function);
-   if (start > string->size()) {
-      error(executor.diagnostics, command.file, command.line, "%s: Start position %zu is out of bounds", function, start);
-      return;
-   }
-   size_t find = (sfind ? (string->*SFind)(*sfind, start) : (string->*CFind)(*cfind, start));
-   if (find == std::string::npos) storeInRegister(executor, command, NULL_VALUE, function);
-   else storeNumber(executor, command, find, false, function);
 }
 
 void setEcho(bool on);
