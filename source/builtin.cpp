@@ -494,3 +494,85 @@ void builtinVariadicIdx(const Command &command, Executor &executor) {
    }
    storeInRegister(executor, command, executor.locals[trace.localStart + trace.localCount + id], "vararg-idx");
 }
+
+void builtinRegSize(const Command &command, Executor &executor) {
+   storeNumber(executor, command, executor.registers.size(), false, "reg-size");
+}
+
+void builtinRegIdx(const Command &command, Executor &executor) {
+   size_t id = getNum(executor, command, 0, "reg-idx");
+   if (id < 0 || id >= executor.registers.size()) {
+      error(executor.diagnostics, command.file, command.line, "reg-idx: Index %zu is out of bounds", id);
+      return;
+   }
+   storeInRegister(executor, command, executor.registers[id], "reg-idx");
+}
+
+void builtinRegSet(const Command &command, Executor &executor) {
+   size_t id = getNum(executor, command, 0, "reg-set");
+   if (id < 0 || id >= executor.registers.size()) {
+      error(executor.diagnostics, command.file, command.line, "reg-set: Index %zu is out of bounds", id);
+      return;
+   }
+   Value reg {VALUE_REGISTER};
+   reg.reg = id;
+   storeInRegister(executor, command, reg, resolveVariable(executor, arg(executor, command, 1)), "reg-set");
+}
+
+void builtinReturnRegSize(const Command &command, Executor &executor) {
+   storeNumber(executor, command, executor.returnRegisters.size(), false, "return-reg-size");
+}
+
+void builtinReturnRegIdx(const Command &command, Executor &executor) {
+   size_t id = getNum(executor, command, 0, "return-reg-idx");
+   if (id < 0 || id >= executor.returnRegisters.size()) {
+      error(executor.diagnostics, command.file, command.line, "return-reg-idx: Index %zu is out of bounds", id);
+      return;
+   }
+   storeInRegister(executor, command, executor.returnRegisters[id], "return-reg-idx");
+}
+
+void builtinReturnRegSet(const Command &command, Executor &executor) {
+   size_t id = getNum(executor, command, 0, "return-reg-set");
+   if (id < 0 || id >= executor.returnRegisters.size()) {
+      error(executor.diagnostics, command.file, command.line, "return-reg-set: Index %zu is out of bounds", id);
+      return;
+   }
+   Value reg {VALUE_RETURN_REGISTER};
+   reg.reg = id;
+   storeInRegister(executor, command, reg, resolveVariable(executor, arg(executor, command, 1)), "return-reg-set");
+}
+
+void builtinReturnCount(const Command &command, Executor &executor) {
+   storeNumber(executor, command, executor.returnCount, false, "return-count");
+}
+
+void builtinFuncArity(const Command &command, Executor &executor) {
+   Value f = resolveVariable(executor, arg(executor, command, 0));
+   if (f.type != VALUE_FUNCTION) {
+      error(executor.diagnostics, command.file, command.line, "func-arity: Expected function to call for the 1st argument, got %s instead", getValueName(f.type));
+      return;
+   }
+   storeNumber(executor, command, executor.functions[f.function].params.size(), false, "func-arity");
+}
+
+void builtinFuncVariadic(const Command &command, Executor &executor) {
+   Value f = resolveVariable(executor, arg(executor, command, 0));
+   if (f.type != VALUE_FUNCTION) {
+      error(executor.diagnostics, command.file, command.line, "func-variadic: Expected function to call for the 1st argument, got %s instead", getValueName(f.type));
+      return;
+   }
+   storeBoolean(executor, command, executor.functions[f.function].variadic, "func-variadic");
+}
+
+void builtinFuncArgMatch(const Command &command, Executor &executor) {
+   Value f = resolveVariable(executor, arg(executor, command, 0));
+   if (f.type != VALUE_FUNCTION) {
+      error(executor.diagnostics, command.file, command.line, "func-arg-match: Expected function to call for the 1st argument, got %s instead", getValueName(f.type));
+      return;
+   }
+   Function &func = executor.functions[f.function];
+   size_t args = getNum(executor, command, 1, "func-arg-match");
+   size_t params = func.params.size();
+   storeBoolean(executor, command, (!func.variadic && args == params) || (func.variadic && args >= params), "func-arg-match");
+}

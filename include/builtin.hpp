@@ -198,6 +198,16 @@ void builtinValTable(const Command &command, Executor &executor);
 void builtinTableContains(const Command &command, Executor &executor);
 void builtinVariadicSize(const Command &command, Executor &executor);
 void builtinVariadicIdx(const Command &command, Executor &executor);
+void builtinRegSize(const Command &command, Executor &executor);
+void builtinRegIdx(const Command &command, Executor &executor);
+void builtinRegSet(const Command &command, Executor &executor);
+void builtinReturnRegSize(const Command &command, Executor &executor);
+void builtinReturnRegIdx(const Command &command, Executor &executor);
+void builtinReturnRegSet(const Command &command, Executor &executor);
+void builtinReturnCount(const Command &command, Executor &executor);
+void builtinFuncArity(const Command &command, Executor &executor);
+void builtinFuncVariadic(const Command &command, Executor &executor);
+void builtinFuncArgMatch(const Command &command, Executor &executor);
 
 // def table
 struct BuiltinDef {
@@ -408,4 +418,14 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"table-contains", builtinTableContains, 3, VARIADIC},
    {"variadic-size", builtinVariadicSize, 1},
    {"variadic-idx", builtinVariadicIdx, 2},
+   {"reg-size", builtinRegSize, 1},
+   {"reg-idx", builtinRegIdx, 2},
+   {"reg-set", builtinRegSet, 2},
+   {"return-reg-size", builtinReturnRegSize, 1},
+   {"return-reg-idx", builtinReturnRegIdx, 2},
+   {"return-reg-set", builtinReturnRegSet, 2},
+   {"return-count", builtinReturnCount, 1},
+   {"func-arity", builtinFuncArity, 2},
+   {"func-variadic", builtinFuncVariadic, 2},
+   {"func-arg-match", builtinFuncArgMatch, 3},
 };

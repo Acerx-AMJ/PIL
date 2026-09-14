@@ -1,3 +1,22 @@
+@return-reg-size 8
+
+print-call(f, a, b)
+   func-call f, a, b
+   return-count $0
+   return-reg-size $1
+   printfn "{}/{} returned values:", $0, $1
+
+   set 0, $2
+   le $2, $0, $3
+   jmpn $3, print-call-end
+print-call-start:
+   return-reg-idx $2, $4
+   printfn "[{}] = {}", $2, $4
+   incr $2
+   le $2, $0, $3
+   jmp $3, print-call-start
+print-call-end:
+
 print-array(arr) let i, n
    array-size arr, n
    printfn "Array size {}:", n
@@ -12,20 +31,28 @@ print-array-loop:
    le i, n, $0
    jmp $0, print-array-loop
 
+my-func(a, b) let c, d, e, f
+   add a, b, c
+   sub a, b, d
+   mul a, b, e
+   div a, b, f
+   return a, b, c, d, e, f
+
 main() let a, b, c, d, n, i
-   catch $0, to-float, main, to-int
-   print-array $0
-   catch $0, to-float, "12.34", $1
-   printn $0, $1
+   print-call my-func 20, 10
+   ; catch $0, to-float, main, to-int
+   ; print-array $0
+   ; catch $0, to-float, "12.34", $1
+   ; printn $0, $1
 
-   array-new a, 1
-   array-set a, 0, a ; beware, the infinite array
-   array-deep-copy a, b
-   array-push a, 20
-   array-push a, "hello"
+   ; array-new a, 1
+   ; array-set a, 0, a ; beware, the infinite array
+   ; array-deep-copy a, b
+   ; array-push a, 20
+   ; array-push a, "hello"
 
-   eq a, b, $0
-   printfn "{} == {}? {}", a, b, $0
+   ; eq a, b, $0
+   ; printfn "{} == {}? {}", a, b, $0
 
-   array-free-marked 0
-   string-free-marked 0
+   ; array-free-marked 0
+   ; string-free-marked 0

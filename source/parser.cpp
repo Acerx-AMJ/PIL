@@ -88,12 +88,12 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
       }
 
       if (value.reg >= maxValue) {
-         error(executor.diagnostics, token.file, token.line, "Register %s$%zu is out of bounds", token.type == TOKEN_RETURN_REGISTER ? "R" : "", value.reg);
+         error(executor.diagnostics, token.file, token.line, "Register %s$%zu is out of bounds. Define '@%sreg-size %zu' directive to mitigate", token.type == TOKEN_RETURN_REGISTER ? "R" : "", value.reg, token.type == TOKEN_RETURN_REGISTER ? "return-" : "", value.reg + 1);
       }
       break;
    }
    default:
-      error(executor.diagnostics, token.file, token.line, "Unexpected token %s in function call", getLexeme(executor.cache, token.lexeme).c_str());
+      error(executor.diagnostics, token.file, token.line, "Unexpected %s in function call", getTokenName(token.type));
    }
    return value;
 }
@@ -315,7 +315,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
             }
          }
          else if (isReturn && args > returnRegisterCount) {
-            error(executor.diagnostics, command.file, command.line, "return: Can return at maximum %zu values. Define 'return-register-count %zu' directive to mitigate. Error", returnRegisterCount, args);
+            error(executor.diagnostics, command.file, command.line, "return: Can return at maximum %zu values. Define '@return-reg-size %zu' directive to mitigate. Error", returnRegisterCount, args);
          }
       }
    }

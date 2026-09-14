@@ -171,8 +171,8 @@ void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens)
    size_t size = tokens.size();
 
    size_t includeLexeme = cacheLexeme(executor.cache, "include");
-   size_t registerLexeme = cacheLexeme(executor.cache, "register-size");
-   size_t returnRegisterLexeme = cacheLexeme(executor.cache, "return-register-size");
+   size_t registerLexeme = cacheLexeme(executor.cache, "reg-size");
+   size_t returnRegisterLexeme = cacheLexeme(executor.cache, "return-reg-size");
 
    for (size_t i = 0; i < size; ++i) {
       if (tokens[i].type != TOKEN_DIRECTIVE) continue;
