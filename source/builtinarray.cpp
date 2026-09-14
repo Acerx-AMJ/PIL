@@ -191,6 +191,20 @@ void builtinArrayMark(const Command &command, Executor &executor) {
    it->second.mark = getNum(executor, command, 1, "array-mark");
 }
 
+void builtinArrayGetMark(const Command &command, Executor &executor) {
+   Value array = resolveVariable(executor, arg(executor, command, 0));
+   if (array.type != VALUE_ARRAY) {
+      error(executor.diagnostics, command.file, command.line, "array-get-mark: Expected array, got %s instead", getValueName(array.type));
+      return;
+   }
+   auto it = executor.arrays.find(array.array);
+   if (it == executor.arrays.end()) {
+      error(executor.diagnostics, command.file, command.line, "Invalid array ID %zu. Use after free", array.array);
+      return;
+   }
+   storeNumber(executor, command, it->second.mark, false, "array-get-mark");
+}
+
 void builtinArrayFreeMarked(const Command &command, Executor &executor) {
    int mark = getNum(executor, command, 0, "array-free-marked");
    for (auto &[id, array]: executor.arrays) {
@@ -315,7 +329,7 @@ void builtinArrayDeepCopy(const Command &command, Executor &executor) {
       error(executor.diagnostics, command.file, command.line, "Invalid array ID %zu. Use after free", array.array);
       return;
    }
-   std::unordered_map<size_t, size_t> copied;
+   std::map<std::pair<size_t, ValueType>, size_t> copied;
    Value result {VALUE_ARRAY};
    result.array = deepCopy(command, executor, array.array, copied);
    storeInRegister(executor, command, back(executor, command), result, "array-deep-copy");

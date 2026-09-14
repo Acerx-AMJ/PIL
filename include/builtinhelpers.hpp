@@ -1,6 +1,7 @@
 #pragma once
 #include "pil.hpp"
 #include <algorithm>
+#include <map>
 #include <set>
 #include <string>
 #include <random>
@@ -371,13 +372,13 @@ inline void print(const Command &command, Executor &executor, const char *functi
    }
 }
 
-inline size_t deepCopy(const Command &command, Executor &executor, size_t originalId, std::unordered_map<size_t, size_t> &copied) {
-   if (auto it = copied.find(originalId); it != copied.end()) {
+inline size_t deepCopy(const Command &command, Executor &executor, size_t originalId, std::map<std::pair<size_t, ValueType>, size_t> &copied) {
+   if (auto it = copied.find({originalId, VALUE_ARRAY}); it != copied.end()) {
       return it->second;
    }
 
    size_t newId = allocateArray(executor, {});
-   copied[originalId] = newId;
+   copied[{originalId, VALUE_ARRAY}] = newId;
 
    std::vector<Value> copy = getArray(executor, originalId, command.file, command.line);
    for (Value &value: copy) {
@@ -385,7 +386,15 @@ inline size_t deepCopy(const Command &command, Executor &executor, size_t origin
          value.array = deepCopy(command, executor, value.array, copied);
       }
       else if (value.type == VALUE_STRING) {
-         value.string = allocateString(executor, getString(executor, value.string, command.file, command.line));
+         size_t originalStringId = value.string;
+         auto it = copied.find({originalStringId, VALUE_STRING});
+         if (it == copied.end()) {
+            value.string = allocateString(executor, getString(executor, value.string, command.file, command.line));
+            copied[{originalStringId, VALUE_STRING}] = value.string;
+         }
+         else {
+            value.string = it->second;
+         }
       }
    }
    getArray(executor, newId, command.file, command.line) = std::move(copy);

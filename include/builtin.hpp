@@ -22,6 +22,7 @@ void builtinStringPop(const Command &command, Executor &executor);
 void builtinStringErase(const Command &command, Executor &executor);
 void builtinStringFree(const Command &command, Executor &executor);
 void builtinStringMark(const Command &command, Executor &executor);
+void builtinStringGetMark(const Command &command, Executor &executor);
 void builtinStringFreeMarked(const Command &command, Executor &executor);
 void builtinStringSplit(const Command &command, Executor &executor);
 void builtinStringConcat(const Command &command, Executor &executor);
@@ -67,6 +68,7 @@ void builtinArrayErase(const Command &command, Executor &executor);
 void builtinArrayFree(const Command &command, Executor &executor);
 void builtinArrayDeepFree(const Command &command, Executor &executor);
 void builtinArrayMark(const Command &command, Executor &executor);
+void builtinArrayGetMark(const Command &command, Executor &executor);
 void builtinArrayFreeMarked(const Command &command, Executor &executor);
 void builtinArrayJoin(const Command &command, Executor &executor);
 void builtinArrayConcat(const Command &command, Executor &executor);
@@ -242,6 +244,7 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"string-erase", builtinStringErase, 2},
    {"string-free", builtinStringFree, 1, VARIADIC},
    {"string-mark", builtinStringMark, 2},
+   {"string-get-mark", builtinStringGetMark, 2},
    {"string-free-marked", builtinStringFreeMarked, 1},
    {"string-split", builtinStringSplit, 3},
    {"string-concat", builtinStringConcat, 2, VARIADIC},
@@ -287,6 +290,7 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"array-free", builtinArrayFree, 1, VARIADIC},
    {"array-deep-free", builtinArrayDeepFree, 1, VARIADIC},
    {"array-mark", builtinArrayMark, 2},
+   {"array-get-mark", builtinArrayGetMark, 2},
    {"array-free-marked", builtinArrayFreeMarked, 1},
    {"array-join", builtinArrayJoin, 3},
    {"array-concat", builtinArrayConcat, 3},

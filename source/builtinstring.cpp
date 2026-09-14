@@ -210,6 +210,20 @@ void builtinStringMark(const Command &command, Executor &executor) {
    it->second.mark = getNum(executor, command, 1, "string-mark");
 }
 
+void builtinStringGetMark(const Command &command, Executor &executor) {
+   Value string = resolveVariable(executor, arg(executor, command, 0));
+   if (string.type != VALUE_STRING) {
+      error(executor.diagnostics, command.file, command.line, "string-get-mark: Expected string, got %s instead", getValueName(string.type));
+      return;
+   }
+   auto it = executor.strings.find(string.string);
+   if (it == executor.strings.end()) {
+      error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", string.string);
+      return;
+   }
+   storeNumber(executor, command, it->second.mark, false, "string-get-mark");
+}
+
 void builtinStringFreeMarked(const Command &command, Executor &executor) {
    int mark = getNum(executor, command, 0, "string-free-marked");
    for (auto &[id, string]: executor.strings) {
