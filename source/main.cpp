@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
    log(cache, diagnostics, SEVERITY_ERROR);
    float translatorTime = measureEnd();
 
-   debugTokens(cache, tokens);
+   // debugTokens(cache, tokens);
 
    measure();
    parsePIL(executor, tokens);
@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
    tokens.shrink_to_fit();
    float parseTime = measureEnd();
 
-   debugBytecode(executor);
+   // debugBytecode(executor);
 
    measure();
    callPILFunction(executor, "main", SEVERITY_ERROR);

@@ -30,7 +30,7 @@ void pushBuiltin(Executor &executor, const BuiltinDef &def) {
    }
 }
 
-Value parseToken(Executor &executor, Token token, const std::unordered_map<size_t, size_t> &functionParamMap, const std::unordered_map<size_t, Value> &constantMap) {
+Value parseToken(Executor &executor, Token token, const std::unordered_map<size_t, size_t> &functionParamMap) {
    Value value {VALUE_COUNT};
    switch (token.type) {
    case TOKEN_IDENTIFIER:
@@ -38,7 +38,7 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
          value.type = VALUE_LOCAL;
          value.local = it->second;
       }
-      else if (auto it = constantMap.find(token.lexeme); it != constantMap.end()) {
+      else if (auto it = executor.constants.find(token.lexeme); it != executor.constants.end()) {
          return it->second;
       }
       else {
@@ -99,9 +99,9 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
    return value;
 }
 
-Value internalParse(Executor &executor, std::vector<Token> &tokens, size_t &i, const std::unordered_map<size_t, size_t> &functionParamMap, const std::unordered_map<size_t, Value> &constantMap) {
+Value internalParse(Executor &executor, std::vector<Token> &tokens, size_t &i, const std::unordered_map<size_t, size_t> &functionParamMap) {
    if (tokens[i].type == TOKEN_L_BRACKET) {
-      return evaluateMath(executor, executor.constants, tokens, i);
+      return evaluateMath(executor, tokens, i);
    }
    else if (tokens[i].type == TOKEN_STRING) {
       // no extra concat needed
@@ -116,13 +116,13 @@ Value internalParse(Executor &executor, std::vector<Token> &tokens, size_t &i, c
          if (tokens[i].type == TOKEN_FMT_START) {
             i += 1;
             while (tokens[i].type != TOKEN_FMT_END) {
-               Value value = parseToken(executor, tokens[i], functionParamMap, constantMap);
+               Value value = parseToken(executor, tokens[i], functionParamMap);
                constructed += toStringParseTime(executor, value);
                i += 1;
             }
          }
          else if (tokens[i].type == TOKEN_EVAL_START) {
-            Value value = evaluateMath(executor, constantMap, tokens, i);
+            Value value = evaluateMath(executor, tokens, i);
             constructed += toStringParseTime(executor, value);
          }
          else if (tokens[i].type == TOKEN_STRING) {
@@ -137,7 +137,7 @@ Value internalParse(Executor &executor, std::vector<Token> &tokens, size_t &i, c
       return Value{.type = VALUE_CSTRING, .string = pushLexeme(executor.cache, constructed)};
    }
    else {
-      return parseToken(executor, tokens[i], functionParamMap, executor.constants);
+      return parseToken(executor, tokens[i], functionParamMap);
    }
 }
 
@@ -289,7 +289,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
             error(executor.diagnostics, tokens[i].file, tokens[i].line, "Expected a constant value in the constant declaration, got %s instead", getTokenName(tokens[i].type));
             continue;
          }
-         executor.constants[lexeme] = internalParse(executor, tokens, i, {}, executor.constants); // functionParamMap handles runtime values, not constants
+         executor.constants[lexeme] = internalParse(executor, tokens, i, {}); // functionParamMap handles runtime values, not constants
       }
       // function calls
       else {
@@ -314,7 +314,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
          size_t start = i + 1;
 
          for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
-            Value value = internalParse(executor, tokens, i, functionParamMap, executor.constants);
+            Value value = internalParse(executor, tokens, i, functionParamMap);
             if (isCall && value.type == VALUE_FUNCTION) {
                if (command.callee != std::string::npos) {
                   error(executor.diagnostics, command.file, command.line, "call: Cannot call multiple functions in a single call");

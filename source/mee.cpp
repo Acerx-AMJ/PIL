@@ -3,7 +3,7 @@
 #include <numeric>
 
 static bool isFloating;
-double parseOr(Executor&, const std::unordered_map<size_t, Value>&, std::vector<Token>&, size_t&);
+double parseOr(Executor&, std::vector<Token>&, size_t&);
 
 struct MEEFunc {
    union { // just works
@@ -56,10 +56,10 @@ static const std::unordered_map<std::string, MEEFunc> MEEFuncMap {
    {"lcm", {.f2=[](double a, double b) -> double { return std::lcm((long)a, (long)b); }, .args=2}},
 };
 
-double parseExpression(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
+double parseExpression(Executor &executor, std::vector<Token> &tokens, size_t &i) {
    if (tokens[i].type == TOKEN_L_PAREN) {
       i += 1;
-      double v = parseOr(executor, constantMap, tokens, i);
+      double v = parseOr(executor, tokens, i);
       if (tokens[i].type != TOKEN_R_PAREN) {
          error(executor.diagnostics, tokens[i].file, tokens[i].line, "Expected Right Parentheses, got %s instead", getTokenName(tokens[i].type));
       }
@@ -76,7 +76,7 @@ double parseExpression(Executor &executor, const std::unordered_map<size_t, Valu
 
       std::vector<double> args;
       for (i += 2; i < tokens.size() && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_R_PAREN;) {
-         args.push_back(parseOr(executor, constantMap, tokens, i));
+         args.push_back(parseOr(executor, tokens, i));
       }
 
       if (tokens[i].type != TOKEN_R_PAREN) {
@@ -102,7 +102,7 @@ double parseExpression(Executor &executor, const std::unordered_map<size_t, Valu
       }
    }
 
-   Value value = parseToken(executor, tokens[i], {}, constantMap);
+   Value value = parseToken(executor, tokens[i], {});
    i += 1;
    if (value.type != VALUE_INTEGER && value.type != VALUE_FLOATING) {
       error(executor.diagnostics, tokens[i].file, tokens[i].line, "Invalid value in constant evaluator - %s", getValueName(value.type));
@@ -112,34 +112,34 @@ double parseExpression(Executor &executor, const std::unordered_map<size_t, Valu
    return (value.type == VALUE_FLOATING ? value.floating : value.integer);
 }
 
-double parseUnary(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
+double parseUnary(Executor &executor, std::vector<Token> &tokens, size_t &i) {
    if (tokens[i].type == TOKEN_MINUS || tokens[i].type == TOKEN_PLUS || tokens[i].type == TOKEN_BNOT || tokens[i].type == TOKEN_LNOT) {
       TokenType type = tokens[i].type;
       i += 1;
-      double a = parseUnary(executor, constantMap, tokens, i);
+      double a = parseUnary(executor, tokens, i);
       if (type == TOKEN_MINUS) return -a;
       else if (type == TOKEN_BNOT) return (double)~(long)a;
       else if (type == TOKEN_LNOT) return a == 0.0;
       else return a;
    }
-   return parseExpression(executor, constantMap, tokens, i);
+   return parseExpression(executor, tokens, i);
 }
 
-double parseExponentiative(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
-   double left = parseUnary(executor, constantMap, tokens, i);
+double parseExponentiative(Executor &executor, std::vector<Token> &tokens, size_t &i) {
+   double left = parseUnary(executor, tokens, i);
    if (tokens[i].type == TOKEN_STAR_STAR) {
       i += 1;
-      return pow(left, parseExponentiative(executor, constantMap, tokens, i));
+      return pow(left, parseExponentiative(executor, tokens, i));
    }
    return left;
 }
 
-double parseMultiplicative(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
-   double left = parseExponentiative(executor, constantMap, tokens, i);
+double parseMultiplicative(Executor &executor, std::vector<Token> &tokens, size_t &i) {
+   double left = parseExponentiative(executor, tokens, i);
    while (tokens[i].type == TOKEN_STAR || tokens[i].type == TOKEN_SLASH || tokens[i].type == TOKEN_PERCENT) {
       TokenType type = tokens[i].type;
       i += 1;
-      double right = parseExponentiative(executor, constantMap, tokens, i);
+      double right = parseExponentiative(executor, tokens, i);
       if (right == 0.0 && type != TOKEN_STAR) {
          error(executor.diagnostics, tokens[i].file, tokens[i].line, "Division by zero in constant evaluator");
          left = 0.0;
@@ -149,64 +149,64 @@ double parseMultiplicative(Executor &executor, const std::unordered_map<size_t, 
    return left;
 }
 
-double parseAdditive(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
-   double left = parseMultiplicative(executor, constantMap, tokens, i);
+double parseAdditive(Executor &executor, std::vector<Token> &tokens, size_t &i) {
+   double left = parseMultiplicative(executor, tokens, i);
    while (tokens[i].type == TOKEN_PLUS || tokens[i].type == TOKEN_MINUS) {
       TokenType type = tokens[i].type;
       i += 1;
-      double right = parseMultiplicative(executor, constantMap, tokens, i);
+      double right = parseMultiplicative(executor, tokens, i);
       left = (type == TOKEN_PLUS ? left + right : left - right);
    }
    return left;
 }
 
-double parseShifts(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
-   double left = parseAdditive(executor, constantMap, tokens, i);
+double parseShifts(Executor &executor, std::vector<Token> &tokens, size_t &i) {
+   double left = parseAdditive(executor, tokens, i);
    while (tokens[i].type == TOKEN_BSHL || tokens[i].type == TOKEN_BSHR) {
       TokenType type = tokens[i].type;
       i += 1;
-      double right = parseAdditive(executor, constantMap, tokens, i);
+      double right = parseAdditive(executor, tokens, i);
       left = (type == TOKEN_BSHL ? (long)left << (long)right : (long)left >> (long)right);
    }
    return left;
 }
 
-double parseBand(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
-   double left = parseShifts(executor, constantMap, tokens, i);
+double parseBand(Executor &executor, std::vector<Token> &tokens, size_t &i) {
+   double left = parseShifts(executor, tokens, i);
    while (tokens[i].type == TOKEN_BAND) {
       i += 1;
-      double right = parseShifts(executor, constantMap, tokens, i);
+      double right = parseShifts(executor, tokens, i);
       left = (long)left & (long)right;
    }
    return left;
 }
 
-double parseBxor(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
-   double left = parseBand(executor, constantMap, tokens, i);
+double parseBxor(Executor &executor, std::vector<Token> &tokens, size_t &i) {
+   double left = parseBand(executor, tokens, i);
    while (tokens[i].type == TOKEN_BXOR) {
       i += 1;
-      double right = parseBand(executor, constantMap, tokens, i);
+      double right = parseBand(executor, tokens, i);
       left = (long)left ^ (long)right;
    }
    return left;
 }
 
-double parseBor(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
-   double left = parseBxor(executor, constantMap, tokens, i);
+double parseBor(Executor &executor, std::vector<Token> &tokens, size_t &i) {
+   double left = parseBxor(executor, tokens, i);
    while (tokens[i].type == TOKEN_BOR) {
       i += 1;
-      double right = parseBxor(executor, constantMap, tokens, i);
+      double right = parseBxor(executor, tokens, i);
       left = (long)left | (long)right;
    }
    return left;
 }
 
-double parseRelationalOps(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
-   double left = parseBor(executor, constantMap, tokens, i);
+double parseRelationalOps(Executor &executor, std::vector<Token> &tokens, size_t &i) {
+   double left = parseBor(executor, tokens, i);
    while (tokens[i].type == TOKEN_LESSER || tokens[i].type == TOKEN_GREATER || tokens[i].type == TOKEN_LESSER_EQUAL || tokens[i].type == TOKEN_GREATER_EQUAL) {
       TokenType type = tokens[i].type;
       i += 1;
-      double right = parseBor(executor, constantMap, tokens, i);
+      double right = parseBor(executor, tokens, i);
       if (type == TOKEN_LESSER) left = (left < right);
       else if (type == TOKEN_GREATER) left = (left > right);
       else if (type == TOKEN_LESSER_EQUAL) left = (left <= right);
@@ -215,41 +215,41 @@ double parseRelationalOps(Executor &executor, const std::unordered_map<size_t, V
    return left;
 }
 
-double parseEqualityOps(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
-   double left = parseRelationalOps(executor, constantMap, tokens, i);
+double parseEqualityOps(Executor &executor, std::vector<Token> &tokens, size_t &i) {
+   double left = parseRelationalOps(executor, tokens, i);
    while (tokens[i].type == TOKEN_EQUAL || tokens[i].type == TOKEN_INEQUAL) {
       TokenType type = tokens[i].type;
       i += 1;
-      double right = parseRelationalOps(executor, constantMap, tokens, i);
+      double right = parseRelationalOps(executor, tokens, i);
       left = (left == right) == (type == TOKEN_EQUAL);
    }
    return left;
 }
 
-double parseAnd(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
-   double left = parseEqualityOps(executor, constantMap, tokens, i);
+double parseAnd(Executor &executor, std::vector<Token> &tokens, size_t &i) {
+   double left = parseEqualityOps(executor, tokens, i);
    while (tokens[i].type == TOKEN_LAND) {
       i += 1;
-      double right = parseEqualityOps(executor, constantMap, tokens, i);
+      double right = parseEqualityOps(executor, tokens, i);
       left = (left != 0.0 && right != 0.0);
    }
    return left;
 }
 
-double parseOr(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
-   double left = parseAnd(executor, constantMap, tokens, i);
+double parseOr(Executor &executor, std::vector<Token> &tokens, size_t &i) {
+   double left = parseAnd(executor, tokens, i);
    while (tokens[i].type == TOKEN_LOR) {
       i += 1;
-      double right = parseAnd(executor, constantMap, tokens, i);
+      double right = parseAnd(executor, tokens, i);
       left = (left != 0.0 || right != 0.0);
    }
    return left;
 }
 
-Value evaluateMath(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
+Value evaluateMath(Executor &executor, std::vector<Token> &tokens, size_t &i) {
    isFloating = false;
    i += 1;
-   double result = parseOr(executor, constantMap, tokens, i);
+   double result = parseOr(executor, tokens, i);
    if (tokens[i].type != TOKEN_R_BRACKET && tokens[i].type != TOKEN_EVAL_END) {
       error(executor.diagnostics, tokens[i].file, tokens[i].line, "Unterminated constant evaluator. Expected Right Bracket, got %s instead", getTokenName(tokens[i].type));
    }
