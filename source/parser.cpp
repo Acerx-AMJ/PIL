@@ -1,4 +1,5 @@
 #include "builtin.hpp"
+#include "builtinhelpers.hpp"
 #include "pil.hpp"
 
 // we only define built-in functions that actually get used. thanks, cache. there are reserved built-ins that
@@ -93,9 +94,51 @@ Value parseToken(Executor &executor, Token token, const std::unordered_map<size_
       break;
    }
    default:
-      error(executor.diagnostics, token.file, token.line, "Unexpected %s in function call", getTokenName(token.type));
+      error(executor.diagnostics, token.file, token.line, "Unexpected %s while parsing", getTokenName(token.type));
    }
    return value;
+}
+
+Value internalParse(Executor &executor, std::vector<Token> &tokens, size_t &i, const std::unordered_map<size_t, size_t> &functionParamMap, const std::unordered_map<size_t, Value> &constantMap) {
+   if (tokens[i].type == TOKEN_L_BRACKET) {
+      return evaluateMath(executor, executor.constants, tokens, i);
+   }
+   else if (tokens[i].type == TOKEN_STRING) {
+      // no extra concat needed
+      if (tokens[i+1].type != TOKEN_FMT_START && tokens[i+1].type != TOKEN_EVAL_START && tokens[i+1].type != TOKEN_STRING) {
+         return Value{.type = VALUE_CSTRING, .string = tokens[i].lexeme};
+      }
+
+      std::string constructed = getLexeme(executor.cache, tokens[i].lexeme);
+      i += 1;
+
+      while (tokens[i].type != TOKEN_EOF) {
+         if (tokens[i].type == TOKEN_FMT_START) {
+            i += 1;
+            while (tokens[i].type != TOKEN_FMT_END) {
+               Value value = parseToken(executor, tokens[i], functionParamMap, constantMap);
+               constructed += toStringParseTime(executor, value);
+               i += 1;
+            }
+         }
+         else if (tokens[i].type == TOKEN_EVAL_START) {
+            Value value = evaluateMath(executor, constantMap, tokens, i);
+            constructed += toStringParseTime(executor, value);
+         }
+         else if (tokens[i].type == TOKEN_STRING) {
+            constructed += getLexeme(executor.cache, tokens[i].lexeme);
+         }
+         else {
+            break;
+         }
+         i += 1;
+      }
+      i -= 1;
+      return Value{.type = VALUE_CSTRING, .string = pushLexeme(executor.cache, constructed)};
+   }
+   else {
+      return parseToken(executor, tokens[i], functionParamMap, executor.constants);
+   }
 }
 
 // take the tokens and turn them into executable function blocks and commands. we have 3 levels here: file -> functions ->
@@ -246,13 +289,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
             error(executor.diagnostics, tokens[i].file, tokens[i].line, "Expected a constant value in the constant declaration, got %s instead", getTokenName(tokens[i].type));
             continue;
          }
-
-         if (type == TOKEN_L_BRACKET) {
-            executor.constants[lexeme] = evaluateMath(executor, executor.constants, tokens, i);
-         }
-         else {
-            executor.constants[lexeme] = parseToken(executor, tokens[i], {}, executor.constants); // functionParamMap handles runtime values, not constants;
-         }
+         executor.constants[lexeme] = internalParse(executor, tokens, i, {}, executor.constants); // functionParamMap handles runtime values, not constants
       }
       // function calls
       else {
@@ -277,14 +314,7 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
          size_t start = i + 1;
 
          for (++i; i < size && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_NEWLINE; ++i) {
-            Value value;
-            if (tokens[i].type == TOKEN_L_BRACKET) {
-               value = evaluateMath(executor, executor.constants, tokens, i);
-            }
-            else {
-               value = parseToken(executor, tokens[i], functionParamMap, executor.constants);
-            }
-
+            Value value = internalParse(executor, tokens, i, functionParamMap, executor.constants);
             if (isCall && value.type == VALUE_FUNCTION) {
                if (command.callee != std::string::npos) {
                   error(executor.diagnostics, command.file, command.line, "call: Cannot call multiple functions in a single call");

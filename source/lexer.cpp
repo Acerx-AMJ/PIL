@@ -6,8 +6,8 @@
 // helpers
 
 static const std::unordered_map<char, char> escapeCodeMap {
-   {'a', '\a'}, {'b', '\b'}, {'t', '\t'}, {'n', '\n'}, {'v', '\v'}, {'f', '\f'},
-   {'r', '\r'}, {'e', '\e'}, {'\\', '\\'}, {'\'', '\''}, {'"', '"'}
+   {'a', '\a'}, {'b', '\b'}, {'t', '\t'}, {'n', '\n'}, {'v', '\v'}, {'f', '\f'}, {'r', '\r'},
+   {'e', '\e'}, {'\\', '\\'}, {'\'', '\''}, {'"', '"'}, {'{', '{'}, {'}', '}'}, {'$', '$'}
 };
 
 inline char handleEscapeCode(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, size_t &i, size_t tokenLine) {
@@ -50,6 +50,9 @@ void readPIL(Diagnostics &diagnostics, LexemeCache &cache, const std::string &pa
 // characters and strings, which could change during execution and are usually longer and don't repeat as often. Registers
 // are safe to cache since they're constants
 void lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, std::vector<Token> &tokens) {
+   bool isStringEval = false;
+   bool isStringFmt = false;
+
    size_t size = file.code.size();
    size_t line = 1;
    size_t emptyLexeme = cacheLexeme(cache, "");
@@ -63,14 +66,41 @@ void lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, std
       case '(': tokens.emplace_back(TOKEN_L_PAREN, emptyLexeme, file.lexeme, line); continue;
       case ')': tokens.emplace_back(TOKEN_R_PAREN, emptyLexeme, file.lexeme, line); continue;
       case ':': tokens.emplace_back(TOKEN_LABEL, emptyLexeme, file.lexeme, line); continue;
-      case '[': tokens.emplace_back(TOKEN_L_BRACKET, emptyLexeme, file.lexeme, line); continue;
-      case ']': tokens.emplace_back(TOKEN_R_BRACKET, emptyLexeme, file.lexeme, line); continue;
       case '+': tokens.emplace_back(TOKEN_PLUS, emptyLexeme, file.lexeme, line); continue;
       case '-': tokens.emplace_back(TOKEN_MINUS, emptyLexeme, file.lexeme, line); continue;
       case '/': tokens.emplace_back(TOKEN_SLASH, emptyLexeme, file.lexeme, line); continue;
       case '%': tokens.emplace_back(TOKEN_PERCENT, emptyLexeme, file.lexeme, line); continue;
       case '^': tokens.emplace_back(TOKEN_BXOR, emptyLexeme, file.lexeme, line); continue;
       case '~': tokens.emplace_back(TOKEN_BNOT, emptyLexeme, file.lexeme, line); continue;
+      case '[': tokens.emplace_back(TOKEN_L_BRACKET, emptyLexeme, file.lexeme, line); continue;
+      case ']':
+         if (isStringFmt) {
+            error(diagnostics, file.lexeme, line, "Expected closing Right Brace, got Right Bracket instead");
+         }
+         else if (isStringEval) {
+            isStringEval = false;
+            tokens.emplace_back(TOKEN_EVAL_END, emptyLexeme, file.lexeme, line);
+            i += 1;
+            goto EVAL_STRING;
+         }
+         else {
+            tokens.emplace_back(TOKEN_R_BRACKET, emptyLexeme, file.lexeme, line);
+         }
+         continue;
+      case '}':
+         if (isStringEval) {
+            error(diagnostics, file.lexeme, line, "Expected closing Right Bracket, got Right Brace instead");
+         }
+         else if (isStringFmt) {
+            isStringFmt = false;
+            tokens.emplace_back(TOKEN_FMT_END, emptyLexeme, file.lexeme, line);
+            i += 1;
+            goto EVAL_STRING;
+         }
+         else {
+            error(diagnostics, file.lexeme, line, "Unexpected character '}'");
+         }
+         continue;
       case '*':
          if (i + 1 < size && file.code[i + 1] == '*') {
             tokens.emplace_back(TOKEN_STAR_STAR, emptyLexeme, file.lexeme, line);
@@ -179,20 +209,38 @@ void lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, std
          tokens.emplace_back(TOKEN_CHARACTER, cacheLexeme(cache, ch), file.lexeme, line);
       }
       else if (ch == '"') {
+         i += 1; // eval string might land directly on the closing quote, so increment beforehand
+      EVAL_STRING: // NOTE: ch isn't synced with the goto. don't use it.
+         bool fmted = false;
          std::string string;
          size_t originalLine = line;
          string.reserve(16);
 
-         for (++i; i < size && file.code[i] != '"' && file.code[i] != '\n'; ++i) {
+         for (; i < size && file.code[i] != '"' && file.code[i] != '\n'; ++i) {
+            if (i + 1 < size && file.code[i] == '$' && (file.code[i + 1] == '{' || file.code[i + 1] == '[')) {
+               if (isStringEval || isStringFmt) {
+                  error(diagnostics, file.lexeme, originalLine, "Cannot nest constant evaluator/constant formatter in strings");
+               }
+               isStringEval = (file.code[i + 1] == '[');
+               isStringFmt = (file.code[i + 1] == '{');
+               fmted = true;
+               i += 1;
+               break;
+            }
+
             string.push_back(handleEscapeCode(diagnostics, cache, file, i, line));
          }
 
-         if (i >= size || file.code[i] != '"') {
+         if (!fmted && (i >= size || file.code[i] != '"')) {
             i -= 1;
             error(diagnostics, file.lexeme, originalLine, "Unterminated string");
             continue;
          }
+
          tokens.emplace_back(TOKEN_STRING, pushLexeme(cache, string), file.lexeme, originalLine);
+         if (fmted) {
+            tokens.emplace_back(isStringFmt ? TOKEN_FMT_START : TOKEN_EVAL_START, emptyLexeme, file.lexeme, line);
+         }
       }
       else if (isDigit(ch)) {
          size_t end = i;

@@ -7,6 +7,7 @@ enum TokenType: char {
    TOKEN_LOR, TOKEN_LAND, TOKEN_LNOT, TOKEN_BOR, TOKEN_BXOR, TOKEN_BAND, TOKEN_BNOT, TOKEN_EQUAL, TOKEN_INEQUAL,
    TOKEN_LESSER, TOKEN_LESSER_EQUAL, TOKEN_GREATER, TOKEN_GREATER_EQUAL, TOKEN_BSHL, TOKEN_BSHR, TOKEN_STAR_STAR,
    TOKEN_DIRECTIVE, TOKEN_IDENTIFIER, TOKEN_INTEGER, TOKEN_FLOATING, TOKEN_STRING, TOKEN_CHARACTER,
+   TOKEN_FMT_START, TOKEN_FMT_END, TOKEN_EVAL_START, TOKEN_EVAL_END,
    TOKEN_NEWLINE, TOKEN_EOF, TOKEN_COUNT,
 };
 
@@ -16,6 +17,7 @@ constexpr const char *tokenTypeStrings[TOKEN_COUNT + 1] = {
    "Logical Or", "Logical And", "Logical Not", "Binary Or", "Binary Xor", "Binary And", "Binary Not", "Equal", "Inequal",
    "Lesser", "Lesser Equal", "Greater", "Greater Equal", "Bit Shift Left", "Bit Shift Right", "Exponentiate",
    "Directive", "Identifier", "Integer", "Floating", "String", "Character",
+   "Format Start", "Format End", "Eval Start", "Eval End",
    "Newline", "EOF", "Invalid Token",
 };
 

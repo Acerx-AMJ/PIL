@@ -250,7 +250,7 @@ Value evaluateMath(Executor &executor, const std::unordered_map<size_t, Value> &
    isFloating = false;
    i += 1;
    double result = parseOr(executor, constantMap, tokens, i);
-   if (tokens[i].type != TOKEN_R_BRACKET) {
+   if (tokens[i].type != TOKEN_R_BRACKET && tokens[i].type != TOKEN_EVAL_END) {
       error(executor.diagnostics, tokens[i].file, tokens[i].line, "Unterminated constant evaluator. Expected Right Bracket, got %s instead", getTokenName(tokens[i].type));
    }
    Value value {isFloating ? VALUE_FLOATING : VALUE_INTEGER};

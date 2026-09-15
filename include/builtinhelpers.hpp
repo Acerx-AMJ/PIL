@@ -286,6 +286,16 @@ inline void jumpToLabel(Executor &executor, Value value, const char *function, c
    }
 }
 
+inline std::string toStringParseTime(Executor &executor, Value value) {
+   switch (value.type) {
+   case VALUE_INTEGER: return std::to_string(value.integer);
+   case VALUE_FLOATING: return std::to_string(value.floating);
+   case VALUE_CHARACTER: return std::string(1, value.character);
+   case VALUE_CSTRING: return getLexeme(executor.cache, value.string);
+   default: return "(null)";
+   }
+}
+
 inline std::string toStringImpl(Executor &executor, Value value, const char *function, size_t file, size_t line, std::unordered_set<size_t> &active) {
    value = resolveVariable(executor, value);
    switch (value.type) {
