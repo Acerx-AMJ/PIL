@@ -29,6 +29,8 @@ int main(int argc, char *argv[]) {
    log(cache, diagnostics, SEVERITY_ERROR);
    float translatorTime = measureEnd();
 
+   debugTokens(cache, tokens);
+
    measure();
    parsePIL(executor, tokens);
    log(cache, diagnostics, SEVERITY_ERROR);

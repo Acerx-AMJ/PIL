@@ -1,20 +1,107 @@
 #include "pil.hpp"
 #include <cmath>
+#include <numeric>
 
 static bool isFloating;
+double parseOr(Executor&, const std::unordered_map<size_t, Value>&, std::vector<Token>&, size_t&);
 
-double parseAdditive(Executor&, const std::unordered_map<size_t, Value>&, std::vector<Token>&, size_t&);
+struct MEEFunc {
+   union { // just works
+      double(*f0)();
+      double(*f1)(double);
+      double(*f2)(double, double);
+      double(*f3)(double, double, double);
+   };
+   int args;
+   bool flt = false;
+};
+
+static const std::unordered_map<std::string, MEEFunc> MEEFuncMap {
+   {"abs", {.f1=fabs, .args=1}},
+   {"min", {.f2=fmin, .args=2}},
+   {"max", {.f2=fmax, .args=2}},
+   {"sqrt", {.f1=sqrt, .args=1, .flt=true}},
+   {"cbrt", {.f1=cbrt, .args=1, .flt=true}},
+   {"sin", {.f1=sin, .args=1, .flt=true}},
+   {"cos", {.f1=cos, .args=1, .flt=true}},
+   {"tan", {.f1=tan, .args=1, .flt=true}},
+   {"asin", {.f1=asin, .args=1, .flt=true}},
+   {"acos", {.f1=acos, .args=1, .flt=true}},
+   {"atan", {.f1=atan, .args=1, .flt=true}},
+   {"atan2", {.f2=atan2, .args=2, .flt=true}},
+   {"asinh", {.f1=asinh, .args=1, .flt=true}},
+   {"acosh", {.f1=acosh, .args=1, .flt=true}},
+   {"atanh", {.f1=atanh, .args=1, .flt=true}},
+   {"sinh", {.f1=sinh, .args=1, .flt=true}},
+   {"cosh", {.f1=cosh, .args=1, .flt=true}},
+   {"tanh", {.f1=tanh, .args=1, .flt=true}},
+   {"clamp", {.f3=[](double x, double lo, double hi){ return (x < lo ? lo : x > hi ? hi : x); }, .args=3}},
+   {"sign", {.f1=[](double x){ return (x == 0.0 ? 0.0 : x > 0.0 ? 1.0 : -1.0);}, .args=1}},
+   {"trunc", {.f1=trunc, .args=1}},
+   {"ceil", {.f1=ceil, .args=1}},
+   {"floor", {.f1=floor, .args=1}},
+   {"round", {.f1=round, .args=1}},
+   {"exp", {.f1=exp, .args=1, .flt=true}},
+   {"ln", {.f1=log, .args=1, .flt=true}},
+   {"log", {.f2=[](double a, double b){ return log(a) / log(b); }, .args=2, .flt=true}},
+   {"log2", {.f1=log2, .args=1, .flt=true}},
+   {"log10", {.f1=log10, .args=1, .flt=true}},
+   {"lerp", {.f3=[](double a, double b, double t){ return a + (b - a) * t; }, .args=3, .flt=true}},
+   {"if", {.f3=[](double cond, double yes, double no){ return cond != 0.0 ? yes : no; }, .args=3}},
+   {"pi", {.f0=[]{ return M_PI; }, .args=0, .flt=true}},
+   {"tau", {.f0=[]{ return M_PI * 2.0; }, .args=0, .flt=true}},
+   {"e", {.f0=[]{ return M_E; }, .args=0, .flt=true}},
+   {"hypot", {.f2=hypot, .args=2, .flt=true}},
+   {"gcd", {.f2=[](double a, double b) -> double { return std::gcd((long)a, (long)b); }, .args=2}},
+   {"lcm", {.f2=[](double a, double b) -> double { return std::lcm((long)a, (long)b); }, .args=2}},
+};
+
 double parseExpression(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
    if (tokens[i].type == TOKEN_L_PAREN) {
       i += 1;
-      double v = parseAdditive(executor, constantMap, tokens, i);
+      double v = parseOr(executor, constantMap, tokens, i);
       if (tokens[i].type != TOKEN_R_PAREN) {
          error(executor.diagnostics, tokens[i].file, tokens[i].line, "Expected Right Parentheses, got %s instead", getTokenName(tokens[i].type));
       }
       i += 1;
       return v;
    }
-   
+   else if (tokens[i].type == TOKEN_IDENTIFIER && tokens[i + 1].type == TOKEN_L_PAREN) {
+      std::string &lexeme = getLexeme(executor.cache, tokens[i].lexeme);
+      auto it = MEEFuncMap.find(lexeme);
+      if (it == MEEFuncMap.end()) {
+         error(executor.diagnostics, tokens[i].file, tokens[i].line, "No such constant evaluator function '%s'", lexeme.c_str());
+         return 0.0;
+      }
+
+      std::vector<double> args;
+      for (i += 2; i < tokens.size() && tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_R_PAREN;) {
+         args.push_back(parseOr(executor, constantMap, tokens, i));
+      }
+
+      if (tokens[i].type != TOKEN_R_PAREN) {
+         error(executor.diagnostics, tokens[i].file, tokens[i].line, "Unterminated parentheses");
+         return 0.0;
+      }
+
+      i += 1;
+      if (args.size() != (size_t)it->second.args) {
+         error(executor.diagnostics, tokens[i].file, tokens[i].line, "%s: Expected %d parameters, got %zu instead", lexeme.c_str(), it->second.args, args.size());
+         return 0.0;
+      }
+
+      if (it->second.flt) isFloating = true;
+      switch (it->second.args) {
+      case 0: return it->second.f0();
+      case 1: return it->second.f1(args[0]);
+      case 2: return it->second.f2(args[0], args[1]);
+      case 3: return it->second.f3(args[0], args[1], args[2]);
+      default:
+         printf("PIL::parseExpression: Invalid internal constant evaluator function argument count %d", it->second.args);
+         exit(EXIT_FAILURE);
+      }
+   }
+
    Value value = parseToken(executor, tokens[i], {}, constantMap);
    i += 1;
    if (value.type != VALUE_INTEGER && value.type != VALUE_FLOATING) {
@@ -26,18 +113,21 @@ double parseExpression(Executor &executor, const std::unordered_map<size_t, Valu
 }
 
 double parseUnary(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
-   if (tokens[i].type == TOKEN_MINUS || tokens[i].type == TOKEN_PLUS) {
+   if (tokens[i].type == TOKEN_MINUS || tokens[i].type == TOKEN_PLUS || tokens[i].type == TOKEN_BNOT || tokens[i].type == TOKEN_LNOT) {
       TokenType type = tokens[i].type;
       i += 1;
       double a = parseUnary(executor, constantMap, tokens, i);
-      return (type == TOKEN_MINUS ? -a : a);
+      if (type == TOKEN_MINUS) return -a;
+      else if (type == TOKEN_BNOT) return (double)~(long)a;
+      else if (type == TOKEN_LNOT) return a == 0.0;
+      else return a;
    }
    return parseExpression(executor, constantMap, tokens, i);
 }
 
 double parseExponentiative(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
    double left = parseUnary(executor, constantMap, tokens, i);
-   if (tokens[i].type == TOKEN_CARET) {
+   if (tokens[i].type == TOKEN_STAR_STAR) {
       i += 1;
       return pow(left, parseExponentiative(executor, constantMap, tokens, i));
    }
@@ -50,7 +140,10 @@ double parseMultiplicative(Executor &executor, const std::unordered_map<size_t, 
       TokenType type = tokens[i].type;
       i += 1;
       double right = parseExponentiative(executor, constantMap, tokens, i);
-      if (right == 0.0 && type != TOKEN_STAR) left = 0.0;
+      if (right == 0.0 && type != TOKEN_STAR) {
+         error(executor.diagnostics, tokens[i].file, tokens[i].line, "Division by zero in constant evaluator");
+         left = 0.0;
+      }
       else left = (type == TOKEN_STAR ? left * right : (type == TOKEN_SLASH ? left / right : fmod(left, right)));
    }
    return left;
@@ -67,12 +160,98 @@ double parseAdditive(Executor &executor, const std::unordered_map<size_t, Value>
    return left;
 }
 
+double parseShifts(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
+   double left = parseAdditive(executor, constantMap, tokens, i);
+   while (tokens[i].type == TOKEN_BSHL || tokens[i].type == TOKEN_BSHR) {
+      TokenType type = tokens[i].type;
+      i += 1;
+      double right = parseAdditive(executor, constantMap, tokens, i);
+      left = (type == TOKEN_BSHL ? (long)left << (long)right : (long)left >> (long)right);
+   }
+   return left;
+}
+
+double parseBand(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
+   double left = parseShifts(executor, constantMap, tokens, i);
+   while (tokens[i].type == TOKEN_BAND) {
+      i += 1;
+      double right = parseShifts(executor, constantMap, tokens, i);
+      left = (long)left & (long)right;
+   }
+   return left;
+}
+
+double parseBxor(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
+   double left = parseBand(executor, constantMap, tokens, i);
+   while (tokens[i].type == TOKEN_BXOR) {
+      i += 1;
+      double right = parseBand(executor, constantMap, tokens, i);
+      left = (long)left ^ (long)right;
+   }
+   return left;
+}
+
+double parseBor(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
+   double left = parseBxor(executor, constantMap, tokens, i);
+   while (tokens[i].type == TOKEN_BOR) {
+      i += 1;
+      double right = parseBxor(executor, constantMap, tokens, i);
+      left = (long)left | (long)right;
+   }
+   return left;
+}
+
+double parseRelationalOps(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
+   double left = parseBor(executor, constantMap, tokens, i);
+   while (tokens[i].type == TOKEN_LESSER || tokens[i].type == TOKEN_GREATER || tokens[i].type == TOKEN_LESSER_EQUAL || tokens[i].type == TOKEN_GREATER_EQUAL) {
+      TokenType type = tokens[i].type;
+      i += 1;
+      double right = parseBor(executor, constantMap, tokens, i);
+      if (type == TOKEN_LESSER) left = (left < right);
+      else if (type == TOKEN_GREATER) left = (left > right);
+      else if (type == TOKEN_LESSER_EQUAL) left = (left <= right);
+      else left = (left >= right);
+   }
+   return left;
+}
+
+double parseEqualityOps(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
+   double left = parseRelationalOps(executor, constantMap, tokens, i);
+   while (tokens[i].type == TOKEN_EQUAL || tokens[i].type == TOKEN_INEQUAL) {
+      TokenType type = tokens[i].type;
+      i += 1;
+      double right = parseRelationalOps(executor, constantMap, tokens, i);
+      left = (left == right) == (type == TOKEN_EQUAL);
+   }
+   return left;
+}
+
+double parseAnd(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
+   double left = parseEqualityOps(executor, constantMap, tokens, i);
+   while (tokens[i].type == TOKEN_LAND) {
+      i += 1;
+      double right = parseEqualityOps(executor, constantMap, tokens, i);
+      left = (left != 0.0 && right != 0.0);
+   }
+   return left;
+}
+
+double parseOr(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
+   double left = parseAnd(executor, constantMap, tokens, i);
+   while (tokens[i].type == TOKEN_LOR) {
+      i += 1;
+      double right = parseAnd(executor, constantMap, tokens, i);
+      left = (left != 0.0 || right != 0.0);
+   }
+   return left;
+}
+
 Value evaluateMath(Executor &executor, const std::unordered_map<size_t, Value> &constantMap, std::vector<Token> &tokens, size_t &i) {
    isFloating = false;
    i += 1;
-   double result = parseAdditive(executor, constantMap, tokens, i);
+   double result = parseOr(executor, constantMap, tokens, i);
    if (tokens[i].type != TOKEN_R_BRACKET) {
-      error(executor.diagnostics, tokens[i].file, tokens[i].line, "Unterminated constant evaluator");
+      error(executor.diagnostics, tokens[i].file, tokens[i].line, "Unterminated constant evaluator. Expected Right Bracket, got %s instead", getTokenName(tokens[i].type));
    }
    Value value {isFloating ? VALUE_FLOATING : VALUE_INTEGER};
    if (isFloating) value.floating = result;

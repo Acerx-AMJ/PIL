@@ -67,13 +67,79 @@ void lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, std
       case ']': tokens.emplace_back(TOKEN_R_BRACKET, emptyLexeme, file.lexeme, line); continue;
       case '+': tokens.emplace_back(TOKEN_PLUS, emptyLexeme, file.lexeme, line); continue;
       case '-': tokens.emplace_back(TOKEN_MINUS, emptyLexeme, file.lexeme, line); continue;
-      case '*': tokens.emplace_back(TOKEN_STAR, emptyLexeme, file.lexeme, line); continue;
       case '/': tokens.emplace_back(TOKEN_SLASH, emptyLexeme, file.lexeme, line); continue;
       case '%': tokens.emplace_back(TOKEN_PERCENT, emptyLexeme, file.lexeme, line); continue;
-      case '^': tokens.emplace_back(TOKEN_CARET, emptyLexeme, file.lexeme, line); continue;
+      case '^': tokens.emplace_back(TOKEN_BXOR, emptyLexeme, file.lexeme, line); continue;
+      case '~': tokens.emplace_back(TOKEN_BNOT, emptyLexeme, file.lexeme, line); continue;
+      case '*':
+         if (i + 1 < size && file.code[i + 1] == '*') {
+            tokens.emplace_back(TOKEN_STAR_STAR, emptyLexeme, file.lexeme, line);
+            i += 1;
+         }
+         else {
+            tokens.emplace_back(TOKEN_STAR, emptyLexeme, file.lexeme, line);
+         }
+         continue;
+      case '&':
+         if (i + 1 < size && file.code[i + 1] == '&') {
+            tokens.emplace_back(TOKEN_LAND, emptyLexeme, file.lexeme, line);
+            i += 1;
+         }
+         else {
+            tokens.emplace_back(TOKEN_BAND, emptyLexeme, file.lexeme, line);
+         }
+         continue;
+      case '|':
+         if (i + 1 < size && file.code[i + 1] == '|') {
+            tokens.emplace_back(TOKEN_LOR, emptyLexeme, file.lexeme, line);
+            i += 1;
+         }
+         else {
+            tokens.emplace_back(TOKEN_BOR, emptyLexeme, file.lexeme, line);
+         }
+         continue;
+      case '!':
+         if (i + 1 < size && file.code[i + 1] == '=') {
+            tokens.emplace_back(TOKEN_INEQUAL, emptyLexeme, file.lexeme, line);
+            i += 1;
+         }
+         else {
+            tokens.emplace_back(TOKEN_LNOT, emptyLexeme, file.lexeme, line);
+         }
+         continue;
+      case '<':
+         if (i + 1 < size && file.code[i + 1] == '<') {
+            tokens.emplace_back(TOKEN_BSHL, emptyLexeme, file.lexeme, line);
+            i += 1;
+         }
+         else if (i + 1 < size && file.code[i + 1] == '=') {
+            tokens.emplace_back(TOKEN_LESSER_EQUAL, emptyLexeme, file.lexeme, line);
+            i += 1;
+         }
+         else {
+            tokens.emplace_back(TOKEN_LESSER, emptyLexeme, file.lexeme, line);
+         }
+         continue;
+      case '>':
+         if (i + 1 < size && file.code[i + 1] == '>') {
+            tokens.emplace_back(TOKEN_BSHR, emptyLexeme, file.lexeme, line);
+            i += 1;
+         }
+         else if (i + 1 < size && file.code[i + 1] == '=') {
+            tokens.emplace_back(TOKEN_GREATER_EQUAL, emptyLexeme, file.lexeme, line);
+            i += 1;
+         }
+         else {
+            tokens.emplace_back(TOKEN_GREATER, emptyLexeme, file.lexeme, line);
+         }
+         continue;
       }
 
-      if (i + 2 < size && ch == '.' && file.code[i+1] == '.' && file.code[i+2] == '.') {
+      if (i + 1 < size && ch == '=' && file.code[i+1] == '=') {
+         tokens.emplace_back(TOKEN_EQUAL, emptyLexeme, file.lexeme, line);
+         i += 1;
+      }
+      else if (i + 2 < size && ch == '.' && file.code[i+1] == '.' && file.code[i+2] == '.') {
          tokens.emplace_back(TOKEN_VARIADIC, emptyLexeme, file.lexeme, line);
          i += 2;
       }

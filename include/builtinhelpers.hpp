@@ -268,6 +268,10 @@ inline bool valuesEqual(Executor &executor, const Command &command, Value a, Val
       const std::string &bs = (b.type == VALUE_STRING ? getString(executor, b.string, command.file, command.line) : getLexeme(executor.cache, b.string));
       return as == bs;
    }
+   else if (a.type == VALUE_ARRAY && b.type == VALUE_ARRAY) {
+      std::set<std::pair<size_t, size_t>> active;
+      return arraysEqual(executor, a, b, command.file, command.line, active);
+   }
    return false;
 }
 
