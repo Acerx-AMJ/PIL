@@ -1,0 +1,97 @@
+const memsize 20000
+
+main() let code, memory, pc, i, ch, tmp, depth, size
+   print "Input code: "
+   readln code
+
+   array-fill memory, memsize, 0
+   string-size code, size
+   set 0, i
+   set 0, pc
+
+   greq i, size, tmp
+   jmp tmp, BRAINFUCK-END
+BRAINFUCK-START:
+   string-idx code, i, ch
+   jmptable ch, '>', BRAINFUCK-RIGHT, '<', BRAINFUCK-LEFT, '-', BRAINFUCK-MINUS, '+', BRAINFUCK-PLUS, '.', BRAINFUCK-WRITE, ',', BRAINFUCK-READ, '[', BRAINFUCK-LOOP-START, ']', BRAINFUCK-LOOP-END, BRAINFUCK-ERROR-UNKNOWN-CHAR
+BRAINFUCK-RIGHT:
+   incr pc
+   greq pc, memsize, tmp
+   jmpn tmp, BRAINFUCK-HANDLE-LOOP
+   set 0, pc
+   goto BRAINFUCK-HANDLE-LOOP
+BRAINFUCK-LEFT:
+   decr pc
+   le pc, 0, tmp
+   jmpn tmp, BRAINFUCK-HANDLE-LOOP
+   set [memsize - 1], pc
+   goto BRAINFUCK-HANDLE-LOOP
+BRAINFUCK-MINUS:
+   array-idx memory, pc, tmp
+   decr tmp
+   array-set memory, pc, tmp
+   goto BRAINFUCK-HANDLE-LOOP
+BRAINFUCK-PLUS:
+   array-idx memory, pc, tmp
+   incr tmp
+   array-set memory, pc, tmp
+   goto BRAINFUCK-HANDLE-LOOP
+BRAINFUCK-WRITE:
+   array-idx memory, pc, tmp
+   to-char tmp, tmp
+   print tmp
+   goto BRAINFUCK-HANDLE-LOOP
+BRAINFUCK-READ:
+   readch tmp
+   to-int tmp, tmp
+   array-set memory, pc, tmp
+   goto BRAINFUCK-HANDLE-LOOP
+BRAINFUCK-LOOP-START:
+   array-idx memory, pc, tmp
+   jmp tmp, BRAINFUCK-HANDLE-LOOP
+
+   set 1, depth
+   incr i
+   greq i, size, tmp
+   jmp tmp, BRAINFUCK-HANDLE-LOOP
+BRAINFUCK-LOOP-START-BEGIN:
+   string-idx code, i, ch
+   eq ch, '[', tmp
+   add depth, tmp, depth
+   eq ch, ']', tmp
+   sub depth, tmp, depth
+   incr i
+   le i, size, tmp
+   gr depth, 0, $0
+   and tmp, $0, tmp
+   jmp tmp, BRAINFUCK-LOOP-START-BEGIN
+   goto BRAINFUCK-HANDLE-LOOP
+BRAINFUCK-LOOP-END:
+   array-idx memory, pc, tmp
+   jmpn tmp, BRAINFUCK-HANDLE-LOOP
+
+   set 1, depth
+   decr i
+   le i, 0, tmp
+   jmp tmp, BRAINFUCK-HANDLE-LOOP
+BRAINFUCK-LOOP-END-BEGIN:
+   string-idx code, i, ch
+   eq ch, '[', tmp
+   sub depth, tmp, depth
+   eq ch, ']', tmp
+   add depth, tmp, depth
+   decr i
+   greq i, 0, tmp
+   gr depth, 0, $0
+   and tmp, $0, tmp
+   jmp tmp, BRAINFUCK-LOOP-END-BEGIN
+   goto BRAINFUCK-HANDLE-LOOP
+BRAINFUCK-HANDLE-LOOP:
+   incr i
+   le i, size, tmp
+   jmp tmp, BRAINFUCK-START
+   goto BRAINFUCK-END
+BRAINFUCK-ERROR-UNKNOWN-CHAR:
+   error "Unknown character '{}'", ch
+BRAINFUCK-END:
+   exit 0

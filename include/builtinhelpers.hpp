@@ -439,3 +439,4 @@ inline std::mt19937 &RNG() {
 }
 
 void setEcho(bool on);
+char getCanonicalChar();

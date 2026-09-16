@@ -5,11 +5,15 @@
 #include <thread>
 
 // output
+void builtinPrintch(const Command &command, Executor &executor) {
+   putchar(getChar(command, executor, "printch", 0));
+}
+
 void builtinPrint(const Command &command, Executor &executor) {
    print(command, executor, "print", command.file, command.line);
 }
 
-void builtinPrintn(const Command &command, Executor &executor) {
+void builtinPrintln(const Command &command, Executor &executor) {
    print(command, executor, "printn", command.file, command.line);
    putchar('\n');
 }
@@ -18,7 +22,7 @@ void builtinPrintf(const Command &command, Executor &executor) {
    printf("%s", format(command, executor, "printf", 0).c_str());
 }
 
-void builtinPrintfn(const Command &command, Executor &executor) {
+void builtinPrintfln(const Command &command, Executor &executor) {
    printf("%s\n", format(command, executor, "printfn", 0).c_str());
 }
 
@@ -28,15 +32,15 @@ void builtinRead(const Command &command, Executor &executor) {
    storeString(executor, command, input, back(executor, command), "read");
 }
 
-void builtinReadline(const Command &command, Executor &executor) {
+void builtinReadln(const Command &command, Executor &executor) {
    std::string input;
    std::getline(std::cin, input);
    storeString(executor, command, input, back(executor, command), "readline");
 }
 
-void builtinReadchar(const Command &command, Executor &executor) {
+void builtinReadch(const Command &command, Executor &executor) {
    Value value {VALUE_CHARACTER};
-   value.character = getchar();
+   value.character = getCanonicalChar();
    storeInRegister(executor, command, value, "readchar");
 }
 

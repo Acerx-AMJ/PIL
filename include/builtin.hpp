@@ -130,13 +130,14 @@ void builtinRandfRange(const Command &command, Executor &executor);
 void builtinRandiRange(const Command &command, Executor &executor);
 
 // input/output
+void builtinPrintch(const Command &command, Executor &executor);
 void builtinPrint(const Command &command, Executor &executor);
-void builtinPrintn(const Command &command, Executor &executor);
+void builtinPrintln(const Command &command, Executor &executor);
 void builtinPrintf(const Command &command, Executor &executor);
-void builtinPrintfn(const Command &command, Executor &executor);
+void builtinPrintfln(const Command &command, Executor &executor);
 void builtinRead(const Command &command, Executor &executor);
-void builtinReadline(const Command &command, Executor &executor);
-void builtinReadchar(const Command &command, Executor &executor);
+void builtinReadln(const Command &command, Executor &executor);
+void builtinReadch(const Command &command, Executor &executor);
 void builtinSetecho(const Command &command, Executor &executor);
 
 // comparison
@@ -352,13 +353,14 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"randi-range", builtinRandiRange, 3},
 
    // input/output
+   {"printch", builtinPrintch, 1},
    {"print", builtinPrint, 1, VARIADIC},
-   {"printn", builtinPrintn, 1, VARIADIC},
+   {"println", builtinPrintln, 1, VARIADIC},
    {"printf", builtinPrintf, 1, VARIADIC},
-   {"printfn", builtinPrintfn, 1, VARIADIC},
+   {"printfln", builtinPrintfln, 1, VARIADIC},
    {"read", builtinRead, 1},
-   {"readline", builtinReadline, 1},
-   {"readchar", builtinReadchar, 1},
+   {"readln", builtinReadln, 1},
+   {"readch", builtinReadch, 1},
    {"setecho", builtinSetecho, 1},
 
    // comparison

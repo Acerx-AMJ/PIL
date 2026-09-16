@@ -2,6 +2,7 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <conio.h>
 #else
 #include <termios.h>
 #include <unistd.h>
@@ -22,5 +23,25 @@ void setEcho(bool on) {
    if (on) tty.c_lflag |= ECHO;
    else    tty.c_lflag &= ~ECHO;
    tcsetattr(STDIN_FILENO, TCSANOW, &tty);
+#endif
+}
+
+char getCanonicalChar() {
+#ifdef _WIN32
+   return _getch();
+#else
+   char ch = 0;
+   termios tty;
+   tcgetattr(STDIN_FILENO, &tty);
+   tty.c_lflag &= ~ECHO;
+   tty.c_lflag &= ~ICANON;
+   tty.c_cc[VMIN] = 1;
+   tty.c_cc[VTIME] = 0;
+   tcsetattr(STDIN_FILENO, TCSANOW, &tty);
+   read(0, &ch, 1);
+   tty.c_lflag |= ECHO;
+   tty.c_lflag |= ICANON;
+   tcsetattr(STDIN_FILENO, TCSANOW, &tty);
+   return ch;
 #endif
 }
