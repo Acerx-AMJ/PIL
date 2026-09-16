@@ -67,6 +67,13 @@ void builtinMod(const Command &command, Executor &executor) {
    storeNumber(executor, command, fmod(a, b), floating, "mod");
 }
 
+void builtinFloorMod(const Command &command, Executor &executor) {
+   bool floating = false;
+   double a = getNum(executor, command, 0, "floor-mod", &floating);
+   double b = getNum(executor, command, 1, "floor-mod", &floating);
+   storeNumber(executor, command, fmod(fmod(a, b) + b, b), floating, "floor-mod");
+}
+
 void builtinPow(const Command &command, Executor &executor) {
    bool floating = false;
    double a = getNum(executor, command, 0, "pow", &floating);
@@ -257,4 +264,115 @@ void builtinRandiRange(const Command &command, Executor &executor) {
    }
    double r = std::uniform_int_distribution<long>{min, max}(RNG());
    storeNumber(executor, command, r, false, "randi-range");
+}
+
+void builtinGcd(const Command &command, Executor &executor) {
+   long a = getNum(executor, command, 0, "gcd");
+   long b = getNum(executor, command, 1, "gcd");
+   storeNumber(executor, command, std::gcd(a, b), false, "gcd");
+}
+
+void builtinLcm(const Command &command, Executor &executor) {
+   long a = getNum(executor, command, 0, "lcm");
+   long b = getNum(executor, command, 1, "lcm");
+   storeNumber(executor, command, std::lcm(a, b), false, "lcm");
+}
+
+void builtinHypot(const Command &command, Executor &executor) {
+   binaryBuiltin(executor, command, std::hypot, "hypot");
+}
+
+void builtinHypot3(const Command &command, Executor &executor) {
+   double x = getNum(executor, command, 0, "hypot3");
+   double y = getNum(executor, command, 1, "hypot3");
+   double z = getNum(executor, command, 2, "hypot3");
+   storeNumber(executor, command, std::hypot(x, y, z), true, "hypot3");
+}
+
+void builtinBitand(const Command &command, Executor &executor) {
+   unsigned long a = getNum(executor, command, 0, "bit-and");
+   unsigned long b = getNum(executor, command, 1, "bit-and");
+   storeNumber(executor, command, a & b, false, "bit-and");
+}
+
+void builtinBitor(const Command &command, Executor &executor) {
+   unsigned long a = getNum(executor, command, 0, "bit-or");
+   unsigned long b = getNum(executor, command, 1, "bit-or");
+   storeNumber(executor, command, a | b, false, "bit-or");
+}
+
+void builtinBitxor(const Command &command, Executor &executor) {
+   unsigned long a = getNum(executor, command, 0, "bit-xor");
+   unsigned long b = getNum(executor, command, 1, "bit-xor");
+   storeNumber(executor, command, a ^ b, false, "bit-xor");
+}
+
+void builtinBitnot(const Command &command, Executor &executor) {
+   unsigned long a = getNum(executor, command, 0, "bit-not");
+   storeNumber(executor, command, ~a, false, "bit-not");
+}
+
+void builtinBitshl(const Command &command, Executor &executor) {
+   unsigned long a = getNum(executor, command, 0, "bit-shl");
+   unsigned long b = getNum(executor, command, 1, "bit-shl");
+   if (b >= sizeof(unsigned long) * 8) {
+      error(executor.diagnostics, command.file, command.line, "bit-shl: Shift position %lu is out of range", b);
+      return;
+   }
+   storeNumber(executor, command, a << b, false, "bit-shl");
+}
+
+void builtinBitshr(const Command &command, Executor &executor) {
+   unsigned long a = getNum(executor, command, 0, "bit-shr");
+   unsigned long b = getNum(executor, command, 1, "bit-shr");
+   if (b >= sizeof(unsigned long) * 8) {
+      error(executor.diagnostics, command.file, command.line, "bit-shr: Shift position %lu is out of range", b);
+      return;
+   }
+   storeNumber(executor, command, a >> b, false, "bit-shr");
+}
+
+void builtinBitcount(const Command &command, Executor &executor) {
+   unsigned long a = getNum(executor, command, 0, "bit-count");
+   storeNumber(executor, command, std::popcount(a), false, "bit-count");
+}
+
+void builtinBittest(const Command &command, Executor &executor) {
+   unsigned long val = getNum(executor, command, 0, "bit-test");
+   unsigned long pos = getNum(executor, command, 1, "bit-test");
+   if (pos >= sizeof(unsigned long) * 8) {
+      error(executor.diagnostics, command.file, command.line, "bit-test: Bit position %lu is out of range", pos);
+      return;
+   }
+   storeBoolean(executor, command, val & (1ul << pos), "bit-test");
+}
+
+void builtinBitset(const Command &command, Executor &executor) {
+   unsigned long val = getNum(executor, command, 0, "bit-set");
+   unsigned long pos = getNum(executor, command, 1, "bit-set");
+   if (pos >= sizeof(unsigned long) * 8) {
+      error(executor.diagnostics, command.file, command.line, "bit-set: Bit position %lu is out of range", pos);
+      return;
+   }
+   storeNumber(executor, command, val | (1ul << pos), false, "bit-set");
+}
+
+void builtinBitclear(const Command &command, Executor &executor) {
+   unsigned long val = getNum(executor, command, 0, "bit-clear");
+   unsigned long pos = getNum(executor, command, 1, "bit-clear");
+   if (pos >= sizeof(unsigned long) * 8) {
+      error(executor.diagnostics, command.file, command.line, "bit-clear: Bit position %lu is out of range", pos);
+      return;
+   }
+   storeNumber(executor, command, val & ~(1ul << pos), false, "bit-clear");
+}
+
+void builtinBittoggle(const Command &command, Executor &executor) {
+   unsigned long val = getNum(executor, command, 0, "bit-toggle");
+   unsigned long pos = getNum(executor, command, 1, "bit-toggle");
+   if (pos >= sizeof(unsigned long) * 8) {
+      error(executor.diagnostics, command.file, command.line, "bit-toggle: Bit position %lu is out of range", pos);
+      return;
+   }
+   storeNumber(executor, command, val ^ (1ul << pos), false, "bit-toggle");
 }

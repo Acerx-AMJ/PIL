@@ -118,7 +118,7 @@ double parseUnary(Executor &executor, std::vector<Token> &tokens, size_t &i) {
       i += 1;
       double a = parseUnary(executor, tokens, i);
       if (type == TOKEN_MINUS) return -a;
-      else if (type == TOKEN_BNOT) return (double)~(long)a;
+      else if (type == TOKEN_BNOT) return ~(unsigned long)a;
       else if (type == TOKEN_LNOT) return a == 0.0;
       else return a;
    }
@@ -166,7 +166,7 @@ double parseShifts(Executor &executor, std::vector<Token> &tokens, size_t &i) {
       TokenType type = tokens[i].type;
       i += 1;
       double right = parseAdditive(executor, tokens, i);
-      left = (type == TOKEN_BSHL ? (long)left << (long)right : (long)left >> (long)right);
+      left = (type == TOKEN_BSHL ? (unsigned long)left << (unsigned long)right : (unsigned long)left >> (unsigned long)right);
    }
    return left;
 }
@@ -176,7 +176,7 @@ double parseBand(Executor &executor, std::vector<Token> &tokens, size_t &i) {
    while (tokens[i].type == TOKEN_BAND) {
       i += 1;
       double right = parseShifts(executor, tokens, i);
-      left = (long)left & (long)right;
+      left = (unsigned long)left & (unsigned long)right;
    }
    return left;
 }
@@ -186,7 +186,7 @@ double parseBxor(Executor &executor, std::vector<Token> &tokens, size_t &i) {
    while (tokens[i].type == TOKEN_BXOR) {
       i += 1;
       double right = parseBand(executor, tokens, i);
-      left = (long)left ^ (long)right;
+      left = (unsigned long)left ^ (unsigned long)right;
    }
    return left;
 }
@@ -196,7 +196,7 @@ double parseBor(Executor &executor, std::vector<Token> &tokens, size_t &i) {
    while (tokens[i].type == TOKEN_BOR) {
       i += 1;
       double right = parseBxor(executor, tokens, i);
-      left = (long)left | (long)right;
+      left = (unsigned long)left | (unsigned long)right;
    }
    return left;
 }

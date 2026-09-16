@@ -13,18 +13,14 @@ main() let code, memory, pc, i, ch, tmp, depth, size
    jmp tmp, BRAINFUCK-END
 BRAINFUCK-START:
    string-idx code, i, ch
-   jmptable ch, '>', BRAINFUCK-RIGHT, '<', BRAINFUCK-LEFT, '-', BRAINFUCK-MINUS, '+', BRAINFUCK-PLUS, '.', BRAINFUCK-WRITE, ',', BRAINFUCK-READ, '[', BRAINFUCK-LOOP-START, ']', BRAINFUCK-LOOP-END, BRAINFUCK-ERROR-UNKNOWN-CHAR
+   jmptable ch, '>', BRAINFUCK-RIGHT, '<', BRAINFUCK-LEFT, '-', BRAINFUCK-MINUS, '+', BRAINFUCK-PLUS, '.', BRAINFUCK-WRITE, ',', BRAINFUCK-READ, '[', BRAINFUCK-LOOP-START, ']', BRAINFUCK-LOOP-END, BRAINFUCK-HANDLE-LOOP
 BRAINFUCK-RIGHT:
    incr pc
-   greq pc, memsize, tmp
-   jmpn tmp, BRAINFUCK-HANDLE-LOOP
-   set 0, pc
+   floor-mod pc, memsize, pc
    goto BRAINFUCK-HANDLE-LOOP
 BRAINFUCK-LEFT:
    decr pc
-   le pc, 0, tmp
-   jmpn tmp, BRAINFUCK-HANDLE-LOOP
-   set [memsize - 1], pc
+   floor-mod pc, memsize, pc
    goto BRAINFUCK-HANDLE-LOOP
 BRAINFUCK-MINUS:
    array-idx memory, pc, tmp
@@ -91,7 +87,6 @@ BRAINFUCK-HANDLE-LOOP:
    le i, size, tmp
    jmp tmp, BRAINFUCK-START
    goto BRAINFUCK-END
-BRAINFUCK-ERROR-UNKNOWN-CHAR:
-   error "Unknown character '{}'", ch
 BRAINFUCK-END:
-   exit 0
+   string-free code
+   array-free memory

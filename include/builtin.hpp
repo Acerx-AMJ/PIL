@@ -91,6 +91,7 @@ void builtinSub(const Command &command, Executor &executor);
 void builtinMul(const Command &command, Executor &executor);
 void builtinDiv(const Command &command, Executor &executor);
 void builtinMod(const Command &command, Executor &executor);
+void builtinFloorMod(const Command &command, Executor &executor);
 void builtinPow(const Command &command, Executor &executor);
 void builtinNeg(const Command &command, Executor &executor);
 void builtinSqrt(const Command &command, Executor &executor);
@@ -128,6 +129,21 @@ void builtinSeedRandom(const Command &command, Executor &executor);
 void builtinRandom(const Command &command, Executor &executor);
 void builtinRandfRange(const Command &command, Executor &executor);
 void builtinRandiRange(const Command &command, Executor &executor);
+void builtinGcd(const Command &command, Executor &executor);
+void builtinLcm(const Command &command, Executor &executor);
+void builtinHypot(const Command &command, Executor &executor);
+void builtinHypot3(const Command &command, Executor &executor);
+void builtinBitand(const Command &command, Executor &executor);
+void builtinBitor(const Command &command, Executor &executor);
+void builtinBitxor(const Command &command, Executor &executor);
+void builtinBitnot(const Command &command, Executor &executor);
+void builtinBitshl(const Command &command, Executor &executor);
+void builtinBitshr(const Command &command, Executor &executor);
+void builtinBitcount(const Command &command, Executor &executor);
+void builtinBittest(const Command &command, Executor &executor);
+void builtinBitset(const Command &command, Executor &executor);
+void builtinBitclear(const Command &command, Executor &executor);
+void builtinBittoggle(const Command &command, Executor &executor);
 
 // input/output
 void builtinPrintch(const Command &command, Executor &executor);
@@ -314,6 +330,7 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"mul", builtinMul, 3, VARIADIC},
    {"div", builtinDiv, 3, VARIADIC},
    {"mod", builtinMod, 3},
+   {"floor-mod", builtinFloorMod, 3},
    {"pow", builtinPow, 3},
    {"neg", builtinNeg, 2},
    {"sqrt", builtinSqrt, 2},
@@ -351,6 +368,21 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"random", builtinRandom, 1},
    {"randf-range", builtinRandfRange, 3},
    {"randi-range", builtinRandiRange, 3},
+   {"gcd", builtinGcd, 3},
+   {"lcm", builtinLcm, 3},
+   {"hypot", builtinHypot, 3},
+   {"hypot3", builtinHypot3, 4},
+   {"bit-and", builtinBitand, 3},
+   {"bit-or", builtinBitor, 3},
+   {"bit-xor", builtinBitxor, 3},
+   {"bit-not", builtinBitnot, 2},
+   {"bit-shl", builtinBitshl, 3},
+   {"bit-shr", builtinBitshr, 3},
+   {"bit-count", builtinBitcount, 2},
+   {"bit-test", builtinBittest, 3},
+   {"bit-set", builtinBitset, 3},
+   {"bit-clear", builtinBitclear, 3},
+   {"bit-toggle", builtinBittoggle, 3},
 
    // input/output
    {"printch", builtinPrintch, 1},
