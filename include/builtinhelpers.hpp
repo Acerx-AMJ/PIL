@@ -74,6 +74,7 @@ inline bool getBool(Executor &executor, const Command &command, size_t i) {
    case VALUE_CSTRING: return !getLexeme(executor.cache, v.string).empty();
    case VALUE_STRING: return !getString(executor, v.string, command.file, command.line).empty();
    case VALUE_ARRAY: return !getArray(executor, v.array, command.file, command.line).empty();
+   case VALUE_MAP: return !getMap(executor, v.map, command.file, command.line).empty();
    case VALUE_FUNCTION: return true;
    case VALUE_LABEL: return true;
    case VALUE_COUNT: return false;
@@ -191,8 +192,14 @@ inline void storeArray(Executor &executor, const Command &command, const std::ve
    storeInRegister(executor, command, reg, value, function);
 }
 
+inline void storeMap(Executor &executor, const Command &command, const InternalPILMap &map, Value reg, const char *function) {
+   Value value {VALUE_MAP};
+   value.map = allocateMap(executor, map);
+   storeInRegister(executor, command, reg, value, function);
+}
+
 // comparison
-inline bool arraysEqual(Executor &executor, Value arr1, Value arr2, size_t file, size_t line, std::set<std::pair<size_t, size_t>> &active) {
+inline bool arraysEqual(Executor &executor, Value arr1, Value arr2, size_t file, size_t line, const char *function, std::set<std::pair<size_t, size_t>> &active) {
    auto key = std::minmax(arr1.array, arr2.array);
    if (!active.insert(key).second) return true;
 
@@ -208,9 +215,13 @@ inline bool arraysEqual(Executor &executor, Value arr1, Value arr2, size_t file,
          const std::string &s2 = (v2.type == VALUE_STRING ? getString(executor, v2.string, file, line) : getLexeme(executor.cache, v2.string));
          if (s1 != s2) return false;
       }
+      else if (v1.type == VALUE_MAP || v2.type == VALUE_MAP) {
+         error(executor.diagnostics, file, line, "%s: Cannot compare %s to %s", function, getValueName(v1.type), getValueName(v2.type));
+         return false;
+      }
       else if ((v1.type != v2.type) || (v1.type == VALUE_INTEGER && v1.integer != v2.integer) || (v1.type == VALUE_FLOATING && v1.floating != v2.floating)
             || (v1.type == VALUE_CHARACTER && v1.character != v2.character) || (v1.type == VALUE_FUNCTION && v1.function != v2.function)
-            || (v1.type == VALUE_LABEL && v1.label != v2.label) || (v1.type == VALUE_ARRAY && !arraysEqual(executor, v1, v2, file, line, active))) {
+            || (v1.type == VALUE_LABEL && v1.label != v2.label) || (v1.type == VALUE_ARRAY && !arraysEqual(executor, v1, v2, file, line, function, active))) {
          return false;
       }
    }
@@ -235,7 +246,7 @@ inline Comparison compareTwoValues(Executor &executor, Value a, Value b, size_t 
    // only check equality for arrays
    else if (a.type == VALUE_ARRAY && b.type == VALUE_ARRAY && softie) {
       std::set<std::pair<size_t, size_t>> active;
-      return (arraysEqual(executor, a, b, file, line, active) ? COMPARISON_EQUAL : COMPARISON_NOT_EQUAL);
+      return (arraysEqual(executor, a, b, file, line, function, active) ? COMPARISON_EQUAL : COMPARISON_NOT_EQUAL);
    }
    else if (!softie) {
       error(executor.diagnostics, file, line, "%s: Cannot compare %s to %s", function, getValueName(a.type), getValueName(b.type));
@@ -254,7 +265,7 @@ inline void comparisonBuiltin(Executor &executor, const Command &command, const 
    storeBoolean(executor, command, (result == expected) != reverse, function);
 }
 
-inline bool valuesEqual(Executor &executor, const Command &command, Value a, Value b) {
+inline bool valuesEqual(Executor &executor, const Command &command, Value a, Value b, const char *function) {
    if ((a.type == VALUE_INTEGER || a.type == VALUE_FLOATING) && (b.type == VALUE_INTEGER || b.type == VALUE_INTEGER)) {
       double x = (a.type == VALUE_INTEGER) ? (double)a.integer : a.floating;
       double y = (b.type == VALUE_INTEGER) ? (double)b.integer : b.floating;
@@ -270,7 +281,20 @@ inline bool valuesEqual(Executor &executor, const Command &command, Value a, Val
    }
    else if (a.type == VALUE_ARRAY && b.type == VALUE_ARRAY) {
       std::set<std::pair<size_t, size_t>> active;
-      return arraysEqual(executor, a, b, command.file, command.line, active);
+      return arraysEqual(executor, a, b, command.file, command.line, function, active);
+   }
+   else if (a.type == VALUE_COUNT && b.type == VALUE_COUNT) {
+      return true;
+   }
+   else if (a.type == VALUE_FUNCTION && b.type == VALUE_FUNCTION) {
+      return a.function == b.function;
+   }
+   else if (a.type == VALUE_LABEL && b.type == VALUE_LABEL) {
+      return a.label == b.label;
+   }
+   else if (a.type == VALUE_MAP || b.type == VALUE_MAP) {
+      error(executor.diagnostics, command.file, command.line, "%s: Cannot compare %s to %s", function, getValueName(a.type), getValueName(b.type));
+      return false;
    }
    return false;
 }
@@ -304,8 +328,8 @@ inline std::string toStringImpl(Executor &executor, Value value, const char *fun
    case VALUE_CHARACTER: return std::string(1, value.character);
    case VALUE_CSTRING: return getLexeme(executor.cache, value.string);
    case VALUE_STRING: return getString(executor, value.string, file, line);
-   case VALUE_FUNCTION: return getLexeme(executor.cache, executor.functions[value.function].lexeme) + "()";
-   case VALUE_LABEL: return getLexeme(executor.cache, executor.functions[value.label].lexeme) + ":";
+   case VALUE_FUNCTION: return getLexeme(executor.cache, executor.functions[value.function].lexeme);
+   case VALUE_LABEL: return getLexeme(executor.cache, executor.functions[value.label].lexeme);
    case VALUE_ARRAY: {
       if (!active.insert(value.array).second) {
          return "...";
@@ -323,6 +347,9 @@ inline std::string toStringImpl(Executor &executor, Value value, const char *fun
       active.erase(value.array);
       return result;
    }
+   case VALUE_MAP:
+      error(executor.diagnostics, file, line, "%s: Cannot convert Map to String", function);
+      return "(null)";
    default: return "(null)";
    }
 }
@@ -348,7 +375,7 @@ inline std::string format(const Command &command, Executor &executor, const char
    return result;
 }
 
-inline void printValue(Executor &executor, Value a, size_t file, size_t line, std::unordered_set<size_t> &active) {
+inline void printValue(Executor &executor, Value a, size_t file, size_t line, std::set<std::pair<size_t, ValueType>> &active) {
    switch (a.type) {
    case VALUE_INTEGER: printf("%ld", a.integer); break;
    case VALUE_FLOATING: printf("%.3F", a.floating); break;
@@ -358,7 +385,7 @@ inline void printValue(Executor &executor, Value a, size_t file, size_t line, st
    case VALUE_FUNCTION: printf("%s()", getLexeme(executor.cache, executor.functions[a.function].lexeme).c_str()); break;
    case VALUE_LABEL: printf("%s:", getLexeme(executor.cache, executor.functions[a.label].lexeme).c_str()); break;
    case VALUE_ARRAY: {
-      if (!active.insert(a.array).second) {
+      if (!active.insert({a.array, a.type}).second) {
          printf("...");
          break;
       }
@@ -370,7 +397,25 @@ inline void printValue(Executor &executor, Value a, size_t file, size_t line, st
          if (i + 1 < size) putchar(',');
       }
       putchar(']');
-      active.erase(a.array);
+      active.erase({a.array, a.type});
+      break;
+   }
+   case VALUE_MAP: {
+      if (!active.insert({a.map, a.type}).second) {
+         printf("...");
+         break;
+      }
+      putchar('[');
+      InternalPILMap &map = getMap(executor, a.map, file, line);
+      for (auto it = map.begin(); it != map.end(); ++it) {
+         printValue(executor, it->first, file, line, active);
+         putchar(':');
+         putchar(' ');
+         printValue(executor, it->second, file, line, active);
+         if (std::distance(it, map.end()) > 1) putchar(',');
+      }
+      putchar(']');
+      active.erase({a.map, a.type});
       break;
    }
    default: printf("(null)");
@@ -378,7 +423,7 @@ inline void printValue(Executor &executor, Value a, size_t file, size_t line, st
 }
 
 inline void print(const Command &command, Executor &executor, const char *function, size_t file, size_t line) {
-   std::unordered_set<size_t> active;
+   std::set<std::pair<size_t, ValueType>> active;
    for (size_t i = 0; i < command.argCount; ++i) {
       Value a = resolveVariable(executor, arg(executor, command, i));
       active.clear();

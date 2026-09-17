@@ -83,6 +83,10 @@ void builtinArrayEraseAll(const Command &command, Executor &executor);
 void builtinArrayShallowCopy(const Command &command, Executor &executor);
 void builtinArrayDeepCopy(const Command &command, Executor &executor);
 
+// map ops
+void builtinMapNew(const Command &command, Executor &executor);
+void builtinMapFree(const Command &command, Executor &executor);
+
 // math
 void builtinIncr(const Command &command, Executor &executor);
 void builtinDecr(const Command &command, Executor &executor);
@@ -321,6 +325,10 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"array-erase-all", builtinArrayEraseAll, 2},
    {"array-shallow-copy", builtinArrayShallowCopy, 2},
    {"array-deep-copy", builtinArrayDeepCopy, 2},
+
+   // map ops
+   {"map-new", builtinMapNew, 1, VARIADIC},
+   {"map-free", builtinMapFree, 1, VARIADIC},
 
    // math
    {"incr", builtinIncr, 1},

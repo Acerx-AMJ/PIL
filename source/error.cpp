@@ -6,8 +6,7 @@ constexpr const char *STACKTRACE_INFO = "\e[0;34mStack Trace\e[0m";
 constexpr const char *ERROR_TEXT = "\e[0;31mError\e[0m";
 constexpr const char *WARNING_TEXT = "\e[0;33mWarning\e[0m";
 
-constexpr const char *LEAKED_STRINGS = "\e[0;31mProgram leaked %zu strings.\e[0m\n";
-constexpr const char *LEAKED_ARRAYS = "\e[0;31mProgram leaked %zu arrays.\e[0m\n";
+constexpr const char *LEAKED_OBJECTS = "\e[0;31mProgram leaked %zu %s.\e[0m\n";
 constexpr const char *AND_N_OTHERS = "\e[0;34mAnd %zu others...\e[0m\n";
 constexpr size_t MAX_LEAK_TRACE = 5;
 
@@ -101,7 +100,8 @@ void logStackTrace(Executor &executor, ErrorSeverity quitSeverity) {
 void logMemoryLeaks(Executor &executor) {
    size_t strings = executor.strings.size();
    size_t arrays = executor.arrays.size();
-   if (strings == 0 && arrays == 0) {
+   size_t maps = executor.maps.size();
+   if (strings == 0 && arrays == 0 && maps == 0) {
       return;
    }
 
@@ -109,7 +109,7 @@ void logMemoryLeaks(Executor &executor) {
       size_t size = std::min(strings, MAX_LEAK_TRACE);
       size_t i = 0;
 
-      printf(LEAKED_STRINGS, strings);
+      printf(LEAKED_OBJECTS, strings, "strings");
       for (const auto &[id, string]: executor.strings) {
          printf("%zu: '%s', mark %d.\n", id, string.string.c_str(), string.mark);
          i += 1;
@@ -126,7 +126,7 @@ void logMemoryLeaks(Executor &executor) {
       size_t size = std::min(arrays, MAX_LEAK_TRACE);
       size_t i = 0;
 
-      printf(LEAKED_ARRAYS, arrays);
+      printf(LEAKED_OBJECTS, arrays, "arrays");
       for (const auto &[id, array]: executor.arrays) {
          printf("%zu: Array with size %zu, mark %d.\n", id, array.array.size(), array.mark);
          i += 1;
@@ -137,6 +137,23 @@ void logMemoryLeaks(Executor &executor) {
 
       if (size < arrays) {
          printf(AND_N_OTHERS, arrays - size);
+      }
+   }
+   if (maps != 0) {
+      size_t size = std::min(maps, MAX_LEAK_TRACE);
+      size_t i = 0;
+
+      printf(LEAKED_OBJECTS, maps, "maps");
+      for (const auto &[id, map]: executor.maps) {
+         printf("%zu: Map with size %zu, mark %d.\n", id, map.map.size(), map.mark);
+         i += 1;
+         if (i >= size) {
+            break;
+         }
+      }
+
+      if (size < maps) {
+         printf(AND_N_OTHERS, maps - size);
       }
    }
 }

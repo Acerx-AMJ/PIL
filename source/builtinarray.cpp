@@ -270,7 +270,7 @@ void builtinArrayCount(const Command &command, Executor &executor) {
    if (!arrayOrError(command, executor, "array-count", array)) return;
    Value target = resolveVariable(executor, arg(executor, command, 1));
    size_t count = 0;
-   for (Value &v : *array) count += valuesEqual(executor, command, v, target);
+   for (Value &v : *array) count += valuesEqual(executor, command, v, target, "array-count");
    storeNumber(executor, command, count, false, "array-count");
 }
 
@@ -285,7 +285,7 @@ void builtinArrayFind(const Command &command, Executor &executor) {
    if (!arrayOrError(command, executor, "array-find", array)) return;
    Value target = resolveVariable(executor, arg(executor, command, 1));
    for (size_t i = 0; i < array->size(); ++i) {
-      if (valuesEqual(executor, command, (*array)[i], target)) {
+      if (valuesEqual(executor, command, (*array)[i], target, "array-find")) {
          storeNumber(executor, command, i, false, "array-find");
          return;
       }
@@ -298,7 +298,7 @@ void builtinArrayContains(const Command &command, Executor &executor) {
    if (!arrayOrError(command, executor, "array-contains", array)) return;
    Value target = resolveVariable(executor, arg(executor, command, 1));
    for (size_t i = 0; i < array->size(); ++i) {
-      if (valuesEqual(executor, command, (*array)[i], target)) {
+      if (valuesEqual(executor, command, (*array)[i], target, "array-contains")) {
          storeBoolean(executor, command, true, "array-contains");
          return;
       }
@@ -310,7 +310,7 @@ void builtinArrayEraseAll(const Command &command, Executor &executor) {
    std::vector<Value> *array;
    if (!arrayOrError(command, executor, "array-erase-all", array)) return;
    Value target = resolveVariable(executor, arg(executor, command, 1));
-   array->erase(std::remove_if(array->begin(), array->end(), [&](const Value &v){ return valuesEqual(executor, command, v, target); }), array->end());
+   array->erase(std::remove_if(array->begin(), array->end(), [&](const Value &v){ return valuesEqual(executor, command, v, target, "array-erase-all"); }), array->end());
 }
 
 void builtinArrayShallowCopy(const Command &command, Executor &executor) {

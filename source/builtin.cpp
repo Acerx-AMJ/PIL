@@ -110,7 +110,7 @@ void builtinJmptable(const Command &command, Executor &executor) {
    Value value = resolveVariable(executor, arg(executor, command, 0));
    for (size_t i = 1; i < command.argCount; i += 2) {
       Value result = resolveVariable(executor, arg(executor, command, i));
-      if (valuesEqual(executor, command, value, result)) {
+      if (valuesEqual(executor, command, value, result, "jmptable")) {
          jumpToLabel(executor, resolveVariable(executor, arg(executor, command, i + 1)), "jmptable", "destination", command.file, command.line, true);
          return;
       }
@@ -242,6 +242,7 @@ void builtinError(const Command &command, Executor &executor) {
 }
 
 void builtinExit(const Command &command, Executor &executor) {
+   logMemoryLeaks(executor);
    double code = getNum(executor, command, 0, "exit");
    exit(code);
 }
@@ -459,7 +460,7 @@ void builtinValTable(const Command &command, Executor &executor) {
    Value dest = arg(executor, command, 1);
    for (size_t i = 2; i < command.argCount; i += 2) {
       Value result = resolveVariable(executor, arg(executor, command, i));
-      if (valuesEqual(executor, command, value, result)) {
+      if (valuesEqual(executor, command, value, result, "valtable")) {
          storeInRegister(executor, command, dest, resolveVariable(executor, arg(executor, command, i+1)), "valtable");
          return;
       }
@@ -473,7 +474,7 @@ void builtinTableContains(const Command &command, Executor &executor) {
    Value dest = arg(executor, command, 1);
    for (size_t i = 2; i < command.argCount; ++i) {
       Value result = resolveVariable(executor, arg(executor, command, i));
-      if (valuesEqual(executor, command, value, result)) {
+      if (valuesEqual(executor, command, value, result, "table-contains")) {
          Value value {VALUE_INTEGER};
          value.integer = 1;
          storeInRegister(executor, command, dest, value, "table-contains");

@@ -3,12 +3,12 @@
 
 enum ValueType: char {
    VALUE_INTEGER, VALUE_FLOATING, VALUE_CHARACTER, VALUE_CSTRING, VALUE_STRING, VALUE_FUNCTION, VALUE_LABEL,
-   VALUE_LOCAL, VALUE_REGISTER, VALUE_RETURN_REGISTER, VALUE_ARRAY, VALUE_COUNT
+   VALUE_LOCAL, VALUE_REGISTER, VALUE_RETURN_REGISTER, VALUE_ARRAY, VALUE_MAP, VALUE_COUNT
 };
 
 constexpr const char *valueTypeStrings[VALUE_COUNT + 1] = {
    "Integer", "Floating", "Character", "Constant String", "String", "Function", "Label", "Local Variable",
-   "Register", "Return Register", "Array", "Invalid Value"
+   "Register", "Return Register", "Array", "Map", "Invalid Value"
 };
 
 constexpr const char *getValueName(ValueType value) {
@@ -27,6 +27,7 @@ struct Value {
       char character;
       size_t string; // reused for strings and cstrings
       size_t array;
+      size_t map;
       size_t identifier;
       size_t local;
       size_t reg; // reused for registers and return registers

@@ -50,6 +50,22 @@ struct PILArray {
    int mark = 0;
 };
 
+struct ValueHash {
+   Executor *executor;
+   size_t operator () (Value v) const;
+};
+
+struct ValueEqual {
+   Executor *executor;
+   bool operator () (Value a, Value b) const;
+};
+
+typedef std::unordered_map<Value, Value, ValueHash, ValueEqual> InternalPILMap;
+struct PILMap {
+   InternalPILMap map;
+   int mark = 0;
+};
+
 struct Executor {
    Executor(Diagnostics &diagnostics, LexemeCache &cache)
       : diagnostics(diagnostics), cache(cache) {}
@@ -64,6 +80,7 @@ struct Executor {
    std::unordered_map<size_t, Value> constants;
    std::unordered_map<size_t, PILString> strings;
    std::unordered_map<size_t, PILArray> arrays;
+   std::unordered_map<size_t, PILMap> maps;
 
    std::vector<Function> functions;
    std::vector<Value> locals;
@@ -94,6 +111,8 @@ std::string &getString(Executor &executor, size_t ID, size_t file, size_t line);
 size_t allocateString(Executor &executor, const std::string &string);
 std::vector<Value> &getArray(Executor &executor, size_t ID, size_t file, size_t line);
 size_t allocateArray(Executor &executor, const std::vector<Value> &array);
+InternalPILMap &getMap(Executor &executor, size_t ID, size_t file, size_t line);
+size_t allocateMap(Executor &executor, const InternalPILMap &map);
 
 // debug
 void measure();
