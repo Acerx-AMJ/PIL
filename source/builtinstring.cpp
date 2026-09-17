@@ -226,10 +226,8 @@ void builtinStringGetMark(const Command &command, Executor &executor) {
 
 void builtinStringFreeMarked(const Command &command, Executor &executor) {
    int mark = getNum(executor, command, 0, "string-free-marked");
-   for (auto &[id, string]: executor.strings) {
-      if (string.mark == mark) {
-         executor.strings.erase(id);
-      }
+   for (auto it = executor.strings.begin(); it != executor.strings.end();) {
+      it = (it->second.mark == mark ? executor.strings.erase(it) : std::next(it));
    }
 }
 

@@ -96,14 +96,14 @@ inline char getChar(const Command &command, Executor &executor, const char *func
 inline bool stringOrError(const Command &command, Executor &executor, const char *function, std::string *&out, size_t i = 0) {
    Value string = resolveVariable(executor, arg(executor, command, i));
    if (string.type != VALUE_STRING) {
-      error(executor.diagnostics, command.file, command.line, "%s: Expected string, got %s instead", function, getValueName(string.type));
+      error(executor.diagnostics, command.file, command.line, "%s: Expected String, got %s instead", function, getValueName(string.type));
       return false;
    }
    if (auto it = executor.strings.find(string.string); it != executor.strings.end()) {
       out = &it->second.string;
       return true;
    }
-   error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", string.string);
+   error(executor.diagnostics, command.file, command.line, "Invalid String ID %zu. Use after free", string.string);
    return false;
 }
 
@@ -115,7 +115,7 @@ inline bool constStringOrError(const Command &command, Executor &executor, const
    }
 
    if (value.type != VALUE_STRING) {
-      error(executor.diagnostics, command.file, command.line, "%s: Expected string or character, got %s instead", function, getValueName(value.type));
+      error(executor.diagnostics, command.file, command.line, "%s: Expected String or Character, got %s instead", function, getValueName(value.type));
       return false;
    }
 
@@ -123,7 +123,7 @@ inline bool constStringOrError(const Command &command, Executor &executor, const
       stringOut = &it->second.string;
       return true;
    }
-   error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", value.string);
+   error(executor.diagnostics, command.file, command.line, "Invalid String ID %zu. Use after free", value.string);
    return false;
 }
 
@@ -140,7 +140,7 @@ inline bool constStringOrCharOrError(const Command &command, Executor &executor,
    }
 
    if (value.type != VALUE_STRING) {
-      error(executor.diagnostics, command.file, command.line, "%s: Expected string or character, got %s instead", function, getValueName(value.type));
+      error(executor.diagnostics, command.file, command.line, "%s: Expected String or Character, got %s instead", function, getValueName(value.type));
       return false;
    }
 
@@ -148,21 +148,35 @@ inline bool constStringOrCharOrError(const Command &command, Executor &executor,
       stringOut = &it->second.string;
       return true;
    }
-   error(executor.diagnostics, command.file, command.line, "Invalid string ID %zu. Use after free", value.string);
+   error(executor.diagnostics, command.file, command.line, "Invalid String ID %zu. Use after free", value.string);
    return false;
 }
 
 inline bool arrayOrError(const Command &command, Executor &executor, const char *function, std::vector<Value> *&out, size_t i = 0) {
    Value array = resolveVariable(executor, arg(executor, command, i));
    if (array.type != VALUE_ARRAY) {
-      error(executor.diagnostics, command.file, command.line, "%s: Expected array, got %s instead", function, getValueName(array.type));
+      error(executor.diagnostics, command.file, command.line, "%s: Expected Array, got %s instead", function, getValueName(array.type));
       return false;
    }
    if (auto it = executor.arrays.find(array.array); it != executor.arrays.end()) {
       out = &it->second.array;
       return true;
    }
-   error(executor.diagnostics, command.file, command.line, "Invalid array ID %zu. Use after free", array.array);
+   error(executor.diagnostics, command.file, command.line, "Invalid Array ID %zu. Use after free", array.array);
+   return false;
+}
+
+inline bool mapOrError(const Command &command, Executor &executor, const char *function, InternalPILMap *&out, size_t i = 0) {
+   Value map = resolveVariable(executor, arg(executor, command, i));
+   if (map.type != VALUE_MAP) {
+      error(executor.diagnostics, command.file, command.line, "%s: Expected Map, got %s instead", function, getValueName(map.type));
+      return false;
+   }
+   if (auto it = executor.maps.find(map.map); it != executor.maps.end()) {
+      out = &it->second.map;
+      return true;
+   }
+   error(executor.diagnostics, command.file, command.line, "Invalid Map ID %zu. Use after free", map.map);
    return false;
 }
 
@@ -431,50 +445,110 @@ inline void print(const Command &command, Executor &executor, const char *functi
    }
 }
 
-inline size_t deepCopy(const Command &command, Executor &executor, size_t originalId, std::map<std::pair<size_t, ValueType>, size_t> &copied) {
-   if (auto it = copied.find({originalId, VALUE_ARRAY}); it != copied.end()) {
+inline size_t deepCopy(const Command &command, Executor &executor, size_t originalId, ValueType type, std::map<std::pair<size_t, ValueType>, size_t> &copied) {
+   if (auto it = copied.find({originalId, type}); it != copied.end()) {
       return it->second;
    }
 
-   size_t newId = allocateArray(executor, {});
-   copied[{originalId, VALUE_ARRAY}] = newId;
-
-   std::vector<Value> copy = getArray(executor, originalId, command.file, command.line);
-   for (Value &value: copy) {
-      if (value.type == VALUE_ARRAY) {
-         value.array = deepCopy(command, executor, value.array, copied);
+   auto copyString = [&](Value &v) {
+      size_t originalStringId = v.string;
+      auto it = copied.find({originalStringId, v.type});
+      if (it == copied.end()) {
+         v.string = allocateString(executor, getString(executor, v.string, command.file, command.line));
+         copied[{originalStringId, v.type}] = v.string;
       }
-      else if (value.type == VALUE_STRING) {
-         size_t originalStringId = value.string;
-         auto it = copied.find({originalStringId, VALUE_STRING});
-         if (it == copied.end()) {
-            value.string = allocateString(executor, getString(executor, value.string, command.file, command.line));
-            copied[{originalStringId, VALUE_STRING}] = value.string;
-         }
-         else {
-            value.string = it->second;
-         }
+      else {
+         v.string = it->second;
       }
-   }
-   getArray(executor, newId, command.file, command.line) = std::move(copy);
-   return newId;
-}
+   };
 
-inline void deepFree(const Command &command, Executor &executor, Value &array, std::unordered_set<size_t> &visited) {
-   if (!visited.insert(array.array).second) return;
-   if (auto it = executor.arrays.find(array.array); it != executor.arrays.end()) {
-      std::vector<Value> &arr = it->second.array;
-      for (Value &value: arr) {
+   if (type == VALUE_ARRAY) {
+      size_t newId = allocateArray(executor, {});
+      copied[{originalId, type}] = newId;
+
+      std::vector<Value> copy = getArray(executor, originalId, command.file, command.line);
+      for (Value &value: copy) {
          if (value.type == VALUE_ARRAY) {
-            deepFree(command, executor, value, visited);
+            value.array = deepCopy(command, executor, value.array, value.type, copied);
+         }
+         else if (value.type == VALUE_MAP) {
+            value.map = deepCopy(command, executor, value.map, value.type, copied);
          }
          else if (value.type == VALUE_STRING) {
-            executor.strings.erase(value.string);
-            value = NULL_VALUE;
+            copyString(value);
          }
       }
-      executor.arrays.erase(it);
-      array = NULL_VALUE;
+      getArray(executor, newId, command.file, command.line) = std::move(copy);
+      return newId;
+   }
+   else {
+      size_t newId = allocateMap(executor, {});
+      copied[{originalId, type}] = newId;
+
+      InternalPILMap &original = getMap(executor, originalId, command.file, command.line);
+      InternalPILMap copy {original.size(), ValueHash{&executor}, ValueEqual{&executor}};
+
+      for (auto &[key, value]: original) {
+         Value newValue = value;
+         if (newValue.type == VALUE_ARRAY) {
+            newValue.array = deepCopy(command, executor, newValue.array, newValue.type, copied);
+         }
+         else if (newValue.type == VALUE_MAP) {
+            newValue.map = deepCopy(command, executor, newValue.map, newValue.type, copied);
+         }
+         else if (newValue.type == VALUE_STRING) {
+            copyString(value);
+         }
+
+         Value newKey = key;
+         if (key.type == VALUE_STRING) {
+            copyString(newKey);
+         }
+         copy[newKey] = newValue;
+      }
+      getMap(executor, newId, command.file, command.line) = std::move(copy);
+      return newId;
+   }
+}
+
+inline void deepFree(const Command &command, Executor &executor, Value &value, std::set<std::pair<size_t, ValueType>> &visited) {
+   if (value.type == VALUE_MAP) {
+      if (!visited.insert({value.map, value.type}).second) return;
+      if (auto it = executor.maps.find(value.map); it != executor.maps.end()) {
+         InternalPILMap &map = it->second.map;
+         for (auto &[key, value]: map) {
+            if (value.type == VALUE_ARRAY || value.type == VALUE_MAP) {
+               deepFree(command, executor, value, visited);
+            }
+            else if (value.type == VALUE_STRING) {
+               executor.strings.erase(value.string);
+               value = NULL_VALUE;
+            }
+
+            if (key.type == VALUE_STRING) {
+               executor.strings.erase(key.string);
+            }
+         }
+         executor.maps.erase(it);
+         value = NULL_VALUE;
+      }
+   }
+   else if (value.type == VALUE_ARRAY) {
+      if (!visited.insert({value.array, value.type}).second) return;
+      if (auto it = executor.arrays.find(value.array); it != executor.arrays.end()) {
+         std::vector<Value> &arr = it->second.array;
+         for (Value &value: arr) {
+            if (value.type == VALUE_ARRAY || value.type == VALUE_MAP) {
+               deepFree(command, executor, value, visited);
+            }
+            else if (value.type == VALUE_STRING) {
+               executor.strings.erase(value.string);
+               value = NULL_VALUE;
+            }
+         }
+         executor.arrays.erase(it);
+         value = NULL_VALUE;
+      }
    }
 }
 

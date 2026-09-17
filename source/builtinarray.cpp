@@ -155,7 +155,7 @@ void builtinArrayFree(const Command &command, Executor &executor) {
       Value a = arg(executor, command, i);
       Value &array = resolveVariableByRef(executor, a);
       if (array.type != VALUE_ARRAY) {
-         error(executor.diagnostics, command.file, command.line, "array-free: Expected array, got %s instead", getValueName(array.type));
+         error(executor.diagnostics, command.file, command.line, "array-free: Expected Array, got %s instead", getValueName(array.type));
          return;
       }
       executor.arrays.erase(array.array);
@@ -164,12 +164,12 @@ void builtinArrayFree(const Command &command, Executor &executor) {
 }
 
 void builtinArrayDeepFree(const Command &command, Executor &executor) {
-   std::unordered_set<size_t> visited;
+   std::set<std::pair<size_t, ValueType>> visited;
    for (size_t i = 0; i < command.argCount; ++i) {
       Value a = arg(executor, command, i);
       Value &array = resolveVariableByRef(executor, a);
       if (array.type != VALUE_ARRAY) {
-         error(executor.diagnostics, command.file, command.line, "array-free: Expected array, got %s instead", getValueName(array.type));
+         error(executor.diagnostics, command.file, command.line, "array-deep-free: Expected Array, got %s instead", getValueName(array.type));
          return;
       }
       visited.clear();
@@ -180,7 +180,7 @@ void builtinArrayDeepFree(const Command &command, Executor &executor) {
 void builtinArrayMark(const Command &command, Executor &executor) {
    Value array = resolveVariable(executor, arg(executor, command, 0));
    if (array.type != VALUE_ARRAY) {
-      error(executor.diagnostics, command.file, command.line, "array-mark: Expected array, got %s instead", getValueName(array.type));
+      error(executor.diagnostics, command.file, command.line, "array-mark: Expected Array, got %s instead", getValueName(array.type));
       return;
    }
    auto it = executor.arrays.find(array.array);
@@ -194,7 +194,7 @@ void builtinArrayMark(const Command &command, Executor &executor) {
 void builtinArrayGetMark(const Command &command, Executor &executor) {
    Value array = resolveVariable(executor, arg(executor, command, 0));
    if (array.type != VALUE_ARRAY) {
-      error(executor.diagnostics, command.file, command.line, "array-get-mark: Expected array, got %s instead", getValueName(array.type));
+      error(executor.diagnostics, command.file, command.line, "array-get-mark: Expected Array, got %s instead", getValueName(array.type));
       return;
    }
    auto it = executor.arrays.find(array.array);
@@ -207,10 +207,8 @@ void builtinArrayGetMark(const Command &command, Executor &executor) {
 
 void builtinArrayFreeMarked(const Command &command, Executor &executor) {
    int mark = getNum(executor, command, 0, "array-free-marked");
-   for (auto &[id, array]: executor.arrays) {
-      if (array.mark == mark) {
-         executor.arrays.erase(id);
-      }
+   for (auto it = executor.arrays.begin(); it != executor.arrays.end();) {
+      it = (it->second.mark == mark ? executor.arrays.erase(it) : std::next(it));
    }
 }
 
@@ -322,15 +320,15 @@ void builtinArrayShallowCopy(const Command &command, Executor &executor) {
 void builtinArrayDeepCopy(const Command &command, Executor &executor) {
    Value array = resolveVariable(executor, arg(executor, command, 0));
    if (array.type != VALUE_ARRAY) {
-      error(executor.diagnostics, command.file, command.line, "array-deep-copy: Expected array, got %s instead", getValueName(array.type));
+      error(executor.diagnostics, command.file, command.line, "array-deep-copy: Expected Array, got %s instead", getValueName(array.type));
       return;
    }
    if (auto it = executor.arrays.find(array.array); it == executor.arrays.end()) {
-      error(executor.diagnostics, command.file, command.line, "Invalid array ID %zu. Use after free", array.array);
+      error(executor.diagnostics, command.file, command.line, "Invalid Array ID %zu. Use after free", array.array);
       return;
    }
    std::map<std::pair<size_t, ValueType>, size_t> copied;
    Value result {VALUE_ARRAY};
-   result.array = deepCopy(command, executor, array.array, copied);
+   result.array = deepCopy(command, executor, array.array, array.type, copied);
    storeInRegister(executor, command, back(executor, command), result, "array-deep-copy");
 }

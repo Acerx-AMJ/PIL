@@ -86,6 +86,12 @@ void builtinArrayDeepCopy(const Command &command, Executor &executor);
 // map ops
 void builtinMapNew(const Command &command, Executor &executor);
 void builtinMapFree(const Command &command, Executor &executor);
+void builtinMapDeepFree(const Command &command, Executor &executor);
+void builtinMapMark(const Command &command, Executor &executor);
+void builtinMapGetMark(const Command &command, Executor &executor);
+void builtinMapFreeMark(const Command &command, Executor &executor);
+void builtinMapShallowCopy(const Command &command, Executor &executor);
+void builtinMapDeepCopy(const Command &command, Executor &executor);
 
 // math
 void builtinIncr(const Command &command, Executor &executor);
@@ -329,6 +335,12 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    // map ops
    {"map-new", builtinMapNew, 1, VARIADIC},
    {"map-free", builtinMapFree, 1, VARIADIC},
+   {"map-deep-free", builtinMapDeepFree, 1, VARIADIC},
+   {"map-mark", builtinMapMark, 2},
+   {"map-get-mark", builtinMapGetMark, 2},
+   {"map-free-marked", builtinMapFreeMark, 1},
+   {"map-shallow-copy", builtinMapShallowCopy, 2},
+   {"map-deep-copy", builtinMapDeepCopy, 2},
 
    // math
    {"incr", builtinIncr, 1},

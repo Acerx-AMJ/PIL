@@ -159,8 +159,8 @@ void parsePIL(Executor &executor, std::vector<Token> &tokens) {
    bool constantExpr = false;
 
    for (size_t i = 0; i < size; ++i) {
-      if (tokens[i].type == TOKEN_L_BRACKET) constantExpr = true;
-      if (tokens[i].type == TOKEN_R_BRACKET) constantExpr = false;
+      if (tokens[i].type == TOKEN_L_BRACKET || tokens[i].type == TOKEN_EVAL_START) constantExpr = true;
+      if (tokens[i].type == TOKEN_R_BRACKET || tokens[i].type == TOKEN_EVAL_END) constantExpr = false;
 
       if (!constantExpr && tokens[i].type == TOKEN_IDENTIFIER && (tokens[i + 1].type == TOKEN_L_PAREN || tokens[i + 1].type == TOKEN_LABEL)) {
          size_t position = tokens[i].lexeme;
