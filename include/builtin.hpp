@@ -85,11 +85,21 @@ void builtinArrayDeepCopy(const Command &command, Executor &executor);
 
 // map ops
 void builtinMapNew(const Command &command, Executor &executor);
+void builtinMapErase(const Command &command, Executor &executor);
+void builtinMapSet(const Command &command, Executor &executor);
+void builtinMapAt(const Command &command, Executor &executor);
+void builtinMapContains(const Command &command, Executor &executor);
+void builtinMapSize(const Command &command, Executor &executor);
+void builtinMapEmpty(const Command &command, Executor &executor);
+void builtinMapClear(const Command &command, Executor &executor);
+void builtinMapKeys(const Command &command, Executor &executor);
+void builtinMapValues(const Command &command, Executor &executor);
+void builtinMapMerge(const Command &command, Executor &executor);
 void builtinMapFree(const Command &command, Executor &executor);
 void builtinMapDeepFree(const Command &command, Executor &executor);
 void builtinMapMark(const Command &command, Executor &executor);
 void builtinMapGetMark(const Command &command, Executor &executor);
-void builtinMapFreeMark(const Command &command, Executor &executor);
+void builtinMapFreeMarked(const Command &command, Executor &executor);
 void builtinMapShallowCopy(const Command &command, Executor &executor);
 void builtinMapDeepCopy(const Command &command, Executor &executor);
 
@@ -334,11 +344,21 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
 
    // map ops
    {"map-new", builtinMapNew, 1, VARIADIC},
+   {"map-erase", builtinMapErase, 2},
+   {"map-set", builtinMapSet, 3},
+   {"map-at", builtinMapAt, 3},
+   {"map-contains", builtinMapContains, 3},
+   {"map-size", builtinMapSize, 2},
+   {"map-empty", builtinMapEmpty, 2},
+   {"map-clear", builtinMapClear, 1},
+   {"map-keys", builtinMapKeys, 2},
+   {"map-values", builtinMapValues, 2},
+   {"map-merge", builtinMapMerge, 3},
    {"map-free", builtinMapFree, 1, VARIADIC},
    {"map-deep-free", builtinMapDeepFree, 1, VARIADIC},
    {"map-mark", builtinMapMark, 2},
    {"map-get-mark", builtinMapGetMark, 2},
-   {"map-free-marked", builtinMapFreeMark, 1},
+   {"map-free-marked", builtinMapFreeMarked, 1},
    {"map-shallow-copy", builtinMapShallowCopy, 2},
    {"map-deep-copy", builtinMapDeepCopy, 2},
 

@@ -19,6 +19,100 @@ void builtinMapNew(const Command &command, Executor &executor) {
    storeMap(executor, command, map, arg(executor, command, 0), "map-new");
 }
 
+void builtinMapErase(const Command &command, Executor &executor) {
+   InternalPILMap *map;
+   if (!mapOrError(command, executor, "map-erase", map)) return;
+   Value key = resolveVariable(executor, arg(executor, command, 1));
+   if (key.type == VALUE_ARRAY || key.type == VALUE_MAP) {
+      error(executor.diagnostics, command.file, command.line, "map-erase: %s cannot be used as a key in a Map", getValueName(key.type));
+      return;
+   }
+   map->erase(key);
+}
+
+void builtinMapSet(const Command &command, Executor &executor) {
+   InternalPILMap *map;
+   if (!mapOrError(command, executor, "map-set", map)) return;
+   Value key = resolveVariable(executor, arg(executor, command, 1));
+   Value val = resolveVariable(executor, arg(executor, command, 2));
+   if (key.type == VALUE_ARRAY || key.type == VALUE_MAP) {
+      error(executor.diagnostics, command.file, command.line, "map-set: %s cannot be used as a key in a Map", getValueName(key.type));
+      return;
+   }
+   (*map)[key] = val;
+}
+
+void builtinMapAt(const Command &command, Executor &executor) {
+   InternalPILMap *map;
+   if (!mapOrError(command, executor, "map-at", map)) return;
+   Value key = resolveVariable(executor, arg(executor, command, 1));
+   if (key.type == VALUE_ARRAY || key.type == VALUE_MAP) {
+      error(executor.diagnostics, command.file, command.line, "map-at: %s cannot be used as a key in a Map", getValueName(key.type));
+      return;
+   }
+   Value val = NULL_VALUE;
+   if (auto it = map->find(key); it != map->end()) {
+      val = it->second;
+   }
+   storeInRegister(executor, command, val, "map-at");
+}
+
+void builtinMapContains(const Command &command, Executor &executor) {
+   InternalPILMap *map;
+   if (!mapOrError(command, executor, "map-contains", map)) return;
+   Value key = resolveVariable(executor, arg(executor, command, 1));
+   if (key.type == VALUE_ARRAY || key.type == VALUE_MAP) {
+      error(executor.diagnostics, command.file, command.line, "map-contains: %s cannot be used as a key in a Map", getValueName(key.type));
+      return;
+   }
+   storeBoolean(executor, command, map->find(key) != map->end(), "map-contains");
+}
+
+void builtinMapSize(const Command &command, Executor &executor) {
+   InternalPILMap *map;
+   if (!mapOrError(command, executor, "map-size", map)) return;
+   storeNumber(executor, command, map->size(), false, "map-size");
+}
+
+void builtinMapEmpty(const Command &command, Executor &executor) {
+   InternalPILMap *map;
+   if (!mapOrError(command, executor, "map-empty", map)) return;
+   storeBoolean(executor, command, map->empty(), "map-empty");
+}
+
+void builtinMapClear(const Command &command, Executor &executor) {
+   InternalPILMap *map;
+   if (!mapOrError(command, executor, "map-clear", map)) return;
+   map->clear();
+}
+
+void builtinMapKeys(const Command &command, Executor &executor) {
+   InternalPILMap *map;
+   if (!mapOrError(command, executor, "map-keys", map)) return;
+   std::vector<Value> keys;
+   keys.reserve(map->size());
+   for (auto &[key, _]: *map) keys.push_back(key);
+   storeArray(executor, command, keys, back(executor, command), "map-keys");
+}
+
+void builtinMapValues(const Command &command, Executor &executor) {
+   InternalPILMap *map;
+   if (!mapOrError(command, executor, "map-values", map)) return;
+   std::vector<Value> values;
+   values.reserve(map->size());
+   for (auto &[_, value]: *map) values.push_back(value);
+   storeArray(executor, command, values, back(executor, command), "map-values");
+}
+
+void builtinMapMerge(const Command &command, Executor &executor) {
+   InternalPILMap *map1, *map2;
+   if (!mapOrError(command, executor, "map-merge", map1) || !mapOrError(command, executor, "map-merge", map2, 1)) return;
+   InternalPILMap result {std::max(map1->size(), map2->size()), ValueHash{&executor}, ValueEqual{&executor}};
+   for (auto &[key, value]: *map1) result[key] = value;
+   for (auto &[key, value]: *map2) result[key] = value;
+   storeMap(executor, command, result, back(executor, command), "map-merge");
+}
+
 void builtinMapFree(const Command &command, Executor &executor) {
    for (size_t i = 0; i < command.argCount; ++i) {
       Value a = arg(executor, command, i);
@@ -74,7 +168,7 @@ void builtinMapGetMark(const Command &command, Executor &executor) {
    storeNumber(executor, command, it->second.mark, false, "map-get-mark");
 }
 
-void builtinMapFreeMark(const Command &command, Executor &executor) {
+void builtinMapFreeMarked(const Command &command, Executor &executor) {
    int mark = getNum(executor, command, 0, "map-free-marked");
    for (auto it = executor.maps.begin(); it != executor.maps.end();) {
       it = (it->second.mark == mark ? executor.maps.erase(it) : std::next(it));
