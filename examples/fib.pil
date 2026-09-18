@@ -51,4 +51,4 @@ fib-iterative-end:
 ; test here
 main()
    fib 30
-   printn R$0
+   println R$0

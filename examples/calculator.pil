@@ -7,7 +7,7 @@ input-number-error:
    print "Invalid input, try again."
 input-number-start:
    print msg
-   readline tmp
+   readln tmp
    to-float tmp, input
    string-free tmp
    is-null input, tmp
@@ -21,8 +21,8 @@ calculate-result(n1, n2, op) let fn, tmp, result
    valtable op, fn, '+', add, '-', sub, '*', mul, '/', div, '%', mod, '^', pow
    is-null fn, tmp
    jmpn tmp, valid-op
-   printn "Invalid operator."
-   return 0.0
+   println "Invalid operator."
+   exit 0
 valid-op:
    func-call fn, n1, n2, result
    return result
@@ -32,6 +32,7 @@ main() let n1, n2, op
    call n1, input-number, "Input first number: "
    call n2, input-number, "Input second number: "
    print "Input operator (+,-,*,/,%,^): "
-   readchar op
+   readch op
+   println op ; readch does not print the character
    calculate-result n1, n2, op
-   printfn "{} {} {} = {}", n1, op, n2, R$0
+   printfln "{} {} {} = {}", n1, op, n2, R$0

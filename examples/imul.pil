@@ -26,7 +26,7 @@ imul-loop:
    eq c, 0, cond
    jmp cond, imul-end
    add sa, r, r
-   move-to-zero c
+   move-to-zero c ; step-towards/sign is now available in the standard library
    set R$0, c
    goto imul-loop
 imul-end:
@@ -35,10 +35,10 @@ imul-end:
 ; test here
 main()
    imul 9, 8
-   printn R$0
+   println R$0
    imul [-2], 4
-   printn R$0
+   println R$0
    imul [-4], [-5]
-   printn R$0
+   println R$0
    imul 4, [-2]
-   printn R$0
+   println R$0

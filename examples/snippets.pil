@@ -6,7 +6,7 @@ for-loop(i, n) let tmp
    jmp tmp, for-loop-end
 for-loop-start:
    ; your code here vvv
-   printn i
+   println i
    ; your code here ^^^
    incr i
    le i, n, tmp
@@ -18,7 +18,7 @@ for-loop-reverse(i, n) let tmp
    jmp tmp, for-loop-reverse-end
 for-loop-reverse-start:
    ; your code here vvv
-   printn i
+   println i
    ; your code here ^^^
    decr i
    gr i, n, tmp
@@ -33,7 +33,7 @@ while-loop() let tmp, i
    jmp tmp, while-loop-end
 while-loop-start:
    ; your code here vvv
-   printn i
+   println i
    incr i
    ; your code here ^^^
    greq i, 5, tmp ; write your own condition

@@ -12,7 +12,7 @@ main() let code, memory, pc, i, ch, tmp, depth, size
    greq i, size, tmp
    jmp tmp, BRAINFUCK-END
 BRAINFUCK-START:
-   string-idx code, i, ch
+   string-at code, i, ch
    jmptable ch, '>', BRAINFUCK-RIGHT, '<', BRAINFUCK-LEFT, '-', BRAINFUCK-MINUS, '+', BRAINFUCK-PLUS, '.', BRAINFUCK-WRITE, ',', BRAINFUCK-READ, '[', BRAINFUCK-LOOP-START, ']', BRAINFUCK-LOOP-END, BRAINFUCK-HANDLE-LOOP
 BRAINFUCK-RIGHT:
    incr pc
@@ -23,17 +23,17 @@ BRAINFUCK-LEFT:
    floor-mod pc, memsize, pc
    goto BRAINFUCK-HANDLE-LOOP
 BRAINFUCK-MINUS:
-   array-idx memory, pc, tmp
+   array-at memory, pc, tmp
    decr tmp
    array-set memory, pc, tmp
    goto BRAINFUCK-HANDLE-LOOP
 BRAINFUCK-PLUS:
-   array-idx memory, pc, tmp
+   array-at memory, pc, tmp
    incr tmp
    array-set memory, pc, tmp
    goto BRAINFUCK-HANDLE-LOOP
 BRAINFUCK-WRITE:
-   array-idx memory, pc, tmp
+   array-at memory, pc, tmp
    to-char tmp, tmp
    print tmp
    goto BRAINFUCK-HANDLE-LOOP
@@ -43,7 +43,7 @@ BRAINFUCK-READ:
    array-set memory, pc, tmp
    goto BRAINFUCK-HANDLE-LOOP
 BRAINFUCK-LOOP-START:
-   array-idx memory, pc, tmp
+   array-at memory, pc, tmp
    jmp tmp, BRAINFUCK-HANDLE-LOOP
 
    set 1, depth
@@ -51,7 +51,7 @@ BRAINFUCK-LOOP-START:
    greq i, size, tmp
    jmp tmp, BRAINFUCK-HANDLE-LOOP
 BRAINFUCK-LOOP-START-BEGIN:
-   string-idx code, i, ch
+   string-at code, i, ch
    eq ch, '[', tmp
    add depth, tmp, depth
    eq ch, ']', tmp
@@ -63,7 +63,7 @@ BRAINFUCK-LOOP-START-BEGIN:
    jmp tmp, BRAINFUCK-LOOP-START-BEGIN
    goto BRAINFUCK-HANDLE-LOOP
 BRAINFUCK-LOOP-END:
-   array-idx memory, pc, tmp
+   array-at memory, pc, tmp
    jmpn tmp, BRAINFUCK-HANDLE-LOOP
 
    set 1, depth
@@ -71,7 +71,7 @@ BRAINFUCK-LOOP-END:
    le i, 0, tmp
    jmp tmp, BRAINFUCK-HANDLE-LOOP
 BRAINFUCK-LOOP-END-BEGIN:
-   string-idx code, i, ch
+   string-at code, i, ch
    eq ch, '[', tmp
    sub depth, tmp, depth
    eq ch, ']', tmp

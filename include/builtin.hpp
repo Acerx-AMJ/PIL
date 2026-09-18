@@ -245,7 +245,7 @@ void builtinSet(const Command &command, Executor &executor);
 void builtinValTable(const Command &command, Executor &executor);
 void builtinTableContains(const Command &command, Executor &executor);
 void builtinVariadicSize(const Command &command, Executor &executor);
-void builtinVariadicIdx(const Command &command, Executor &executor);
+void builtinVariadicAt(const Command &command, Executor &executor);
 void builtinRegSize(const Command &command, Executor &executor);
 void builtinRegIdx(const Command &command, Executor &executor);
 void builtinRegSet(const Command &command, Executor &executor);
@@ -504,7 +504,7 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"valtable", builtinValTable, 4, VARIADIC},
    {"table-contains", builtinTableContains, 3, VARIADIC},
    {"variadic-size", builtinVariadicSize, 1},
-   {"variadic-idx", builtinVariadicIdx, 2},
+   {"variadic-at", builtinVariadicAt, 2},
    {"reg-size", builtinRegSize, 1},
    {"reg-idx", builtinRegIdx, 2},
    {"reg-set", builtinRegSet, 2},

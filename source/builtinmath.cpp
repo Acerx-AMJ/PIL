@@ -64,14 +64,14 @@ void builtinMod(const Command &command, Executor &executor) {
    bool floating = false;
    double a = getNum(executor, command, 0, "mod", &floating);
    double b = getNum(executor, command, 1, "mod", &floating);
-   storeNumber(executor, command, fmod(a, b), floating, "mod");
+   storeNumber(executor, command, (b == 0.0 ? 0.0 : fmod(a, b)), floating, "mod");
 }
 
 void builtinFloorMod(const Command &command, Executor &executor) {
    bool floating = false;
    double a = getNum(executor, command, 0, "floor-mod", &floating);
    double b = getNum(executor, command, 1, "floor-mod", &floating);
-   storeNumber(executor, command, fmod(fmod(a, b) + b, b), floating, "floor-mod");
+   storeNumber(executor, command, (b == 0.0 ? 0.0 : fmod(fmod(a, b) + b, b)), floating, "floor-mod");
 }
 
 void builtinPow(const Command &command, Executor &executor) {

@@ -26,5 +26,5 @@ factorial-iterative-end:
 
 ; test here
 main()
-   factorial 20.0
-   printn R$0
+   factorial 5.0
+   println R$0

@@ -490,14 +490,14 @@ void builtinVariadicSize(const Command &command, Executor &executor) {
    storeNumber(executor, command, executor.stackTrace.top().variadicCount, false, "variadic-size");
 }
 
-void builtinVariadicIdx(const Command &command, Executor &executor) {
-   size_t id = getNum(executor, command, 0, "vararg-idx");
+void builtinVariadicAt(const Command &command, Executor &executor) {
+   size_t id = getNum(executor, command, 0, "variadic-at");
    Trace &trace = executor.stackTrace.top();
    if (id < 0 || id >= trace.variadicCount) {
-      error(executor.diagnostics, command.file, command.line, "vararg-idx: Index %zu is out of bounds", id);
+      error(executor.diagnostics, command.file, command.line, "variadic-at: Index %zu is out of bounds", id);
       return;
    }
-   storeInRegister(executor, command, executor.locals[trace.localStart + trace.localCount + id], "vararg-idx");
+   storeInRegister(executor, command, executor.locals[trace.localStart + trace.localCount + id], "variadic-at");
 }
 
 void builtinRegSize(const Command &command, Executor &executor) {
