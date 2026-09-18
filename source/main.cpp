@@ -8,8 +8,22 @@ int main(int argc, char *argv[]) {
    bool debug = false;
    bool debugLexer = false;
    
-   if (argc == 3 && strcmp(argv[1], "run") == 0) {
-      std::filesystem::path path (argv[2]);
+   for (int i = 1; i < argc; ++i) {
+      if (strcmp(argv[i], "--debug") == 0) {
+         debug = true;
+      }
+      else if (strcmp(argv[i], "--debug-lexer") == 0) {
+         debugLexer = true;
+      }
+      else {
+         argv = &argv[i];
+         argc -= i;
+         break;
+      }
+   }
+
+   if (argc == 2 && strcmp(argv[0], "run") == 0) {
+      std::filesystem::path path (argv[1]);
       if (path.has_extension() && path.extension() == ".pil") {
          Executor executor;
          std::vector<Token> tokens;
@@ -72,9 +86,9 @@ int main(int argc, char *argv[]) {
          exit(EXIT_FAILURE);
       }
    }
-   else if (argc == 4 && strcmp(argv[1], "compile") == 0) {
-      std::filesystem::path in (argv[2]);
-      std::filesystem::path out (argv[3]);
+   else if (argc == 3 && strcmp(argv[0], "compile") == 0) {
+      std::filesystem::path in (argv[1]);
+      std::filesystem::path out (argv[2]);
       if (!in.has_extension() || in.extension() != ".pil" || !out.has_extension() || out.extension() != ".pilo") {
          printf("PIL::compile: Expected second argument to be a '.pil' file and the third to have the '.pilo' extension.\n");
          printHelp();
