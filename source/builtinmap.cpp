@@ -175,6 +175,35 @@ void builtinMapFreeMarked(const Command &command, Executor &executor) {
    }
 }
 
+void builtinMapGetMarkedCount(const Command &command, Executor &executor) {
+   size_t count = 0;
+   int mark = getNum(executor, command, 0, "map-get-marked-count");
+   for (auto &[_, map]: executor.maps) count += (map.mark == mark);
+   storeNumber(executor, command, count, false, "map-get-marked-count");
+}
+
+void builtinMapGetMarked(const Command &command, Executor &executor) {
+   std::vector<Value> maps;
+   int mark = getNum(executor, command, 0, "map-get-marked");
+   for (auto &[id, map]: executor.maps) {
+      if (mark == map.mark) {
+         maps.push_back(Value{.type = VALUE_MAP, .map = id});
+      }
+   }
+   storeArray(executor, command, maps, back(executor, command), "map-get-marked");
+}
+
+void builtinMapAnyMarked(const Command &command, Executor &executor) {
+   int mark = getNum(executor, command, 0, "map-any-marked");
+   for (auto &[_, map]: executor.maps) {
+      if (mark == map.mark) {
+         storeBoolean(executor, command, true, "map-any-marked");
+         return;
+      }
+   }
+   storeBoolean(executor, command, false, "map-any-marked");
+}
+
 void builtinMapShallowCopy(const Command &command, Executor &executor) {
    InternalPILMap *map;
    if (!mapOrError(command, executor, "map-shallow-copy", map)) return;

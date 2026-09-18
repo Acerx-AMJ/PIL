@@ -81,15 +81,15 @@ void builtinArraySet(const Command &command, Executor &executor) {
    (*array)[id] = resolveVariable(executor, arg(executor, command, 2));
 }
 
-void builtinArrayIdx(const Command &command, Executor &executor) {
+void builtinArrayAt(const Command &command, Executor &executor) {
    std::vector<Value> *array;
-   if (!arrayOrError(command, executor, "array-idx", array)) return;
-   size_t id = getNum(executor, command, 1, "array-idx");
+   if (!arrayOrError(command, executor, "array-at", array)) return;
+   size_t id = getNum(executor, command, 1, "array-at");
    if (id < 0 || id >= array->size()) {
-      error(executor.diagnostics, command.file, command.line, "array-idx: Index %zu is out of bounds", id);
+      error(executor.diagnostics, command.file, command.line, "array-at: Index %zu is out of bounds", id);
       return;
    }
-   storeInRegister(executor, command, (*array)[id], "array-idx");
+   storeInRegister(executor, command, (*array)[id], "array-at");
 }
 
 void builtinArrayBack(const Command &command, Executor &executor) {
@@ -210,6 +210,35 @@ void builtinArrayFreeMarked(const Command &command, Executor &executor) {
    for (auto it = executor.arrays.begin(); it != executor.arrays.end();) {
       it = (it->second.mark == mark ? executor.arrays.erase(it) : std::next(it));
    }
+}
+
+void builtinArrayGetMarkedCount(const Command &command, Executor &executor) {
+   size_t count = 0;
+   int mark = getNum(executor, command, 0, "array-get-marked-count");
+   for (auto &[_, array]: executor.arrays) count += (array.mark == mark);
+   storeNumber(executor, command, count, false, "array-get-marked-count");
+}
+
+void builtinArrayGetMarked(const Command &command, Executor &executor) {
+   std::vector<Value> arrays;
+   int mark = getNum(executor, command, 0, "array-get-marked");
+   for (auto &[id, array]: executor.arrays) {
+      if (mark == array.mark) {
+         arrays.push_back(Value{.type = VALUE_ARRAY, .array = id});
+      }
+   }
+   storeArray(executor, command, arrays, back(executor, command), "array-get-marked");
+}
+
+void builtinArrayAnyMarked(const Command &command, Executor &executor) {
+   int mark = getNum(executor, command, 0, "array-any-marked");
+   for (auto &[_, array]: executor.arrays) {
+      if (mark == array.mark) {
+         storeBoolean(executor, command, true, "array-any-marked");
+         return;
+      }
+   }
+   storeBoolean(executor, command, false, "array-any-marked");
 }
 
 void builtinArrayJoin(const Command &command, Executor &executor) {

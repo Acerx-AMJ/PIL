@@ -39,7 +39,7 @@ void builtinStringNew(const Command &command, Executor &executor) {
    storeString(executor, command, result, arg(executor, command, 0), "string-new");
 }
 
-void builtinStringFmt(const Command &command, Executor &executor) {
+void builtinStringFormat(const Command &command, Executor &executor) {
    storeString(executor, command, format(command, executor, "string-fmt", 1), arg(executor, command, 0), "string-fmt");
 }
 
@@ -108,17 +108,17 @@ void builtinStringSet(const Command &command, Executor &executor) {
    (*string)[id] = getChar(command, executor, "string-set", 2);
 }
 
-void builtinStringIdx(const Command &command, Executor &executor) {
+void builtinStringAt(const Command &command, Executor &executor) {
    std::string *string;
-   if (!stringOrError(command, executor, "string-idx", string)) return;
-   size_t id = getNum(executor, command, 1, "string-idx");
+   if (!stringOrError(command, executor, "string-at", string)) return;
+   size_t id = getNum(executor, command, 1, "string-at");
    if (id < 0 || id >= string->size()) {
-      error(executor.diagnostics, command.file, command.line, "string-idx: Index %zu is out of bounds", id);
+      error(executor.diagnostics, command.file, command.line, "string-at: Index %zu is out of bounds", id);
       return;
    }
    Value value {VALUE_CHARACTER};
    value.character = (*string)[id];
-   storeInRegister(executor, command, value, "string-idx");
+   storeInRegister(executor, command, value, "string-at");
 }
 
 void builtinStringBack(const Command &command, Executor &executor) {
@@ -229,6 +229,35 @@ void builtinStringFreeMarked(const Command &command, Executor &executor) {
    for (auto it = executor.strings.begin(); it != executor.strings.end();) {
       it = (it->second.mark == mark ? executor.strings.erase(it) : std::next(it));
    }
+}
+
+void builtinStringGetMarkedCount(const Command &command, Executor &executor) {
+   size_t count = 0;
+   int mark = getNum(executor, command, 0, "string-get-marked-count");
+   for (auto &[_, string]: executor.strings) count += (string.mark == mark);
+   storeNumber(executor, command, count, false, "string-get-marked-count");
+}
+
+void builtinStringGetMarked(const Command &command, Executor &executor) {
+   std::vector<Value> strings;
+   int mark = getNum(executor, command, 0, "string-get-marked");
+   for (auto &[id, string]: executor.strings) {
+      if (mark == string.mark) {
+         strings.push_back(Value{.type = VALUE_STRING, .string = id});
+      }
+   }
+   storeArray(executor, command, strings, back(executor, command), "string-get-marked");
+}
+
+void builtinStringAnyMarked(const Command &command, Executor &executor) {
+   int mark = getNum(executor, command, 0, "string-any-marked");
+   for (auto &[_, string]: executor.strings) {
+      if (mark == string.mark) {
+         storeBoolean(executor, command, true, "string-any-marked");
+         return;
+      }
+   }
+   storeBoolean(executor, command, false, "string-any-marked");
 }
 
 void builtinStringSplit(const Command &command, Executor &executor) {

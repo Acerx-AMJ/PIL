@@ -3,7 +3,7 @@
 
 // string ops
 void builtinStringNew(const Command &command, Executor &executor);
-void builtinStringFmt(const Command &command, Executor &executor);
+void builtinStringFormat(const Command &command, Executor &executor);
 void builtinStringRepeat(const Command &command, Executor &executor);
 void builtinStringClear(const Command &command, Executor &executor);
 void builtinStringMemFree(const Command &command, Executor &executor);
@@ -13,7 +13,7 @@ void builtinStringCapacity(const Command &command, Executor &executor);
 void builtinStringReserve(const Command &command, Executor &executor);
 void builtinStringResize(const Command &command, Executor &executor);
 void builtinStringSet(const Command &command, Executor &executor);
-void builtinStringIdx(const Command &command, Executor &executor);
+void builtinStringAt(const Command &command, Executor &executor);
 void builtinStringBack(const Command &command, Executor &executor);
 void builtinStringFront(const Command &command, Executor &executor);
 void builtinStringPush(const Command &command, Executor &executor);
@@ -24,6 +24,9 @@ void builtinStringFree(const Command &command, Executor &executor);
 void builtinStringMark(const Command &command, Executor &executor);
 void builtinStringGetMark(const Command &command, Executor &executor);
 void builtinStringFreeMarked(const Command &command, Executor &executor);
+void builtinStringGetMarkedCount(const Command &command, Executor &executor);
+void builtinStringGetMarked(const Command &command, Executor &executor);
+void builtinStringAnyMarked(const Command &command, Executor &executor);
 void builtinStringSplit(const Command &command, Executor &executor);
 void builtinStringConcat(const Command &command, Executor &executor);
 void builtinStringSubstr(const Command &command, Executor &executor);
@@ -58,7 +61,7 @@ void builtinArrayCapacity(const Command &command, Executor &executor);
 void builtinArrayReserve(const Command &command, Executor &executor);
 void builtinArrayResize(const Command &command, Executor &executor);
 void builtinArraySet(const Command &command, Executor &executor);
-void builtinArrayIdx(const Command &command, Executor &executor);
+void builtinArrayAt(const Command &command, Executor &executor);
 void builtinArrayBack(const Command &command, Executor &executor);
 void builtinArrayFront(const Command &command, Executor &executor);
 void builtinArrayPush(const Command &command, Executor &executor);
@@ -70,6 +73,9 @@ void builtinArrayDeepFree(const Command &command, Executor &executor);
 void builtinArrayMark(const Command &command, Executor &executor);
 void builtinArrayGetMark(const Command &command, Executor &executor);
 void builtinArrayFreeMarked(const Command &command, Executor &executor);
+void builtinArrayGetMarkedCount(const Command &command, Executor &executor);
+void builtinArrayGetMarked(const Command &command, Executor &executor);
+void builtinArrayAnyMarked(const Command &command, Executor &executor);
 void builtinArrayJoin(const Command &command, Executor &executor);
 void builtinArrayConcat(const Command &command, Executor &executor);
 void builtinArraySlice(const Command &command, Executor &executor);
@@ -100,6 +106,9 @@ void builtinMapDeepFree(const Command &command, Executor &executor);
 void builtinMapMark(const Command &command, Executor &executor);
 void builtinMapGetMark(const Command &command, Executor &executor);
 void builtinMapFreeMarked(const Command &command, Executor &executor);
+void builtinMapGetMarkedCount(const Command &command, Executor &executor);
+void builtinMapGetMarked(const Command &command, Executor &executor);
+void builtinMapAnyMarked(const Command &command, Executor &executor);
 void builtinMapShallowCopy(const Command &command, Executor &executor);
 void builtinMapDeepCopy(const Command &command, Executor &executor);
 
@@ -262,7 +271,7 @@ constexpr bool RESERVED = true;
 constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    // string ops
    {"string-new", builtinStringNew, 1, VARIADIC},
-   {"string-fmt", builtinStringFmt, 2, VARIADIC},
+   {"string-format", builtinStringFormat, 2, VARIADIC},
    {"string-repeat", builtinStringRepeat, 3},
    {"string-clear", builtinStringClear, 1},
    {"string-memfree", builtinStringMemFree, 1},
@@ -272,7 +281,7 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"string-reserve", builtinStringReserve, 2},
    {"string-resize", builtinStringResize, 3},
    {"string-set", builtinStringSet, 3},
-   {"string-idx", builtinStringIdx, 3},
+   {"string-at", builtinStringAt, 3},
    {"string-back", builtinStringBack, 2},
    {"string-front", builtinStringFront, 2},
    {"string-push", builtinStringPush, 2},
@@ -317,7 +326,7 @@ constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    {"array-reserve", builtinArrayReserve, 2},
    {"array-resize", builtinArrayResize, 3},
    {"array-set", builtinArraySet, 3},
-   {"array-idx", builtinArrayIdx, 3},
+   {"array-at", builtinArrayAt, 3},
    {"array-back", builtinArrayBack, 2},
    {"array-front", builtinArrayFront, 2},
    {"array-push", builtinArrayPush, 2},
