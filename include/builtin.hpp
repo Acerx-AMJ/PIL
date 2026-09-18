@@ -266,8 +266,14 @@ struct BuiltinDef {
    bool reserved = false;
 };
 
+template <typename T, size_t N>
+constexpr size_t arraySize(T (&)[N]) {
+   return N;
+}
+
 constexpr bool VARIADIC = true;
 constexpr bool RESERVED = true;
+
 constexpr BuiltinDef BUILTIN_DEFINITIONS[] = {
    // string ops
    {"string-new", builtinStringNew, 1, VARIADIC},

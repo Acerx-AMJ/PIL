@@ -1,3 +1,4 @@
+#include "cache.hpp"
 #include "pil.hpp"
 #include <cstdarg>
 
@@ -68,17 +69,17 @@ void errorIfSevereEnough(ErrorSeverity severity, ErrorSeverity quitSeverity) {
    }
 }
 
-void log(LexemeCache &cache, Diagnostics &diagnostics, ErrorSeverity quitSeverity) {
-   for (Diagnostic &diagnostic: diagnostics.diagnostics) {
-      printDiagnostic(cache, diagnostic);
+void log(Executor &executor, ErrorSeverity quitSeverity) {
+   for (Diagnostic &diagnostic: executor.diagnostics.diagnostics) {
+      printDiagnostic(executor.cache, diagnostic);
    }
-   errorIfSevereEnough(diagnostics.severity, quitSeverity);
-   clear(diagnostics);
+   errorIfSevereEnough(executor.diagnostics.severity, quitSeverity);
+   clear(executor.diagnostics);
 }
 
 void logStackTrace(Executor &executor, ErrorSeverity quitSeverity) {
    ErrorSeverity severity = executor.diagnostics.severity;
-   log(executor.cache, executor.diagnostics, SEVERITY_IGNORE);
+   log(executor, SEVERITY_IGNORE);
 
    if (!executor.stackTrace.empty()) {
       printf("%s (newest first):\n", STACKTRACE_INFO);

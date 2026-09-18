@@ -132,7 +132,7 @@ void builtinFunccall(const Command &command, Executor &executor) {
       return;
    }
    Function &function = executor.functions[f.function];
-   size_t params = function.params.size();
+   size_t params = function.paramCount;
    size_t args = command.argCount - 1;
    bool variadic = function.variadic;
 
@@ -184,7 +184,7 @@ void builtinCatch(const Command &command, Executor &executor) {
       return;
    }
    Function &function = executor.functions[f.function];
-   size_t params = function.params.size();
+   size_t params = function.paramCount;
    size_t args = command.argCount - 2;
    bool variadic = function.variadic;
 
@@ -558,7 +558,7 @@ void builtinFuncArity(const Command &command, Executor &executor) {
       error(executor.diagnostics, command.file, command.line, "func-arity: Expected function to call for the 1st argument, got %s instead", getValueName(f.type));
       return;
    }
-   storeNumber(executor, command, executor.functions[f.function].params.size(), false, "func-arity");
+   storeNumber(executor, command, executor.functions[f.function].paramCount, false, "func-arity");
 }
 
 void builtinFuncVariadic(const Command &command, Executor &executor) {
@@ -578,6 +578,6 @@ void builtinFuncArgMatch(const Command &command, Executor &executor) {
    }
    Function &func = executor.functions[f.function];
    size_t args = getNum(executor, command, 1, "func-arg-match");
-   size_t params = func.params.size();
+   size_t params = func.paramCount;
    storeBoolean(executor, command, (!func.variadic && args == params) || (func.variadic && args >= params), "func-arg-match");
 }

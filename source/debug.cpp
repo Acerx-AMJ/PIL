@@ -11,14 +11,16 @@ float measureEnd() {
    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - point).count() / 1000.0f;
 }
 
-void debugTokens(LexemeCache &cache, const std::vector<Token> &tokens) {
+void debugTokens(bool debug, LexemeCache &cache, const std::vector<Token> &tokens) {
+   if (!debug) return;
    printf("Tokens:\n");
    for (const Token &token: tokens) {
       printf("%s:%-5zu %s: '%s'.\n", getLexeme(cache, token.file).c_str(), token.line, getTokenName(token.type), getLexeme(cache, token.lexeme).c_str());
    }
 }
 
-void debugBytecode(Executor &executor) {
+void debugBytecode(bool debug, Executor &executor) {
+   if (!debug) return;
    printf("\nBytecode:\n");
    for (Command &command: executor.code) {
       printf("%s:%-5zu %s: ", getLexeme(executor.cache, command.file).c_str(), command.line, getLexeme(executor.cache, command.lexeme).c_str());
@@ -29,10 +31,27 @@ void debugBytecode(Executor &executor) {
    }
 }
 
-void debugExecutionTime(float file, float lexer, float translator, float parser, float runtime) {
+void debugExecutionTime(bool debug, float file, float lexer, float translator, float parser, float runtime) {
+   if (!debug) return;
    printf("\nExecution time:\n");
    printf("File Read: %.3fms.\n", file + translator);
    printf("Lexer: %.3fms.\n", lexer);
    printf("Parser: %.3fms.\n", parser);
+   printf("Runtime: %.3fms.\n", runtime);
+}
+
+void debugCompilationTime(bool debug, float file, float lexer, float translator, float parser, float writing) {
+   if (!debug) return;
+   printf("\nCompilation time:\n");
+   printf("File Read: %.3fms.\n", file + translator);
+   printf("Lexer: %.3fms.\n", lexer);
+   printf("Parser: %.3fms.\n", parser);
+   printf("Writing: %.3fms.\n", writing);
+}
+
+void debugCacheExecutionTime(bool debug, float file, float runtime) {
+   if (!debug) return;
+   printf("\nExecution time:\n");
+   printf("File Read: %.3fms.\n", file);
    printf("Runtime: %.3fms.\n", runtime);
 }

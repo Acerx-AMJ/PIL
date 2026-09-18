@@ -1,4 +1,5 @@
 #pragma once
+#include "cache.hpp"
 #include "error.hpp"
 #include "tokens.hpp"
 #include "values.hpp"
@@ -8,6 +9,8 @@
 constexpr size_t DEFAULT_REGISTER_COUNT = 16;
 constexpr size_t DEFAULT_RETURN_REGISTER_COUNT = 4;
 constexpr size_t DEFAULT_LOCAL_RESERVE = 64;
+
+constexpr size_t FILE_VERSION = 1;
 
 // PIL parser
 struct PILFile {
@@ -28,6 +31,7 @@ struct Trace {
 };
 
 struct Command {
+   Command() = default;
    Command(size_t lexeme, size_t file, size_t line, size_t argStart, size_t argCount, size_t functionId)
       : lexeme(lexeme), file(file), line(line), argStart(argStart), argCount(argCount), callee(std::string::npos), functionId(functionId) {}
 
@@ -67,26 +71,23 @@ struct PILMap {
 };
 
 struct Executor {
-   Executor(Diagnostics &diagnostics, LexemeCache &cache)
-      : diagnostics(diagnostics), cache(cache) {}
+   Diagnostics diagnostics;
+   LexemeCache cache;
 
-   Diagnostics &diagnostics;
-   LexemeCache &cache;
-
+   std::vector<Value> locals;
    std::vector<Value> registers;
    std::vector<Value> returnRegisters;
    std::stack<Trace, std::vector<Trace>> stackTrace;
 
-   std::unordered_map<size_t, Value> constants;
    std::unordered_map<size_t, PILString> strings;
    std::unordered_map<size_t, PILArray> arrays;
    std::unordered_map<size_t, PILMap> maps;
 
    std::vector<Function> functions;
-   std::vector<Value> locals;
    std::vector<Value> arguments;
    std::vector<Command> code;
 
+   size_t main;
    size_t pointer;
    size_t returnCount;
    bool exitCalled;
@@ -96,15 +97,17 @@ void readPIL(Diagnostics &diagnostics, LexemeCache &cache, const std::string &pa
 void lexPILFile(Diagnostics &diagnostics, LexemeCache &cache, PILFile &file, std::vector<Token> &tokens);
 void translatePIL(Executor &executor, PILFile &file, std::vector<Token> &tokens);
 
-void pushBuiltin(Executor &executor, const struct BuiltinDef &def);
-Value parseToken(Executor &executor, Token token, const std::unordered_map<size_t, size_t> &functionParamMap);
+Value parseToken(Executor &executor, Token token, const std::unordered_map<size_t, size_t> &functionParamMap, const std::unordered_map<size_t, Value> &constants);
 void parsePIL(Executor &executor, std::vector<Token> &tokens);
 
 void call(Executor &executor, const Command &command, Function &function, size_t functionPos, size_t returnCount, size_t argCount);
-void callPILFunction(Executor &executor, const std::string &name, ErrorSeverity stopSeverity);
+void callMain(Executor &executor, ErrorSeverity stopSeverity);
+
+void writeToFile(Executor &executor, const std::string &out);
+void readCachedBytecode(Executor &executor, const std::string &in);
 
 // mathematical expression evaluator
-Value evaluateMath(Executor &executor, std::vector<Token> &tokens, size_t &i);
+Value evaluateMath(Executor &executor, std::vector<Token> &tokens, size_t &i, const std::unordered_map<size_t, Value> &constants);
 
 // allocation
 std::string &getString(Executor &executor, size_t ID, size_t file, size_t line);
@@ -118,6 +121,8 @@ size_t allocateMap(Executor &executor, const InternalPILMap &map);
 void measure();
 float measureEnd();
 
-void debugTokens(LexemeCache &cache, const std::vector<Token> &tokens);
-void debugBytecode(Executor &executor);
-void debugExecutionTime(float file, float lexer, float translator, float parser, float runtime);
+void debugTokens(bool debug, LexemeCache &cache, const std::vector<Token> &tokens);
+void debugBytecode(bool debug, Executor &executor);
+void debugExecutionTime(bool debug, float file, float lexer, float translator, float parser, float runtime);
+void debugCompilationTime(bool debug, float file, float lexer, float translator, float parser, float writing);
+void debugCacheExecutionTime(bool debug, float file, float runtime);

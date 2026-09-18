@@ -1,5 +1,5 @@
 #pragma once
-#include <vector>
+#include <cstddef>
 
 enum ValueType: char {
    VALUE_INTEGER, VALUE_FLOATING, VALUE_CHARACTER, VALUE_CSTRING, VALUE_STRING, VALUE_FUNCTION, VALUE_LABEL,
@@ -41,12 +41,11 @@ typedef void (*NativeFunction)(const struct Command&, struct Executor&);
 
 struct Function {
    bool native = false;
-   bool init = false;
    bool variadic = false;
    bool isLabel = false;
    size_t position;
    size_t lexeme;
    size_t localCount;
-   NativeFunction nativeFunction;
-   std::vector<size_t> params;
+   size_t nativeFn;
+   size_t paramCount;
 };

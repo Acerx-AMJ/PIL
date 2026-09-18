@@ -1,5 +1,5 @@
 #pragma once
-#include "cache.hpp"
+#include <vector>
 
 enum ErrorSeverity: char {
    SEVERITY_NONE, SEVERITY_WARNING, SEVERITY_ERROR, SEVERITY_IGNORE
@@ -29,7 +29,7 @@ void warn(Diagnostics &diagnostics, size_t file, size_t line, const char *msg, .
 void error(Diagnostics &diagnostics, size_t file, size_t line, const char *msg, ...);
 void clear(Diagnostics &diagnostics);
 
-void log(LexemeCache &cache, Diagnostics &diagnostics, ErrorSeverity quitSeverity);
+void log(Executor &executor, ErrorSeverity quitSeverity);
 void logStackTrace(Executor &executor, ErrorSeverity quitSeverity);
 void logMemoryLeaks(Executor &executor);
 void logDiagnostic(LexemeCache &cache, Diagnostic &diagnostic, ErrorSeverity quitSeverity);
