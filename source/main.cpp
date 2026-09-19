@@ -5,11 +5,15 @@
 void printHelp();
 
 int main(int argc, char *argv[]) {
+   bool time = false;
    bool debug = false;
    bool debugLexer = false;
    
    for (int i = 1; i < argc; ++i) {
-      if (strcmp(argv[i], "--debug") == 0) {
+      if (strcmp(argv[i], "--time") == 0) {
+         time = true;
+      }
+      else if (strcmp(argv[i], "--debug-code") == 0) {
          debug = true;
       }
       else if (strcmp(argv[i], "--debug-lexer") == 0) {
@@ -63,7 +67,7 @@ int main(int argc, char *argv[]) {
 
          logStackTrace(executor, SEVERITY_ERROR);
          logMemoryLeaks(executor);
-         debugExecutionTime(debug, readTime, lexTime, translatorTime, parseTime, runtime);
+         debugExecutionTime(time, readTime, lexTime, translatorTime, parseTime, runtime);
       }
       else if (path.has_extension() && path.extension() == ".pilo") {
          Executor executor;
@@ -78,7 +82,7 @@ int main(int argc, char *argv[]) {
 
          logStackTrace(executor, SEVERITY_ERROR);
          logMemoryLeaks(executor);
-         debugCacheExecutionTime(debug, readTime, runtime);
+         debugCacheExecutionTime(time, readTime, runtime);
       }
       else {
          printf("PIL::run: Expected second argument to be either a '.pil' or .'pilo' file.\n");
@@ -133,7 +137,7 @@ int main(int argc, char *argv[]) {
 
       log(executor, SEVERITY_ERROR);
       printf("Wrote %zuB to '%s'.\n", std::filesystem::file_size(out), out.string().c_str());
-      debugCompilationTime(debug, readTime, lexTime, translatorTime, parseTime, writeTime);
+      debugCompilationTime(time, readTime, lexTime, translatorTime, parseTime, writeTime);
    }
    else {
       printHelp();
@@ -148,7 +152,8 @@ void printHelp() {
       "\trun      [FILE/EXECUTABLE] run a file/executable\n"
       "\tcompile  [FILE] [OUTPUT]   compile a file into output\n"
       "Flags:\n"
-      "\t--debug         output bytecode and compile/runtime time\n"
+      "\t--debug-code    output bytecode and compile/runtime time\n"
       "\t--debug-tokens  output tokens after translation\n"
+      "\t--time          show time of each compiler's operation\n"
    );
 }

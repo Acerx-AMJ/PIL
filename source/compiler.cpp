@@ -1,7 +1,9 @@
 #include "pil.hpp"
 #include <fstream>
 
-// cache bytecode
+typedef unsigned short file_string_size_t;
+
+// write cache bytecode
 void writeToFile(Executor &executor, const std::string &out) {
    std::ofstream file (out, std::ios::binary);
    if (!file.is_open()) {
@@ -20,19 +22,9 @@ void writeToFile(Executor &executor, const std::string &out) {
    file.write(reinterpret_cast<const char*>(&lexemeCount), sizeof(lexemeCount));
 
    for (const std::string &lexeme: executor.cache.lexemes) {
-      size_t size = lexeme.size();
+      file_string_size_t size = lexeme.size();
       file.write(reinterpret_cast<const char*>(&size), sizeof(size));
       file.write(reinterpret_cast<const char*>(lexeme.data()), size);
-   }
-
-   size_t lexemeCacheCount = executor.cache.lexemeCache.size();
-   file.write(reinterpret_cast<const char*>(&lexemeCacheCount), sizeof(lexemeCacheCount));
-
-   for (const auto &[key, value]: executor.cache.lexemeCache) {
-      size_t size = key.size();
-      file.write(reinterpret_cast<const char*>(&size), sizeof(size));
-      file.write(reinterpret_cast<const char*>(key.data()), size);
-      file.write(reinterpret_cast<const char*>(&value), sizeof(value));
    }
 
    size_t functionCount = executor.functions.size();
@@ -48,7 +40,7 @@ void writeToFile(Executor &executor, const std::string &out) {
    file.write(reinterpret_cast<const char*>(executor.code.data()), sizeof(Command) * commandCount);
 }
 
-// execute cached bytecode
+// read cached bytecode
 void readCachedBytecode(Executor &executor, const std::string &in) {
    std::ifstream file (in, std::ios::binary);
    if (!file.is_open()) {
@@ -72,23 +64,10 @@ void readCachedBytecode(Executor &executor, const std::string &in) {
    executor.cache.lexemes.resize(lexemeCount);
 
    for (size_t i = 0; i < lexemeCount; ++i) {
-      size_t size;
+      file_string_size_t size;
       file.read(reinterpret_cast<char*>(&size), sizeof(size));
       executor.cache.lexemes[i].resize(size);
       file.read(reinterpret_cast<char*>(executor.cache.lexemes[i].data()), size);
-   }
-
-   size_t lexemeCacheCount;
-   file.read(reinterpret_cast<char*>(&lexemeCacheCount), sizeof(lexemeCacheCount));
-
-   for (size_t i = 0; i < lexemeCacheCount; ++i) {
-      size_t size, value;
-      file.read(reinterpret_cast<char*>(&size), sizeof(size));
-      std::string key;
-      key.resize(size);
-      file.read(reinterpret_cast<char*>(key.data()), size);
-      file.read(reinterpret_cast<char*>(&value), sizeof(value));
-      executor.cache.lexemeCache[key] = value;
    }
 
    size_t functionCount;
